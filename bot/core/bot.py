@@ -36,6 +36,7 @@ class DiscordBot(commands.Bot):
             logger.info(f"Loaded cog: {cog}")
 
         guild = discord.Object(id=self.config.guild_id)
+        self.tree.clear_commands(guild=guild)
         self.tree.copy_global_to(guild=guild)
         await self.tree.sync(guild=guild)
         logger.info(f"Slash commands synced to guild {self.config.guild_id}.")

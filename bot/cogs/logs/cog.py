@@ -34,7 +34,13 @@ class LogsCog(commands.Cog):
     async def on_message(self, message: discord.Message) -> None:
         if message.author.bot or message.guild is None:
             return
-        details = f"{message.channel.mention} — {message.author.mention} — {message.content[:200]!r}"
+        parts = []
+        if message.content:
+            parts.append(repr(message.content[:200]))
+        if message.attachments:
+            parts.append(", ".join(f"📎 {a.filename}" for a in message.attachments))
+        content_str = " + ".join(parts) if parts else "''"
+        details = f"{message.channel.mention} — {message.author.mention} — {content_str}"
         await self._send(make_embed(discord.Color.light_grey(), "Message Sent", details))
 
     @commands.Cog.listener()
@@ -53,7 +59,13 @@ class LogsCog(commands.Cog):
     async def on_message_delete(self, message: discord.Message) -> None:
         if message.author.bot or message.guild is None:
             return
-        details = f"{message.channel.mention} — {message.author.mention} — {message.content[:200]!r}"
+        parts = []
+        if message.content:
+            parts.append(repr(message.content[:200]))
+        if message.attachments:
+            parts.append(", ".join(f"📎 {a.filename}" for a in message.attachments))
+        content_str = " + ".join(parts) if parts else "''"
+        details = f"{message.channel.mention} — {message.author.mention} — {content_str}"
         await self._send(make_embed(discord.Color.orange(), "Message Deleted", details))
 
     @commands.Cog.listener()
