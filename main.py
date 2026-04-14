@@ -1,6 +1,7 @@
 from loguru import logger
-from bot.core.config import Config, ConfigError
+
 from bot.core.bot import DiscordBot
+from bot.core.config import Config, ConfigError
 
 
 def main() -> None:

@@ -1,5 +1,5 @@
-import os
 import pytest
+
 from bot.core.config import Config, ConfigError
 
 

@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import datetime
+
 import discord
 from discord import app_commands
 from discord.ext import commands
 from loguru import logger
 
+from bot.cogs.logs.cog import make_embed
 from bot.core.config import Config
 from bot.db.client import get_pool
-from bot.cogs.logs.cog import make_embed
 
 
 async def _log_action(

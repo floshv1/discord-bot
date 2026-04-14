@@ -6,7 +6,6 @@ from bot.core.config import Config
 from bot.db.client import create_pool, run_migrations
 from bot.db.models import load_migration
 
-
 COGS = [
     "bot.cogs.logs.cog",
     "bot.cogs.moderation.cog",

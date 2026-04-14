@@ -1,19 +1,19 @@
 from __future__ import annotations
 
 import datetime
+
 import discord
 from discord.ext import commands
 from loguru import logger
 
 from bot.core.config import Config
-from bot.db.client import get_pool
 
 
 def make_embed(color: discord.Color, title: str, details: str) -> discord.Embed:
     embed = discord.Embed(
         description=f"**{title}** — {details}",
         color=color,
-        timestamp=datetime.datetime.now(datetime.timezone.utc),
+        timestamp=datetime.datetime.now(datetime.UTC),
     )
     return embed
 

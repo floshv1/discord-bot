@@ -1,5 +1,5 @@
 import discord
-import pytest
+
 from bot.cogs.logs.cog import make_embed
 
 
