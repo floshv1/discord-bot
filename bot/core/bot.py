@@ -34,6 +34,9 @@ class DiscordBot(commands.Bot):
             await self.load_extension(cog)
             logger.info(f"Loaded cog: {cog}")
 
+        self.tree.clear_commands(guild=None)
+        await self.tree.sync()
+
         guild = discord.Object(id=self.config.guild_id)
         self.tree.clear_commands(guild=guild)
         self.tree.copy_global_to(guild=guild)
