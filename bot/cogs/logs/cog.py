@@ -168,7 +168,8 @@ class LogsCog(commands.Cog):
     # --- Invites ---
     @commands.Cog.listener()
     async def on_invite_create(self, invite: discord.Invite) -> None:
-        details = f"{invite.url} — by {invite.inviter.mention if invite.inviter else 'unknown'} — uses: {invite.max_uses or '∞'}"
+        inviter = invite.inviter.mention if invite.inviter else "unknown"
+        details = f"{invite.url} — by {inviter} — uses: {invite.max_uses or '∞'}"
         await self._send(make_embed(discord.Color.light_grey(), "Invite Created", details))
 
     @commands.Cog.listener()
@@ -183,7 +184,7 @@ class LogsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_thread_delete(self, thread: discord.Thread) -> None:
-        parent = thread.parent.mention if thread.parent else '#unknown'
+        parent = thread.parent.mention if thread.parent else "#unknown"
         await self._send(make_embed(discord.Color.teal(), "Thread Deleted", f"#{thread.name} in {parent}"))
 
     @commands.Cog.listener()

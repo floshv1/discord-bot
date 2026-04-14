@@ -17,7 +17,7 @@ class DiscordBot(commands.Bot):
         self.config = config
 
         intents = discord.Intents.default()
-        intents.members = True          # privileged — enable in Dev Portal
+        intents.members = True  # privileged — enable in Dev Portal
         intents.message_content = True  # privileged — enable in Dev Portal
         intents.voice_states = True
         intents.invites = True

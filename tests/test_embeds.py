@@ -4,8 +4,8 @@ from bot.cogs.logs.cog import make_embed
 
 
 def test_embed_has_description():
-    embed = make_embed(discord.Color.orange(), "Message Deleted", "#general — @user — \"hello\"")
-    assert embed.description == "**Message Deleted** — #general — @user — \"hello\""
+    embed = make_embed(discord.Color.orange(), "Message Deleted", '#general — @user — "hello"')
+    assert embed.description == '**Message Deleted** — #general — @user — "hello"'
 
 
 def test_embed_has_correct_color():
