@@ -101,10 +101,23 @@ discord-bot/
 
 ---
 
-## Running Tests
+## Development
+
+**Activate the pre-push hook** (once per clone):
 
 ```bash
-uv run pytest tests/ -v
+git config core.hooksPath .githooks
 ```
 
-No database connection required — unit tests only.
+Before every `git push`, this will automatically:
+- Fix and format code with Ruff
+- Run the test suite
+
+**Run checks manually:**
+
+```bash
+uv run ruff check --fix .   # lint + auto-fix
+uv run ruff format .         # format
+uv run pytest                # tests
+uv run pip-audit             # security audit
+```

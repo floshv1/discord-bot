@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -e
+
+echo "→ Auto-fixing with ruff..."
+uv run ruff check --fix .
+uv run ruff format .
+
+echo "→ Running tests..."
+uv run pytest
+
+echo "✓ All checks passed."

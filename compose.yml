@@ -1,6 +1,6 @@
 services:
   bot:
-    build: .
+    image: ghcr.io/floshv1/discord-bot:latest
     restart: unless-stopped
     environment:
       DISCORD_TOKEN: ${DISCORD_TOKEN}
