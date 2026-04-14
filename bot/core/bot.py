@@ -34,14 +34,14 @@ class DiscordBot(commands.Bot):
             await self.load_extension(cog)
             logger.info(f"Loaded cog: {cog}")
 
-        self.tree.clear_commands(guild=None)
-        await self.tree.sync()
-
         guild = discord.Object(id=self.config.guild_id)
         self.tree.clear_commands(guild=guild)
         self.tree.copy_global_to(guild=guild)
         await self.tree.sync(guild=guild)
         logger.info(f"Slash commands synced to guild {self.config.guild_id}.")
+
+        self.tree.clear_commands(guild=None)
+        await self.tree.sync()
 
     async def on_ready(self) -> None:
         logger.info(f"Bot ready — logged in as {self.user} ({self.user.id})")
