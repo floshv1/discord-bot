@@ -11,6 +11,7 @@ COGS = [
     "bot.cogs.moderation.cog",
     "bot.cogs.voice.cog",
     "bot.cogs.queue.cog",
+    "bot.cogs.suggestions.cog",
 ]
 
 

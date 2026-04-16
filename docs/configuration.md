@@ -55,6 +55,15 @@ This is already wired up correctly in `compose.yml`.
 
 ---
 
+## Optional Variables
+
+| Variable | Type | Description |
+|---|---|---|
+| `VOICE_LEADERBOARD_CHANNEL_ID` | integer | Channel where the auto-updating voice leaderboard is posted |
+| `LOG_IGNORED_CHANNEL_IDS` | string | Comma-separated list of channel IDs excluded from audit logs (e.g. `123,456,789`) |
+
+---
+
 ## Privileged Intents
 
 The following privileged intents must be enabled in the Discord Developer Portal under **Bot → Privileged Gateway Intents**:
@@ -63,6 +72,7 @@ The following privileged intents must be enabled in the Discord Developer Portal
 |---|---|
 | Server Members Intent | `on_member_join`, `on_member_remove`, `on_member_update` |
 | Message Content Intent | Reading message content in `on_message`, `on_message_edit`, `on_message_delete` |
+| Voice States Intent | Tracking voice joins/leaves for the voice leaderboard |
 
 ---
 

@@ -78,12 +78,13 @@ No GitHub secrets needed. Komodo initiates all outbound connections.
 
 PostgreSQL runs in the `db` service defined in `compose.yml`. Data is stored in a named Docker volume (`pg_data`) and survives container restarts.
 
-The `mod_actions` table is created automatically by the migration at `bot/db/migrations/001_initial.sql` when the bot starts for the first time.
+All tables are created automatically by the migrations in `bot/db/migrations/` when the bot starts for the first time. Migration files are applied in alphabetical order as a single transaction.
 
 ### Schema
 
 ```sql
-CREATE TABLE mod_actions (
+-- 001_initial.sql
+CREATE TABLE IF NOT EXISTS mod_actions (
     id           SERIAL PRIMARY KEY,
     guild_id     BIGINT NOT NULL,
     target_id    BIGINT NOT NULL,
@@ -91,6 +92,53 @@ CREATE TABLE mod_actions (
     action_type  TEXT NOT NULL,
     reason       TEXT,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 002_voice_sessions.sql
+CREATE TABLE IF NOT EXISTS voice_sessions (
+    id               BIGSERIAL PRIMARY KEY,
+    guild_id         BIGINT NOT NULL,
+    user_id          BIGINT NOT NULL,
+    channel_id       BIGINT NOT NULL,
+    joined_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    left_at          TIMESTAMPTZ,
+    duration_seconds INT
+);
+
+CREATE TABLE IF NOT EXISTS voice_leaderboard_config (
+    guild_id   BIGINT PRIMARY KEY,
+    channel_id BIGINT NOT NULL,
+    message_id BIGINT
+);
+
+-- 003_game_queue.sql
+CREATE TABLE IF NOT EXISTS game_presets (
+    id           BIGSERIAL PRIMARY KEY,
+    guild_id     BIGINT NOT NULL,
+    name         TEXT NOT NULL,
+    player_count INT NOT NULL,
+    UNIQUE (guild_id, name)
+);
+
+CREATE TABLE IF NOT EXISTS game_queues (
+    id            BIGSERIAL PRIMARY KEY,
+    guild_id      BIGINT NOT NULL,
+    channel_id    BIGINT NOT NULL,
+    preset_id     BIGINT NOT NULL REFERENCES game_presets(id),
+    status        TEXT NOT NULL DEFAULT 'open',  -- open | filled | cancelled
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    filled_at     TIMESTAMPTZ,
+    start_time    TIMESTAMPTZ,
+    reminder_sent BOOLEAN NOT NULL DEFAULT FALSE,
+    message_id    BIGINT  -- added by 004_queue_message_id.sql
+);
+
+CREATE TABLE IF NOT EXISTS queue_members (
+    id        BIGSERIAL PRIMARY KEY,
+    queue_id  BIGINT NOT NULL REFERENCES game_queues(id),
+    user_id   BIGINT NOT NULL,
+    joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (queue_id, user_id)
 );
 ```
 

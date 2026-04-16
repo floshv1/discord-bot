@@ -101,3 +101,99 @@ All commands are slash commands. Every action writes a row to the `mod_actions` 
 | unban | Teal |
 | timeout | Orange |
 | warn | Yellow |
+
+---
+
+## Voice Cog (`bot/cogs/voice/cog.py`)
+
+Tracks time spent in voice channels per user and maintains an auto-updating leaderboard.
+
+### Behavior
+
+- On **cog load**: closes any open sessions left over from a bot restart (sets `left_at = NOW()`)
+- On **voice state change**: inserts a new session row when a user joins, closes it when they leave
+- **Daily at UTC 00:00**: edits the pinned leaderboard message in the configured channel (or posts a new one if the message was deleted)
+
+### Commands
+
+| Command | Permission | Description |
+|---|---|---|
+| `/voice stats [user]` | — | Shows weekly + all-time voice time and 5 most recent sessions for a user (defaults to yourself) |
+| `/voice leaderboard [period]` | — | Top 10 users by voice time; `period` is `weekly` (default) or `alltime` |
+| `/voice setchannel <channel>` | Manage Channels | Sets the channel for the persistent daily leaderboard message and posts it immediately |
+
+### Notes
+
+- The leaderboard message ID is stored in `voice_leaderboard_config` so the bot always edits the same message rather than posting a new one each day
+- Set `VOICE_LEADERBOARD_CHANNEL_ID` in env to pre-configure the leaderboard channel at startup without needing `/voice setchannel`
+
+---
+
+## Queue Cog (`bot/cogs/queue/cog.py`)
+
+Game lobby queue system. Members join a queue; the embed auto-updates as players fill in. Start times are interpreted in **Europe/Paris** timezone.
+
+### Default presets
+
+Seeded automatically on startup (once per guild):
+
+| Game | Players |
+|---|---|
+| `lol` | 5 |
+| `overwatch` | 5 |
+
+### Commands
+
+| Command | Permission | Description |
+|---|---|---|
+| `/queue join <game> [start_time]` | — | Joins the open queue for a game (creates it if none exists). Optional `start_time` in `HH:MM` (Paris time) |
+| `/queue list` | — | Lists all open queues with player counts and start times |
+| `/queue cancel <game>` | — | Cancels the active queue for a game and updates the embed |
+| `/queue add <game> <player_count>` | Kick Members | Adds a custom game preset (2–100 players) |
+| `/queue remove <game>` | Kick Members | Removes a game preset |
+
+### Embed states
+
+| Status | Title | Color |
+|---|---|---|
+| `open` | 🎮 GAME | Blurple |
+| `filled` | ✅ GAME — Lobby ready! | Green |
+| `cancelled` | ❌ GAME — Cancelled | Dark Grey |
+
+### Automatic behavior
+
+- **Auto-expire**: open queues older than 1 hour are cancelled every minute; the embed updates to show the cancelled state
+- **Start-time reminder**: ~10 minutes before the configured start time, the bot sends a message in the queue channel mentioning all current members
+- **Persistent buttons**: Join / Leave buttons survive bot restarts (views re-registered on `cog_load`)
+
+---
+
+## Suggestions Cog (`bot/cogs/suggestions/cog.py`)
+
+GitHub-issue-style suggestion system. A fixed channel message with two buttons lets users submit ideas; each becomes a numbered embed with 👍/👎 voting. Admins can update suggestion status in place.
+
+### Setup
+
+Run `/suggest setup <channel>` to post the entry-point message. This is idempotent — running it again moves the setup to a new channel.
+
+### Commands
+
+| Command | Permission | Description |
+|---|---|---|
+| `/suggest setup <channel>` | Manage Channels | Posts the fixed entry-point message with New Feature and Improvement buttons |
+| `/suggest status <number> <status>` | Kick Members | Updates a suggestion's status and edits the embed in place |
+
+### Embed states
+
+| Status | Color |
+|---|---|
+| open | Blurple |
+| accepted | Green |
+| rejected | Red |
+| implemented | Purple |
+
+### Notes
+
+- Suggestion numbers are guild-scoped and sequential (`#1`, `#2`, …)
+- A user can vote 👍 or 👎 once per suggestion; clicking the same button again toggles it off; switching direction replaces the previous vote
+- Vote views and setup buttons survive bot restarts (re-registered on `cog_load`)
