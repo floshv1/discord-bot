@@ -431,6 +431,38 @@ class QueueCog(commands.Cog):
             return
         await interaction.response.send_message(f"Added preset **{game}** ({player_count} players).", ephemeral=True)
 
+    @queue.command(name="cancel", description="Cancel the open queue for a game.")
+    @app_commands.describe(game="Game queue to cancel")
+    @app_commands.autocomplete(game=_game_autocomplete)
+    async def queue_cancel(self, interaction: discord.Interaction, game: str) -> None:
+        pool = get_pool()
+        row = await pool.fetchrow(
+            """
+            SELECT gq.id, gq.channel_id, gq.message_id FROM game_queues gq
+            JOIN game_presets gp ON gp.id = gq.preset_id
+            WHERE gq.guild_id = $1 AND gp.name = $2 AND gq.status IN ('open', 'filled')
+            """,
+            interaction.guild_id,
+            game.lower(),
+        )
+        if not row:
+            await interaction.response.send_message(f"No active **{game}** queue found.", ephemeral=True)
+            return
+
+        await pool.execute("UPDATE game_queues SET status = 'cancelled' WHERE id = $1", row["id"])
+
+        if row["channel_id"] and row["message_id"]:
+            channel = self.bot.get_channel(row["channel_id"])
+            if channel:
+                try:
+                    msg = await channel.fetch_message(row["message_id"])
+                    queue, members = await _fetch_queue_state(row["id"])
+                    await msg.edit(embed=_build_embed(queue, members), view=_make_view(row["id"], "cancelled"))
+                except discord.NotFound:
+                    pass
+
+        await interaction.response.send_message(f"**{game}** queue cancelled.", ephemeral=True)
+
     @queue.command(name="remove", description="Remove a game preset.")
     @app_commands.describe(game="Game preset to remove")
     @app_commands.autocomplete(game=_game_autocomplete)
