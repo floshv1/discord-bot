@@ -168,7 +168,7 @@ class ModerationCog(commands.Cog):
             await interaction.followup.send("Cannot access this channel.", ephemeral=True)
             return
 
-        check = (lambda m: m.author == user) if user else None
+        check = (lambda m: m.author == user) if user else (lambda m: True)
         try:
             deleted = await channel.purge(limit=amount, check=check, bulk=True)
         except discord.Forbidden:
