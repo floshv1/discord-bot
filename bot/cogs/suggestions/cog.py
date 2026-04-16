@@ -42,9 +42,7 @@ def build_suggestion_embed(
         color=STATUS_COLORS.get(status, discord.Color.blurple()),
     )
     embed.add_field(name="Suggested by", value=f"<@{author_id}>", inline=True)
-    embed.set_footer(
-        text=f"[{STATUS_LABELS.get(status, status.upper())}] · {created_at.strftime('%d %b %Y')}"
-    )
+    embed.set_footer(text=f"[{STATUS_LABELS.get(status, status.upper())}] · {created_at.strftime('%d %b %Y')}")
     return embed
 
 
@@ -211,9 +209,7 @@ class SuggestionModal(discord.ui.Modal, title="Submit a Suggestion"):
             row["id"],
         )
 
-        await interaction.response.send_message(
-            "Your suggestion has been submitted!", ephemeral=True
-        )
+        await interaction.response.send_message("Your suggestion has been submitted!", ephemeral=True)
 
 
 class SuggestionCog(commands.Cog):
@@ -237,9 +233,7 @@ class SuggestionCog(commands.Cog):
     @suggest.command(name="setup", description="Post the suggestion entry-point message in a channel.")
     @discord.app_commands.describe(channel="Channel where suggestions will be collected")
     @discord.app_commands.default_permissions(manage_channels=True)
-    async def suggest_setup(
-        self, interaction: discord.Interaction, channel: discord.TextChannel
-    ) -> None:
+    async def suggest_setup(self, interaction: discord.Interaction, channel: discord.TextChannel) -> None:
         pool = get_pool()
 
         embed = discord.Embed(
@@ -265,9 +259,7 @@ class SuggestionCog(commands.Cog):
             msg.id,
         )
 
-        await interaction.response.send_message(
-            f"Suggestion channel set to {channel.mention}!", ephemeral=True
-        )
+        await interaction.response.send_message(f"Suggestion channel set to {channel.mention}!", ephemeral=True)
 
     @suggest.command(name="status", description="Update the status of a suggestion.")
     @discord.app_commands.describe(number="Suggestion number (e.g. 3)", status="New status")
@@ -280,9 +272,7 @@ class SuggestionCog(commands.Cog):
         ]
     )
     @discord.app_commands.default_permissions(kick_members=True)
-    async def suggest_status(
-        self, interaction: discord.Interaction, number: int, status: str
-    ) -> None:
+    async def suggest_status(self, interaction: discord.Interaction, number: int, status: str) -> None:
         pool = get_pool()
 
         row = await pool.fetchrow(
@@ -298,9 +288,7 @@ class SuggestionCog(commands.Cog):
         )
 
         if not row:
-            await interaction.response.send_message(
-                f"No suggestion #{number} found.", ephemeral=True
-            )
+            await interaction.response.send_message(f"No suggestion #{number} found.", ephemeral=True)
             return
 
         await pool.execute(
@@ -337,9 +325,7 @@ class SuggestionCog(commands.Cog):
                 except discord.NotFound:
                     pass
 
-        await interaction.response.send_message(
-            f"Suggestion #{number} marked as **{status}**.", ephemeral=True
-        )
+        await interaction.response.send_message(f"Suggestion #{number} marked as **{status}**.", ephemeral=True)
 
 
 async def setup(bot: commands.Bot) -> None:
