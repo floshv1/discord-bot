@@ -1,0 +1,1 @@
+ALTER TABLE game_queues ADD COLUMN IF NOT EXISTS message_id BIGINT;
