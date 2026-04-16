@@ -4,11 +4,13 @@ from loguru import logger
 
 from bot.core.config import Config
 from bot.db.client import create_pool, run_migrations
-from bot.db.models import load_migration
+from bot.db.models import load_all_migrations
 
 COGS = [
     "bot.cogs.logs.cog",
     "bot.cogs.moderation.cog",
+    "bot.cogs.voice.cog",
+    "bot.cogs.queue.cog",
 ]
 
 
@@ -27,8 +29,7 @@ class DiscordBot(commands.Bot):
 
     async def setup_hook(self) -> None:
         pool = await create_pool(self.config.database_url)
-        migration_sql = load_migration("001_initial.sql")
-        await run_migrations(pool, migration_sql)
+        await run_migrations(pool, load_all_migrations())
 
         for cog in COGS:
             await self.load_extension(cog)

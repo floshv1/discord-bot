@@ -51,28 +51,26 @@ Komodo manages the production deployment. It reads `compose.yml` directly from t
 
 ### Auto-deploy (GitOps)
 
-Every push to `main` automatically triggers a full redeploy via a Komodo Procedure:
+Komodo polls GHCR directly — no webhook, no Tailscale exposure needed.
 
 ```
 git push main
-    └─► CI: lint → test → security → docker push (GHCR)
-                                            └─► deploy job: curl webhook
-                                                        └─► Komodo Procedure
-                                                                    └─► Stack redeploy
+    └─► CI: lint → test → security → docker push → ghcr.io/floshv1/discord-bot:latest
+                                                              ▲
+                                              Komodo polls GHCR periodically
+                                                              │
+                                                    new image detected
+                                                              │
+                                                    Stack redeploy
 ```
 
-**One-time setup:**
+**One-time setup in Komodo UI:**
 
-1. In Komodo, create a **Procedure** named `deploy-discord-bot`:
-   - Add one action → type `Deploy Stack` → select your stack
+1. Open your Stack → **Webhooks / Auto Redeploy** section
+2. Enable **Auto Redeploy** (Komodo will poll GHCR for changes on `latest`)
+3. Set the polling interval (e.g. 1 minute)
 
-2. On the Procedure, open the **Webhook** tab → enable it → copy the URL and secret
-
-3. In GitHub → Settings → Secrets → Actions, add:
-   - `KOMODO_WEBHOOK_URL` — the full webhook URL from Komodo
-   - `KOMODO_WEBHOOK_SECRET` — the webhook secret from Komodo
-
-The `deploy` job in `.github/workflows/ci.yml` handles the rest automatically.
+No GitHub secrets needed. Komodo initiates all outbound connections.
 
 ---
 

@@ -30,9 +30,12 @@ class LogsCog(commands.Cog):
             return
         await channel.send(embed=embed)
 
+    def _is_ignored(self, channel_id: int) -> bool:
+        return channel_id in self.config.log_ignored_channel_ids
+
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message) -> None:
-        if message.author.bot or message.guild is None:
+        if message.author.bot or message.guild is None or self._is_ignored(message.channel.id):
             return
         parts = []
         if message.content:
@@ -45,7 +48,7 @@ class LogsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message_edit(self, before: discord.Message, after: discord.Message) -> None:
-        if before.author.bot or before.guild is None:
+        if before.author.bot or before.guild is None or self._is_ignored(before.channel.id):
             return
         if before.content == after.content:
             return
@@ -57,7 +60,7 @@ class LogsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message_delete(self, message: discord.Message) -> None:
-        if message.author.bot or message.guild is None:
+        if message.author.bot or message.guild is None or self._is_ignored(message.channel.id):
             return
         parts = []
         if message.content:
@@ -70,7 +73,7 @@ class LogsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_bulk_message_delete(self, messages: list[discord.Message]) -> None:
-        if not messages or messages[0].guild is None:
+        if not messages or messages[0].guild is None or self._is_ignored(messages[0].channel.id):
             return
         channel = messages[0].channel
         details = f"{channel.mention} — {len(messages)} messages deleted"
