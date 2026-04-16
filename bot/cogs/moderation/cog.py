@@ -148,6 +148,56 @@ class ModerationCog(commands.Cog):
         )
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
+    @app_commands.command(name="clear", description="Delete messages in this channel.")
+    @app_commands.describe(amount="Number of messages to scan (1–100)", user="Only delete messages from this user")
+    @app_commands.default_permissions(manage_messages=True)
+    async def clear(
+        self,
+        interaction: discord.Interaction,
+        amount: int,
+        user: discord.Member | None = None,
+    ) -> None:
+        if not 1 <= amount <= 100:
+            await interaction.response.send_message("Amount must be between 1 and 100.", ephemeral=True)
+            return
+
+        await interaction.response.defer(ephemeral=True)
+
+        check = (lambda m: m.author == user) if user else None
+        deleted = await interaction.channel.purge(limit=amount, check=check, bulk=True)
+        count = len(deleted)
+
+        if count == 0:
+            await interaction.followup.send("No messages to delete.", ephemeral=True)
+            return
+
+        reason = f"Cleared {count} message(s)" + (f" from {user}" if user else "")
+        target_id = user.id if user else 0
+
+        pool = get_pool()
+        await pool.execute(
+            """
+            INSERT INTO mod_actions (guild_id, target_id, moderator_id, action_type, reason)
+            VALUES ($1, $2, $3, $4, $5)
+            """,
+            interaction.guild_id,
+            target_id,
+            interaction.user.id,
+            "clear",
+            reason,
+        )
+
+        log_channel = self.bot.get_channel(self.config.log_channel_id)
+        if log_channel:
+            details = (
+                f"{interaction.channel.mention} — {count} message(s)"
+                + (f" from {user.mention}" if user else "")
+                + f" — by {interaction.user.mention}"
+            )
+            await log_channel.send(embed=make_embed(discord.Color.orange(), "Clear", details))
+
+        await interaction.followup.send(f"Deleted {count} message(s).", ephemeral=True)
+
 
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(ModerationCog(bot))

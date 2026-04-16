@@ -91,6 +91,7 @@ All commands are slash commands. Every action writes a row to the `mod_actions` 
 | `/timeout <user> <duration> <reason>` | Kick Members | Applies a Discord timeout for `duration` minutes |
 | `/warn <user> <reason>` | Kick Members | Records a warning in the DB and DMs the user |
 | `/history <user>` | Kick Members | Shows the last 10 mod actions for the user |
+| `/clear <amount> [user]` | Manage Messages | Deletes up to `amount` messages (1–100); optional `user` filter deletes only that member's messages |
 
 ### Log embed colors
 
