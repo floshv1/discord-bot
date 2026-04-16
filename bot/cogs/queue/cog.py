@@ -306,9 +306,7 @@ class QueueCog(commands.Cog):
         if start_time:
             parsed_time = _parse_start_time(start_time)
             if not parsed_time:
-                await interaction.response.send_message(
-                    "Invalid time format. Use HH:MM, e.g. `21:00`.", ephemeral=True
-                )
+                await interaction.response.send_message("Invalid time format. Use HH:MM, e.g. `21:00`.", ephemeral=True)
                 return
 
         existing = await pool.fetchrow(
