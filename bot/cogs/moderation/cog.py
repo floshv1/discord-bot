@@ -163,8 +163,20 @@ class ModerationCog(commands.Cog):
 
         await interaction.response.defer(ephemeral=True)
 
+        channel = interaction.channel
+        if channel is None:
+            await interaction.followup.send("Cannot access this channel.", ephemeral=True)
+            return
+
         check = (lambda m: m.author == user) if user else None
-        deleted = await interaction.channel.purge(limit=amount, check=check, bulk=True)
+        try:
+            deleted = await channel.purge(limit=amount, check=check, bulk=True)
+        except discord.Forbidden:
+            await interaction.followup.send("I don't have permission to delete messages here.", ephemeral=True)
+            return
+        except discord.HTTPException as e:
+            await interaction.followup.send(f"Failed to delete messages: {e}", ephemeral=True)
+            return
         count = len(deleted)
 
         if count == 0:
@@ -190,7 +202,7 @@ class ModerationCog(commands.Cog):
         log_channel = self.bot.get_channel(self.config.log_channel_id)
         if log_channel:
             details = (
-                f"{interaction.channel.mention} — {count} message(s)"
+                f"{channel.mention} — {count} message(s)"
                 + (f" from {user.mention}" if user else "")
                 + f" — by {interaction.user.mention}"
             )
