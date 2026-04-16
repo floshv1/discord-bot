@@ -108,13 +108,9 @@ class QueueCog(commands.Cog):
             channel = self.bot.get_channel(row["channel_id"])
             if not channel:
                 continue
-            members = await pool.fetch(
-                "SELECT user_id FROM queue_members WHERE queue_id = $1", row["id"]
-            )
+            members = await pool.fetch("SELECT user_id FROM queue_members WHERE queue_id = $1", row["id"])
             mentions = " ".join(f"<@{m['user_id']}>" for m in members)
-            await channel.send(
-                f"⏰ **{row['game_name']}** starts in ~10 minutes! {mentions}"
-            )
+            await channel.send(f"⏰ **{row['game_name']}** starts in ~10 minutes! {mentions}")
 
     @queue_ticker.before_loop
     async def before_ticker(self) -> None:
@@ -149,9 +145,7 @@ class QueueCog(commands.Cog):
         if start_time:
             parsed_time = _parse_start_time(start_time)
             if not parsed_time:
-                await interaction.followup.send(
-                    "Invalid time format. Use HH:MM, e.g. `21:00`.", ephemeral=True
-                )
+                await interaction.followup.send("Invalid time format. Use HH:MM, e.g. `21:00`.", ephemeral=True)
                 return
 
         queue_row = await pool.fetchrow(
@@ -183,9 +177,7 @@ class QueueCog(commands.Cog):
             await interaction.followup.send("You are already in this queue.", ephemeral=True)
             return
 
-        members = await pool.fetch(
-            "SELECT user_id FROM queue_members WHERE queue_id = $1", queue_row["id"]
-        )
+        members = await pool.fetch("SELECT user_id FROM queue_members WHERE queue_id = $1", queue_row["id"])
         count = len(members)
         needed = preset["player_count"]
 
@@ -247,13 +239,9 @@ class QueueCog(commands.Cog):
             await interaction.response.send_message("You are not in this queue.", ephemeral=True)
             return
 
-        remaining = await pool.fetchval(
-            "SELECT COUNT(*) FROM queue_members WHERE queue_id = $1", queue_row["id"]
-        )
+        remaining = await pool.fetchval("SELECT COUNT(*) FROM queue_members WHERE queue_id = $1", queue_row["id"])
         if remaining == 0:
-            await pool.execute(
-                "UPDATE game_queues SET status = 'cancelled' WHERE id = $1", queue_row["id"]
-            )
+            await pool.execute("UPDATE game_queues SET status = 'cancelled' WHERE id = $1", queue_row["id"])
             await interaction.response.send_message(f"Left the **{game}** queue. Queue cancelled (no members left).")
         else:
             await interaction.response.send_message(f"Left the **{game}** queue.")
@@ -305,9 +293,7 @@ class QueueCog(commands.Cog):
         except Exception:
             await interaction.response.send_message(f"A preset for **{game}** already exists.", ephemeral=True)
             return
-        await interaction.response.send_message(
-            f"Added preset **{game}** ({player_count} players).", ephemeral=True
-        )
+        await interaction.response.send_message(f"Added preset **{game}** ({player_count} players).", ephemeral=True)
 
     @queue.command(name="remove", description="Remove a game preset.")
     @app_commands.describe(game="Game preset to remove")
