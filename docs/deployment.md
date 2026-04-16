@@ -49,9 +49,30 @@ Komodo manages the production deployment. It reads `compose.yml` directly from t
 
 4. **Deploy** from Komodo's UI. On each new deploy, Komodo pulls the latest commit, rebuilds the bot image, and restarts the stack.
 
-### GitOps flow
+### Auto-deploy (GitOps)
 
-Push to your main branch → trigger a redeploy in Komodo → new image is built and the stack restarts with zero manual steps.
+Every push to `main` automatically triggers a full redeploy via a Komodo Procedure:
+
+```
+git push main
+    └─► CI: lint → test → security → docker push (GHCR)
+                                            └─► deploy job: curl webhook
+                                                        └─► Komodo Procedure
+                                                                    └─► Stack redeploy
+```
+
+**One-time setup:**
+
+1. In Komodo, create a **Procedure** named `deploy-discord-bot`:
+   - Add one action → type `Deploy Stack` → select your stack
+
+2. On the Procedure, open the **Webhook** tab → enable it → copy the URL and secret
+
+3. In GitHub → Settings → Secrets → Actions, add:
+   - `KOMODO_WEBHOOK_URL` — the full webhook URL from Komodo
+   - `KOMODO_WEBHOOK_SECRET` — the webhook secret from Komodo
+
+The `deploy` job in `.github/workflows/ci.yml` handles the rest automatically.
 
 ---
 
