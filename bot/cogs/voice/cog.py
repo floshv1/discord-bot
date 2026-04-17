@@ -138,6 +138,8 @@ class VoiceCog(commands.Cog):
     ) -> None:
         if member.bot:
             return
+        if before.channel == after.channel:
+            return
         pool = get_pool()
         if before.channel is not None:
             await pool.execute(

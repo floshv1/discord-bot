@@ -196,6 +196,19 @@ class LogsCog(commands.Cog):
             state = "archived" if after.archived else "unarchived"
             await self._send(make_embed(discord.Color.teal(), f"Thread {state.title()}", after.mention))
 
+    @commands.Cog.listener()
+    async def on_interaction(self, interaction: discord.Interaction) -> None:
+        if interaction.type != discord.InteractionType.application_command:
+            return
+        if interaction.guild_id is None:
+            return
+        name = interaction.command.qualified_name if interaction.command else "unknown"
+        ns = vars(interaction.namespace) if interaction.namespace else {}
+        opts = ", ".join(f"{k}={v}" for k, v in ns.items() if v is not None) or "—"
+        channel_mention = getattr(interaction.channel, "mention", "unknown")
+        details = f"{interaction.user.mention} → `/{name}` in {channel_mention} | {opts}"
+        await self._send(make_embed(discord.Color.og_blurple(), "⌨️ Command", details))
+
 
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(LogsCog(bot))

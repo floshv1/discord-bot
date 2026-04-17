@@ -47,7 +47,7 @@ async def _fetch_queue_state(queue_id: int):
     pool = get_pool()
     queue = await pool.fetchrow(
         """
-        SELECT gq.id, gq.status, gq.start_time, gp.name, gp.player_count
+        SELECT gq.id, gq.status, gq.start_time, gq.creator_user_id, gp.name, gp.player_count
         FROM game_queues gq
         JOIN game_presets gp ON gp.id = gq.preset_id
         WHERE gq.id = $1
@@ -56,7 +56,7 @@ async def _fetch_queue_state(queue_id: int):
     )
     members = (
         await pool.fetch(
-            "SELECT user_id FROM queue_members WHERE queue_id = $1 ORDER BY joined_at",
+            "SELECT user_id, in_lane FROM queue_members WHERE queue_id = $1 ORDER BY in_lane, joined_at",
             queue_id,
         )
         if queue
@@ -66,7 +66,9 @@ async def _fetch_queue_state(queue_id: int):
 
 
 def _build_embed(queue, members: list) -> discord.Embed:
-    count = len(members)
+    main_members = [m for m in members if not m["in_lane"]]
+    lane_members = [m for m in members if m["in_lane"]]
+    count = len(main_members)
     needed = queue["player_count"]
     status = queue["status"]
     name = queue["name"].upper()
@@ -74,6 +76,9 @@ def _build_embed(queue, members: list) -> discord.Embed:
     if status == "filled":
         title = f"✅ {name} — Lobby ready!"
         color = discord.Color.green()
+    elif status == "done":
+        title = f"🏁 {name} — Game over!"
+        color = discord.Color.gold()
     elif status == "open":
         title = f"🎮 {name}"
         color = discord.Color.blurple()
@@ -83,8 +88,12 @@ def _build_embed(queue, members: list) -> discord.Embed:
 
     embed = discord.Embed(title=title, color=color)
 
-    player_list = "\n".join(f"<@{m['user_id']}>" for m in members) if members else "*No players yet*"
+    player_list = "\n".join(f"<@{m['user_id']}>" for m in main_members) if main_members else "*No players yet*"
     embed.add_field(name=f"Players — {count}/{needed}", value=player_list, inline=True)
+
+    if lane_members:
+        lane_list = "\n".join(f"<@{m['user_id']}>" for m in lane_members)
+        embed.add_field(name=f"Lane — {len(lane_members)} standby", value=lane_list, inline=True)
 
     if queue["start_time"]:
         ts = int(queue["start_time"].timestamp())
@@ -95,10 +104,14 @@ def _build_embed(queue, members: list) -> discord.Embed:
 
 
 def _make_view(queue_id: int, status: str) -> QueueView:
+    active = status in ("open", "filled")
     return QueueView(
         queue_id,
         join_disabled=(status != "open"),
-        leave_disabled=(status not in ("open", "filled")),
+        lane_disabled=(not active),
+        leave_disabled=(not active),
+        cant_disabled=(not active),
+        done_disabled=(not active),
     )
 
 
@@ -123,22 +136,59 @@ class JoinButton(discord.ui.Button):
 
         try:
             await pool.execute(
-                "INSERT INTO queue_members (queue_id, user_id) VALUES ($1, $2)",
+                "INSERT INTO queue_members (queue_id, user_id, in_lane) VALUES ($1, $2, FALSE)",
                 queue_id,
                 interaction.user.id,
             )
         except Exception:
-            await interaction.response.send_message("You are already in this queue.", ephemeral=True)
+            await interaction.response.send_message("You are already in this queue or lane.", ephemeral=True)
             return
 
         queue, members = await _fetch_queue_state(queue_id)
-        if len(members) >= queue["player_count"]:
+        main_members = [m for m in members if not m["in_lane"]]
+        if len(main_members) >= queue["player_count"]:
             await pool.execute(
                 "UPDATE game_queues SET status = 'filled', filled_at = NOW() WHERE id = $1",
                 queue_id,
             )
             queue, members = await _fetch_queue_state(queue_id)
 
+        await interaction.response.edit_message(
+            embed=_build_embed(queue, members),
+            view=_make_view(queue_id, queue["status"]),
+        )
+
+
+class JoinLaneButton(discord.ui.Button):
+    def __init__(self, queue_id: int, disabled: bool = False):
+        super().__init__(
+            label="Join Lane",
+            style=discord.ButtonStyle.secondary,
+            emoji="⏳",
+            custom_id=f"queue:lane:{queue_id}",
+            disabled=disabled,
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        queue_id = int(self.custom_id.split(":")[2])
+        pool = get_pool()
+
+        queue, _ = await _fetch_queue_state(queue_id)
+        if not queue or queue["status"] not in ("open", "filled"):
+            await interaction.response.send_message("This queue is no longer active.", ephemeral=True)
+            return
+
+        try:
+            await pool.execute(
+                "INSERT INTO queue_members (queue_id, user_id, in_lane) VALUES ($1, $2, TRUE)",
+                queue_id,
+                interaction.user.id,
+            )
+        except Exception:
+            await interaction.response.send_message("You are already in this queue or lane.", ephemeral=True)
+            return
+
+        queue, members = await _fetch_queue_state(queue_id)
         await interaction.response.edit_message(
             embed=_build_embed(queue, members),
             view=_make_view(queue_id, queue["status"]),
@@ -160,12 +210,12 @@ class LeaveButton(discord.ui.Button):
         pool = get_pool()
 
         deleted = await pool.execute(
-            "DELETE FROM queue_members WHERE queue_id = $1 AND user_id = $2",
+            "DELETE FROM queue_members WHERE queue_id = $1 AND user_id = $2 AND in_lane = FALSE",
             queue_id,
             interaction.user.id,
         )
         if deleted == "DELETE 0":
-            await interaction.response.send_message("You are not in this queue.", ephemeral=True)
+            await interaction.response.send_message("You are not in the main queue.", ephemeral=True)
             return
 
         # Reopen queue if it was filled
@@ -174,8 +224,33 @@ class LeaveButton(discord.ui.Button):
             queue_id,
         )
 
+        # Auto-promote first lane member
+        promoted = await pool.fetchrow(
+            """
+            UPDATE queue_members SET in_lane = FALSE
+            WHERE queue_id = $1 AND user_id = (
+                SELECT user_id FROM queue_members WHERE queue_id = $1 AND in_lane = TRUE ORDER BY joined_at LIMIT 1
+            )
+            RETURNING user_id
+            """,
+            queue_id,
+        )
+
         queue, members = await _fetch_queue_state(queue_id)
-        if not members:
+        main_members = [m for m in members if not m["in_lane"]]
+
+        if promoted:
+            await interaction.channel.send(  # type: ignore[union-attr]
+                f"<@{promoted['user_id']}> was promoted from the lane into **{queue['name'].upper()}**! 🎉",
+                delete_after=30,
+            )
+            if len(main_members) >= queue["player_count"]:
+                await pool.execute(
+                    "UPDATE game_queues SET status = 'filled', filled_at = NOW() WHERE id = $1",
+                    queue_id,
+                )
+                queue, members = await _fetch_queue_state(queue_id)
+        elif not main_members:
             await pool.execute("UPDATE game_queues SET status = 'cancelled' WHERE id = $1", queue_id)
             queue, members = await _fetch_queue_state(queue_id)
 
@@ -185,11 +260,84 @@ class LeaveButton(discord.ui.Button):
         )
 
 
+class ICantButton(discord.ui.Button):
+    def __init__(self, queue_id: int, disabled: bool = False):
+        super().__init__(
+            label="I can't",
+            style=discord.ButtonStyle.secondary,
+            emoji="🚫",
+            custom_id=f"queue:cant:{queue_id}",
+            disabled=disabled,
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        queue_id = int(self.custom_id.split(":")[2])
+        pool = get_pool()
+
+        deleted = await pool.execute(
+            "DELETE FROM queue_members WHERE queue_id = $1 AND user_id = $2 AND in_lane = TRUE",
+            queue_id,
+            interaction.user.id,
+        )
+        if deleted == "DELETE 0":
+            await interaction.response.send_message("You are not in the lane.", ephemeral=True)
+            return
+
+        queue, members = await _fetch_queue_state(queue_id)
+        await interaction.response.edit_message(
+            embed=_build_embed(queue, members),
+            view=_make_view(queue_id, queue["status"]),
+        )
+
+
+class DoneButton(discord.ui.Button):
+    def __init__(self, queue_id: int, disabled: bool = False):
+        super().__init__(
+            label="Done",
+            style=discord.ButtonStyle.success,
+            emoji="🏁",
+            custom_id=f"queue:done:{queue_id}",
+            disabled=disabled,
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        queue_id = int(self.custom_id.split(":")[2])
+        pool = get_pool()
+
+        queue, _ = await _fetch_queue_state(queue_id)
+        if not queue or queue["status"] not in ("open", "filled"):
+            await interaction.response.send_message("This queue is no longer active.", ephemeral=True)
+            return
+
+        if queue["creator_user_id"] != interaction.user.id:
+            await interaction.response.send_message("Only the queue creator can mark this as done.", ephemeral=True)
+            return
+
+        await pool.execute("UPDATE game_queues SET status = 'done' WHERE id = $1", queue_id)
+        queue, members = await _fetch_queue_state(queue_id)
+
+        await interaction.response.edit_message(
+            embed=_build_embed(queue, members),
+            view=_make_view(queue_id, "done"),
+        )
+
+
 class QueueView(discord.ui.View):
-    def __init__(self, queue_id: int, join_disabled: bool = False, leave_disabled: bool = False):
+    def __init__(
+        self,
+        queue_id: int,
+        join_disabled: bool = False,
+        lane_disabled: bool = False,
+        leave_disabled: bool = False,
+        cant_disabled: bool = False,
+        done_disabled: bool = False,
+    ):
         super().__init__(timeout=None)
         self.add_item(JoinButton(queue_id, disabled=join_disabled))
+        self.add_item(JoinLaneButton(queue_id, disabled=lane_disabled))
         self.add_item(LeaveButton(queue_id, disabled=leave_disabled))
+        self.add_item(ICantButton(queue_id, disabled=cant_disabled))
+        self.add_item(DoneButton(queue_id, disabled=done_disabled))
 
 
 class QueueCog(commands.Cog):
@@ -210,7 +358,6 @@ class QueueCog(commands.Cog):
                 name,
                 count,
             )
-        # Re-register persistent views for all active queues after restart
         active = await pool.fetch(
             "SELECT id, status FROM game_queues WHERE status IN ('open', 'filled') AND guild_id = $1",
             self.config.guild_id,
@@ -270,7 +417,10 @@ class QueueCog(commands.Cog):
             channel = self.bot.get_channel(row["channel_id"])
             if not channel:
                 continue
-            members = await pool.fetch("SELECT user_id FROM queue_members WHERE queue_id = $1", row["id"])
+            members = await pool.fetch(
+                "SELECT user_id FROM queue_members WHERE queue_id = $1 AND in_lane = FALSE",
+                row["id"],
+            )
             mentions = " ".join(f"<@{m['user_id']}>" for m in members)
             await channel.send(f"⏰ **{row['game_name']}** starts in ~10 minutes! {mentions}")
 
@@ -319,10 +469,9 @@ class QueueCog(commands.Cog):
         )
 
         if existing:
-            # Join the existing queue and update its embed
             try:
                 await pool.execute(
-                    "INSERT INTO queue_members (queue_id, user_id) VALUES ($1, $2)",
+                    "INSERT INTO queue_members (queue_id, user_id, in_lane) VALUES ($1, $2, FALSE)",
                     existing["id"],
                     interaction.user.id,
                 )
@@ -331,7 +480,8 @@ class QueueCog(commands.Cog):
                 return
 
             queue, members = await _fetch_queue_state(existing["id"])
-            if len(members) >= preset["player_count"]:
+            main_members = [m for m in members if not m["in_lane"]]
+            if len(main_members) >= preset["player_count"]:
                 await pool.execute(
                     "UPDATE game_queues SET status = 'filled', filled_at = NOW() WHERE id = $1",
                     existing["id"],
@@ -353,21 +503,21 @@ class QueueCog(commands.Cog):
             await interaction.response.send_message("Joined the queue!", ephemeral=True)
             return
 
-        # Create a new queue and post the embed
         queue_row = await pool.fetchrow(
             """
-            INSERT INTO game_queues (guild_id, channel_id, preset_id, start_time)
-            VALUES ($1, $2, $3, $4)
+            INSERT INTO game_queues (guild_id, channel_id, preset_id, start_time, creator_user_id)
+            VALUES ($1, $2, $3, $4, $5)
             RETURNING id
             """,
             interaction.guild_id,
             interaction.channel_id,
             preset["id"],
             parsed_time,
+            interaction.user.id,
         )
         queue_id = queue_row["id"]
         await pool.execute(
-            "INSERT INTO queue_members (queue_id, user_id) VALUES ($1, $2)",
+            "INSERT INTO queue_members (queue_id, user_id, in_lane) VALUES ($1, $2, FALSE)",
             queue_id,
             interaction.user.id,
         )
@@ -387,7 +537,7 @@ class QueueCog(commands.Cog):
         rows = await pool.fetch(
             """
             SELECT gq.id, gp.name, gp.player_count, gq.start_time,
-                   COUNT(qm.id) AS member_count
+                   COUNT(qm.id) FILTER (WHERE NOT qm.in_lane) AS member_count
             FROM game_queues gq
             JOIN game_presets gp ON gp.id = gq.preset_id
             LEFT JOIN queue_members qm ON qm.queue_id = gq.id
