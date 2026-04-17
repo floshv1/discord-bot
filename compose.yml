@@ -7,6 +7,7 @@ services:
       DATABASE_URL: postgresql://botuser:${POSTGRES_PASSWORD}@db:5432/discord_bot
       GUILD_ID: ${GUILD_ID}
       LOG_CHANNEL_ID: ${LOG_CHANNEL_ID}
+      LOG_IGNORED_CHANNEL_IDS: ${LOG_IGNORED_CHANNEL_IDS:-}
     depends_on:
       db:
         condition: service_healthy

@@ -384,13 +384,18 @@ class QueueCog(commands.Cog):
     queue = app_commands.Group(name="queue", description="Game lobby queue commands.")
 
     @queue.command(name="join", description="Create or join a game queue.")
-    @app_commands.describe(game="Game to queue for", start_time="Optional start time in Paris time, e.g. 21:00")
+    @app_commands.describe(
+        game="Game to queue for",
+        start_time="Optional start time in Paris time, e.g. 21:00",
+        notify="Users/roles to ping when the queue is created, e.g. @friend @TeamRole",
+    )
     @app_commands.autocomplete(game=_game_autocomplete)
     async def queue_join(
         self,
         interaction: discord.Interaction,
         game: str,
         start_time: str | None = None,
+        notify: str | None = None,
     ) -> None:
         pool = get_pool()
 
@@ -497,6 +502,12 @@ class QueueCog(commands.Cog):
         msg = await interaction.original_response()
         await pool.execute("UPDATE game_queues SET message_id = $1 WHERE id = $2", msg.id, queue_id)
         self.bot.add_view(view)
+
+        if notify:
+            await interaction.channel.send(  # type: ignore[union-attr]
+                f"{notify} — Une queue **{game.upper()}** vient d'être créée ! Rejoins ici 👆",
+                reference=msg,
+            )
 
     @queue.command(name="list", description="List all open game queues.")
     async def queue_list(self, interaction: discord.Interaction) -> None:

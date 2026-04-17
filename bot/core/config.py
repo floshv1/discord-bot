@@ -11,7 +11,6 @@ class Config:
         self.database_url: str = self._require_str("DATABASE_URL")
         self.guild_id: int = self._require_int("GUILD_ID")
         self.log_channel_id: int = self._require_int("LOG_CHANNEL_ID")
-        self.voice_leaderboard_channel_id: int | None = self._optional_int("VOICE_LEADERBOARD_CHANNEL_ID")
         self.log_ignored_channel_ids: set[int] = self._optional_int_set("LOG_IGNORED_CHANNEL_IDS")
 
     @staticmethod
