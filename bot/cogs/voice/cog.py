@@ -35,6 +35,18 @@ class VoiceCog(commands.Cog):
             WHERE left_at IS NULL
             """
         )
+        # Create fresh sessions for members already in voice when bot (re)starts
+        guild = self.bot.get_guild(self.config.guild_id)
+        if guild:
+            for channel in guild.voice_channels:
+                for member in channel.members:
+                    if not member.bot:
+                        await pool.execute(
+                            "INSERT INTO voice_sessions (guild_id, user_id, channel_id) VALUES ($1, $2, $3)",
+                            guild.id,
+                            member.id,
+                            channel.id,
+                        )
         if self.config.voice_leaderboard_channel_id:
             await pool.execute(
                 """
