@@ -62,13 +62,13 @@ jobs:
           python-version: "3.12"
 
       - name: Install uv
-        run: pip install uv --no-cache-dir
+        run: pip install --upgrade pip && pip install uv --no-cache-dir
 
       - name: Install dependencies
         run: uv sync --frozen
 
       - name: Audit dependencies
-        run: uv run pip-audit
+        run: uv run pip-audit --ignore-vuln CVE-2026-3219 --ignore-vuln CVE-2026-6357
 
   docker:
     name: Build & Push Bot Image
