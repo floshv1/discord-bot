@@ -11,7 +11,7 @@ router = APIRouter()
 GUILD_ID = int(os.environ.get("GUILD_ID", "0"))
 
 
-@router.get("/")
+@router.get("")
 async def get_overview(
     _user: Annotated[dict, Depends(get_current_user)],
     pool=Depends(get_db),

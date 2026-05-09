@@ -17,7 +17,7 @@ class StatusUpdate(BaseModel):
     status: str
 
 
-@router.get("/")
+@router.get("")
 async def list_suggestions(
     _user: Annotated[dict, Depends(get_current_user)],
     pool=Depends(get_db),

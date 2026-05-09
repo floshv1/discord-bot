@@ -17,7 +17,7 @@ class PresetCreate(BaseModel):
     player_count: int
 
 
-@router.get("/")
+@router.get("")
 async def list_presets(
     _user: Annotated[dict, Depends(get_current_user)],
     pool=Depends(get_db),
@@ -32,7 +32,7 @@ async def list_presets(
     return [dict(row) for row in rows]
 
 
-@router.post("/", status_code=201)
+@router.post("", status_code=201)
 async def create_preset(
     body: PresetCreate,
     _user: Annotated[dict, Depends(get_current_user)],
