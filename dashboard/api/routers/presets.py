@@ -80,12 +80,8 @@ async def delete_preset(
             )
             if closed_ids:
                 ids = [r["id"] for r in closed_ids]
-                await conn.execute(
-                    "DELETE FROM queue_members WHERE queue_id = ANY($1::bigint[])", ids
-                )
-                await conn.execute(
-                    "DELETE FROM game_queues WHERE id = ANY($1::bigint[])", ids
-                )
+                await conn.execute("DELETE FROM queue_members WHERE queue_id = ANY($1::bigint[])", ids)
+                await conn.execute("DELETE FROM game_queues WHERE id = ANY($1::bigint[])", ids)
             result = await conn.fetchrow(
                 "DELETE FROM game_presets WHERE id=$1 AND guild_id=$2 RETURNING id",
                 preset_id,
