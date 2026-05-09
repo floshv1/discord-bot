@@ -1,3 +1,13 @@
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'voice_sessions' AND column_name = 'joined_at'
+    ) THEN
+        DROP TABLE voice_sessions CASCADE;
+    END IF;
+END $$;
+
 CREATE TABLE IF NOT EXISTS voice_sessions (
     id BIGSERIAL PRIMARY KEY,
     guild_id BIGINT NOT NULL,
