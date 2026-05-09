@@ -31,12 +31,10 @@ class VoiceCog(commands.Cog):
     async def cog_unload(self) -> None:
         self.leaderboard_ticker.cancel()
 
-    @tasks.loop(minutes=1)
+    @tasks.loop(hours=1)
     async def leaderboard_ticker(self) -> None:
-        now = datetime.datetime.now(PARIS_TZ)
-        if now.hour == 0 and now.minute == 0:
-            await self._update_weekly_message()
-            await self._update_alltime_message()
+        await self._update_weekly_message()
+        await self._update_alltime_message()
 
     @leaderboard_ticker.before_loop
     async def before_leaderboard_ticker(self) -> None:
@@ -124,7 +122,9 @@ class VoiceCog(commands.Cog):
             guild_id,
         )
 
+        now = datetime.datetime.now(PARIS_TZ)
         embed = discord.Embed(title="🎙️ Top Vocal — 7 derniers jours", color=discord.Color.blurple())
+        embed.set_footer(text=f"Mis à jour le {now.strftime('%d/%m à %H:%M')}")
         if not rows:
             embed.description = "Aucune session cette semaine."
         else:
@@ -175,7 +175,9 @@ class VoiceCog(commands.Cog):
             guild_id,
         )
 
+        now = datetime.datetime.now(PARIS_TZ)
         embed = discord.Embed(title="🏆 Top Vocal — Tout temps", color=discord.Color.gold())
+        embed.set_footer(text=f"Mis à jour le {now.strftime('%d/%m à %H:%M')}")
         if not rows:
             embed.description = "Aucune session enregistrée."
         else:
