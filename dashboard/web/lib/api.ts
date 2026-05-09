@@ -1,7 +1,5 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8090";
-
 export async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await fetch(path, {
     credentials: "include",
     ...options,
     headers: {
@@ -10,9 +8,8 @@ export async function apiFetch<T>(path: string, options?: RequestInit): Promise<
     },
   });
   if (res.status === 401) {
-    // Not authenticated — redirect to login
     if (typeof window !== "undefined") {
-      window.location.href = `${API_URL}/auth/login`;
+      window.location.href = "/auth/login";
     }
     throw new Error("Unauthorized");
   }

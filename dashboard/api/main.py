@@ -19,7 +19,7 @@ CORS_ORIGINS = [
     origin.strip() for origin in os.environ.get("CORS_ORIGINS", "http://localhost:3000").split(",") if origin.strip()
 ]
 
-app = FastAPI(title="Bot Admin API")
+app = FastAPI(title="Bot Admin API", redirect_slashes=False)
 
 app.add_middleware(
     CORSMiddleware,

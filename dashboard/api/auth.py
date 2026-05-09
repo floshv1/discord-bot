@@ -11,7 +11,7 @@ from jose import jwt
 
 DISCORD_CLIENT_ID = os.environ.get("DISCORD_CLIENT_ID", "")
 DISCORD_CLIENT_SECRET = os.environ.get("DISCORD_CLIENT_SECRET", "")
-DISCORD_REDIRECT_URI = os.environ.get("DISCORD_REDIRECT_URI", "http://localhost:8090/auth/callback")
+DISCORD_REDIRECT_URI = os.environ.get("DISCORD_REDIRECT_URI", "http://localhost:3100/auth/callback")
 DASHBOARD_SECRET = os.environ.get("DASHBOARD_SECRET", "")
 GUILD_ID = os.environ.get("GUILD_ID", "")
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3100/overview")

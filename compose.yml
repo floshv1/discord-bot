@@ -29,8 +29,6 @@ services:
   api:
     image: ghcr.io/floshv1/discord-bot-api:latest
     restart: unless-stopped
-    ports:
-      - "8090:8000"
     environment:
       DATABASE_URL: postgresql://botuser:${POSTGRES_PASSWORD}@db:5432/discord_bot
       GUILD_ID: ${GUILD_ID}
@@ -49,6 +47,8 @@ services:
     restart: unless-stopped
     ports:
       - "3100:3000"
+    environment:
+      BACKEND_URL: http://api:8000
     depends_on:
       - api
 
