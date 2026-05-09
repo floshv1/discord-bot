@@ -1,6 +1,6 @@
 import os
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from urllib.parse import urlencode
 
 import httpx
@@ -33,7 +33,7 @@ def _build_oauth_url(state: str) -> str:
 
 
 def _issue_jwt(user_id: int, username: str, avatar: str | None) -> str:
-    expiry = datetime.now(tz=timezone.utc) + timedelta(hours=24)
+    expiry = datetime.now(tz=UTC) + timedelta(hours=24)
     payload = {
         "sub": str(user_id),
         "username": username,
