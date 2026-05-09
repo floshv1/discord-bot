@@ -42,7 +42,9 @@ async def create_preset(
 
     try:
         row = await pool.fetchrow(
-            "INSERT INTO game_presets (guild_id, name, player_count) VALUES ($1, $2, $3) RETURNING id, guild_id, name, player_count",
+            "INSERT INTO game_presets (guild_id, name, player_count)"
+            " VALUES ($1, $2, $3)"
+            " RETURNING id, guild_id, name, player_count",
             guild_id,
             body.name,
             body.player_count,

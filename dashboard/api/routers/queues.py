@@ -38,7 +38,8 @@ async def list_queues(
     members_list = await asyncio.gather(
         *[
             pool.fetch(
-                "SELECT user_id, joined_at, in_lane, cant_attend FROM queue_members WHERE queue_id = $1 ORDER BY joined_at",
+                "SELECT user_id, joined_at, in_lane, cant_attend"
+                " FROM queue_members WHERE queue_id = $1 ORDER BY joined_at",
                 q["id"],
             )
             for q in queues
