@@ -53,7 +53,10 @@ class VoiceCog(commands.Cog):
         guild = self.bot.get_guild(guild_id)
         if not guild:
             return
+        afk_channel = guild.afk_channel
         for channel in guild.voice_channels:
+            if channel == afk_channel:
+                continue
             for member in channel.members:
                 if not member.bot:
                     await pool.execute(
@@ -85,7 +88,7 @@ class VoiceCog(commands.Cog):
                 member.id,
             )
 
-        if after.channel is not None:
+        if after.channel is not None and after.channel != member.guild.afk_channel:
             await pool.execute(
                 "INSERT INTO voice_sessions (guild_id, user_id, channel_id) VALUES ($1, $2, $3)",
                 guild_id,
