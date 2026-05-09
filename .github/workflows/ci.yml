@@ -93,6 +93,7 @@ jobs:
         with:
           context: .
           push: true
+          provenance: false
           tags: ghcr.io/floshv1/discord-bot:latest
 
   docker-api:
@@ -118,6 +119,7 @@ jobs:
         with:
           context: ./dashboard/api
           push: true
+          provenance: false
           tags: ghcr.io/floshv1/discord-bot-api:latest
 
   docker-web:
@@ -142,6 +144,7 @@ jobs:
         with:
           context: ./dashboard/web
           push: true
+          provenance: false
           tags: ghcr.io/floshv1/discord-bot-web:latest
           build-args: |
             NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}
