@@ -5,6 +5,7 @@ from typing import Annotated
 from db import get_db
 from dependencies import get_current_user
 from fastapi import APIRouter, Depends
+from utils import get_name, resolve_users
 
 router = APIRouter()
 
@@ -49,10 +50,14 @@ async def get_overview(
         guild_id,
     )
 
+    actor_ids = [row["actor_id"] for row in recent_rows]
+    users = await resolve_users(pool, actor_ids)
+
     recent_activity = [
         {
             "event_type": row["event_type"],
             "actor_id": row["actor_id"],
+            "actor_name": get_name(users, row["actor_id"]),
             "channel_id": row["channel_id"],
             "details": json.loads(row["details"]) if isinstance(row["details"], str) else row["details"],
             "created_at": row["created_at"].isoformat() if row["created_at"] else None,

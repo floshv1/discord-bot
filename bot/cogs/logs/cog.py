@@ -59,6 +59,29 @@ class LogsCog(commands.Cog):
         except Exception:
             logger.exception(f"Failed to persist audit log event '{event_type}' to DB")
 
+    async def _cache_user(self, user: discord.User | discord.Member) -> None:
+        try:
+            pool = get_pool()
+            if isinstance(user, discord.Member):
+                display_name = user.display_name
+            else:
+                display_name = user.global_name or user.name
+            await pool.execute(
+                """INSERT INTO discord_users (user_id, username, display_name, avatar, updated_at)
+                   VALUES ($1, $2, $3, $4, NOW())
+                   ON CONFLICT (user_id) DO UPDATE
+                   SET username = EXCLUDED.username,
+                       display_name = EXCLUDED.display_name,
+                       avatar = EXCLUDED.avatar,
+                       updated_at = NOW()""",
+                user.id,
+                user.name,
+                display_name,
+                user.avatar.key if user.avatar else None,
+            )
+        except Exception:
+            logger.exception(f"Failed to cache user {user.id}")
+
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message) -> None:
         if message.author.bot or message.guild is None or self._is_ignored(message.channel.id):
@@ -71,6 +94,7 @@ class LogsCog(commands.Cog):
         content_str = " + ".join(parts) if parts else "''"
         details = f"{message.channel.mention} — {message.author.mention} — {content_str}"
         await self._send(make_embed(discord.Color.light_grey(), "Message Sent", details))
+        await self._cache_user(message.author)
         await self._log_to_db(
             guild_id=message.guild.id,
             event_type="message_sent",
@@ -93,6 +117,7 @@ class LogsCog(commands.Cog):
             f"before: {before.content[:100]!r} → after: {after.content[:100]!r}"
         )
         await self._send(make_embed(discord.Color.yellow(), "Message Edited", details))
+        await self._cache_user(before.author)
         await self._log_to_db(
             guild_id=before.guild.id,
             event_type="message_edited",
@@ -116,6 +141,7 @@ class LogsCog(commands.Cog):
         content_str = " + ".join(parts) if parts else "''"
         details = f"{message.channel.mention} — {message.author.mention} — {content_str}"
         await self._send(make_embed(discord.Color.orange(), "Message Deleted", details))
+        await self._cache_user(message.author)
         await self._log_to_db(
             guild_id=message.guild.id,
             event_type="message_deleted",
@@ -146,6 +172,7 @@ class LogsCog(commands.Cog):
         age = (discord.utils.utcnow() - member.created_at).days
         details = f"{member.mention} ({member.id}) — account {age} days old"
         await self._send(make_embed(discord.Color.green(), "Member Joined", details))
+        await self._cache_user(member)
         await self._log_to_db(
             guild_id=member.guild.id,
             event_type="member_joined",
@@ -157,6 +184,7 @@ class LogsCog(commands.Cog):
     async def on_member_remove(self, member: discord.Member) -> None:
         details = f"{member.mention} ({member.id})"
         await self._send(make_embed(discord.Color.red(), "Member Left", details))
+        await self._cache_user(member)
         await self._log_to_db(
             guild_id=member.guild.id,
             event_type="member_left",
@@ -167,6 +195,7 @@ class LogsCog(commands.Cog):
     async def on_member_ban(self, guild: discord.Guild, user: discord.User) -> None:
         details = f"{user.mention} ({user.id})"
         await self._send(make_embed(discord.Color.dark_red(), "Member Banned", details))
+        await self._cache_user(user)
         await self._log_to_db(
             guild_id=guild.id,
             event_type="member_banned",
@@ -178,6 +207,7 @@ class LogsCog(commands.Cog):
     async def on_member_unban(self, guild: discord.Guild, user: discord.User) -> None:
         details = f"{user.mention} ({user.id})"
         await self._send(make_embed(discord.Color.teal(), "Member Unbanned", details))
+        await self._cache_user(user)
         await self._log_to_db(
             guild_id=guild.id,
             event_type="member_unbanned",
@@ -186,6 +216,7 @@ class LogsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_update(self, before: discord.Member, after: discord.Member) -> None:
+        await self._cache_user(after)
         if before.nick != after.nick:
             details = f"{after.mention} — nickname: {before.nick!r} → {after.nick!r}"
             await self._send(make_embed(discord.Color.purple(), "Nickname Changed", details))
@@ -224,6 +255,7 @@ class LogsCog(commands.Cog):
         before: discord.VoiceState,
         after: discord.VoiceState,
     ) -> None:
+        await self._cache_user(member)
         if before.channel is None and after.channel is not None:
             details = f"{member.mention} → {after.channel.mention}"
             await self._send(make_embed(discord.Color.blue(), "Voice Joined", details))
@@ -341,6 +373,8 @@ class LogsCog(commands.Cog):
         inviter = invite.inviter.mention if invite.inviter else "unknown"
         details = f"{invite.url} — by {inviter} — uses: {invite.max_uses or '∞'}"
         await self._send(make_embed(discord.Color.light_grey(), "Invite Created", details))
+        if invite.inviter:
+            await self._cache_user(invite.inviter)
         await self._log_to_db(
             guild_id=self.config.guild_id,
             event_type="invite_created",
@@ -402,6 +436,7 @@ class LogsCog(commands.Cog):
         channel_mention = getattr(interaction.channel, "mention", "unknown")
         details = f"{interaction.user.mention} → `/{name}` in {channel_mention} | {opts}"
         await self._send(make_embed(discord.Color.og_blurple(), "⌨️ Command", details))
+        await self._cache_user(interaction.user)
         await self._log_to_db(
             guild_id=interaction.guild_id,
             event_type="slash_command",

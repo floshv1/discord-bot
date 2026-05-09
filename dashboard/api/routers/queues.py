@@ -5,6 +5,7 @@ from typing import Annotated
 from db import get_db
 from dependencies import get_current_user
 from fastapi import APIRouter, Depends, HTTPException
+from utils import get_name, resolve_users
 
 router = APIRouter()
 
@@ -46,6 +47,11 @@ async def list_queues(
         ]
     )
 
+    all_user_ids = [q["creator_user_id"] for q in queues]
+    for members in members_list:
+        all_user_ids.extend(m["user_id"] for m in members)
+    users = await resolve_users(pool, all_user_ids)
+
     result = []
     for queue, members in zip(queues, members_list):
         result.append(
@@ -60,11 +66,13 @@ async def list_queues(
                 "start_time": queue["start_time"].isoformat() if queue["start_time"] else None,
                 "reminder_sent": queue["reminder_sent"],
                 "creator_user_id": queue["creator_user_id"],
+                "creator_name": get_name(users, queue["creator_user_id"]),
                 "game_name": queue["game_name"],
                 "player_count": queue["player_count"],
                 "members": [
                     {
                         "user_id": m["user_id"],
+                        "display_name": get_name(users, m["user_id"]),
                         "joined_at": m["joined_at"].isoformat() if m["joined_at"] else None,
                         "in_lane": m["in_lane"],
                         "cant_attend": m["cant_attend"],

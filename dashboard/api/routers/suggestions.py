@@ -5,6 +5,7 @@ from db import get_db
 from dependencies import get_current_user
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
+from utils import get_name, resolve_users
 
 router = APIRouter()
 
@@ -68,12 +69,16 @@ async def list_suggestions(
         offset,
     )
 
+    author_ids = [row["author_id"] for row in rows]
+    users = await resolve_users(pool, author_ids)
+
     items = [
         {
             "id": row["id"],
             "number": row["number"],
             "guild_id": row["guild_id"],
             "author_id": row["author_id"],
+            "author_name": get_name(users, row["author_id"]),
             "type": row["type"],
             "content": row["content"],
             "status": row["status"],

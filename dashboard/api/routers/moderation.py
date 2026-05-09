@@ -4,6 +4,7 @@ from typing import Annotated
 from db import get_db
 from dependencies import get_current_user
 from fastapi import APIRouter, Depends, Query
+from utils import get_name, resolve_users
 
 router = APIRouter()
 
@@ -56,12 +57,17 @@ async def list_mod_actions(
         offset,
     )
 
+    user_ids = [row["target_id"] for row in rows] + [row["moderator_id"] for row in rows]
+    users = await resolve_users(pool, user_ids)
+
     items = [
         {
             "id": row["id"],
             "guild_id": row["guild_id"],
             "target_id": row["target_id"],
+            "target_name": get_name(users, row["target_id"]),
             "moderator_id": row["moderator_id"],
+            "moderator_name": get_name(users, row["moderator_id"]),
             "action_type": row["action_type"],
             "reason": row["reason"],
             "created_at": row["created_at"].isoformat() if row["created_at"] else None,

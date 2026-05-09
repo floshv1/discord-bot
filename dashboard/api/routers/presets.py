@@ -63,11 +63,14 @@ async def delete_preset(
 ):
     guild_id = GUILD_ID
 
-    result = await pool.fetchrow(
-        "DELETE FROM game_presets WHERE id=$1 AND guild_id=$2 RETURNING id",
-        preset_id,
-        guild_id,
-    )
+    try:
+        result = await pool.fetchrow(
+            "DELETE FROM game_presets WHERE id=$1 AND guild_id=$2 RETURNING id",
+            preset_id,
+            guild_id,
+        )
+    except asyncpg.ForeignKeyViolationError:
+        raise HTTPException(status_code=409, detail="Preset has active queues — cancel them first")
 
     if result is None:
         raise HTTPException(status_code=404, detail="Preset not found")

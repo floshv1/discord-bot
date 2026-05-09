@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 
 interface LogItem {
   id: number;
   event_type: string;
   actor_id: number | null;
+  actor_name?: string | null;
   target_id: number | null;
+  target_name?: string | null;
   channel_id: number | null;
   details: Record<string, unknown> | null;
   created_at: string;
@@ -79,7 +81,12 @@ function eventTypeBorderColor(eventType: string): string {
 
 function buildDetailsSummary(item: LogItem): string {
   const parts: string[] = [];
-  if (item.actor_id != null) parts.push(`by ${item.actor_id}`);
+  if (item.actor_id != null) {
+    parts.push(`by ${item.actor_name ?? `User ${item.actor_id}`}`);
+  }
+  if (item.target_id != null) {
+    parts.push(`→ ${item.target_name ?? `User ${item.target_id}`}`);
+  }
   if (item.channel_id != null) parts.push(`in #${item.channel_id}`);
   if (item.details != null) {
     const detailStr = JSON.stringify(item.details);
@@ -99,6 +106,7 @@ export default function LogsPage() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [eventType, setEventType] = useState("");
+  const [autoRefresh, setAutoRefresh] = useState(true);
 
   // Debounce search input by 400ms
   useEffect(() => {
@@ -114,24 +122,44 @@ export default function LogsPage() {
     setPage(1);
   }, [eventType]);
 
-  // Fetch logs whenever page/filter/search changes
-  useEffect(() => {
-    setData(null);
-    setError(null);
-
-    const params = new URLSearchParams({
-      page: String(page),
-      page_size: String(PAGE_SIZE),
-    });
-    if (debouncedSearch) params.set("search", debouncedSearch);
-    if (eventType) params.set("event_type", eventType);
-
-    apiFetch<LogsResponse>(`/api/logs?${params.toString()}`)
-      .then(setData)
-      .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : "Failed to load logs");
+  // Fetch function — silent=true skips the loading reset (used by auto-refresh)
+  const fetchLogs = useCallback(
+    async (silent: boolean) => {
+      if (!silent) {
+        setData(null);
+        setError(null);
+      }
+      const params = new URLSearchParams({
+        page: String(page),
+        page_size: String(PAGE_SIZE),
       });
-  }, [page, debouncedSearch, eventType]);
+      if (debouncedSearch) params.set("search", debouncedSearch);
+      if (eventType) params.set("event_type", eventType);
+      try {
+        const result = await apiFetch<LogsResponse>(
+          `/api/logs?${params.toString()}`,
+        );
+        setData(result);
+        if (silent) setError(null);
+      } catch (err: unknown) {
+        if (!silent)
+          setError(err instanceof Error ? err.message : "Failed to load logs");
+      }
+    },
+    [page, debouncedSearch, eventType],
+  );
+
+  // Filter change → show loading
+  useEffect(() => {
+    fetchLogs(false);
+  }, [fetchLogs]);
+
+  // Auto-refresh interval → silent update
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const timer = setInterval(() => fetchLogs(true), 10000);
+    return () => clearInterval(timer);
+  }, [autoRefresh, fetchLogs]);
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1;
 
@@ -141,6 +169,17 @@ export default function LogsPage() {
       <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
         <h1 className="text-xl font-semibold text-white">Audit Logs</h1>
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setAutoRefresh((r) => !r)}
+            className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded border transition-colors ${
+              autoRefresh
+                ? "border-green-500/40 text-green-400 bg-green-500/10"
+                : "border-slate-600 text-slate-500"
+            }`}
+          >
+            <span className={autoRefresh ? "animate-pulse" : ""}>●</span>
+            {autoRefresh ? "Live" : "Paused"}
+          </button>
           <input
             type="text"
             placeholder="Search events…"

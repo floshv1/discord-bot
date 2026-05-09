@@ -8,6 +8,7 @@ interface SuggestionItem {
   number: number;
   guild_id: number;
   author_id: number;
+  author_name?: string | null;
   type: "feature" | "improvement";
   content: string;
   status: "open" | "accepted" | "rejected" | "implemented";
@@ -217,7 +218,7 @@ export default function SuggestionsPage() {
                       >
                         {item.type}
                       </span>
-                      <span>by {item.author_id}</span>
+                      <span>by {item.author_name ?? `User ${item.author_id}`}</span>
                       <span>
                         👍 {item.upvotes} 👎 {item.downvotes}
                       </span>

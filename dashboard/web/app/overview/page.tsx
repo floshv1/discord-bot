@@ -6,6 +6,7 @@ import { apiFetch } from "@/lib/api";
 interface RecentActivity {
   event_type: string;
   actor_id: number | null;
+  actor_name?: string | null;
   channel_id: number | null;
   details: Record<string, unknown> | null;
   created_at: string;
@@ -138,6 +139,11 @@ export default function OverviewPage() {
                   <span className={`text-sm font-medium ${color}`}>
                     {formatEventType(event.event_type)}
                   </span>
+                  {event.actor_id != null && (
+                    <span className="text-slate-500 text-xs">
+                      by {event.actor_name ?? `User ${event.actor_id}`}
+                    </span>
+                  )}
                   {detailsSummary && (
                     <span className="text-slate-400 text-xs truncate">
                       {detailsSummary}

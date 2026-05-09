@@ -5,6 +5,7 @@ import { apiFetch } from "@/lib/api";
 
 interface QueueMember {
   user_id: number;
+  display_name?: string | null;
   joined_at: string;
   in_lane: boolean;
   cant_attend: boolean;
@@ -16,6 +17,7 @@ interface Queue {
   channel_id: number;
   preset_id: number;
   creator_user_id: number | null;
+  creator_name?: string | null;
   status: "open" | "filled";
   created_at: string;
   filled_at: string | null;
@@ -210,7 +212,7 @@ export default function QueuesPage() {
                   {/* Creator */}
                   <p className="text-slate-400 text-xs mb-2">
                     {queue.creator_user_id != null
-                      ? `Created by ${queue.creator_user_id}`
+                      ? `Created by ${queue.creator_name ?? `User ${queue.creator_user_id}`}`
                       : "Created by unknown"}{" "}
                     · {relativeTime(queue.created_at)}
                   </p>
@@ -223,7 +225,7 @@ export default function QueuesPage() {
                           key={m.user_id}
                           className="text-slate-300 text-xs"
                         >
-                          User {m.user_id}
+                          {m.display_name ?? `User ${m.user_id}`}
                         </span>
                       ))}
                       {overflow > 0 && (

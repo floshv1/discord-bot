@@ -7,7 +7,9 @@ interface ModItem {
   id: number;
   guild_id: number;
   target_id: number;
+  target_name?: string | null;
   moderator_id: number;
+  moderator_name?: string | null;
   action_type: string;
   reason: string | null;
   created_at: string;
@@ -159,12 +161,12 @@ export default function ModerationPage() {
                         {item.action_type}
                       </span>
                       <span className="text-white text-sm font-medium">
-                        User {item.target_id}
+                        {item.target_name ?? `User ${item.target_id}`}
                       </span>
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
                       <span className="text-slate-400 text-xs">
-                        by {item.moderator_id}
+                        by {item.moderator_name ?? item.moderator_id}
                       </span>
                       <span className="text-slate-500 text-xs">
                         {relativeTime(item.created_at)}
