@@ -16,9 +16,7 @@ load_dotenv()
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 CORS_ORIGINS = [
-    origin.strip()
-    for origin in os.environ.get("CORS_ORIGINS", "http://localhost:3000").split(",")
-    if origin.strip()
+    origin.strip() for origin in os.environ.get("CORS_ORIGINS", "http://localhost:3000").split(",") if origin.strip()
 ]
 
 app = FastAPI(title="Bot Admin API")
