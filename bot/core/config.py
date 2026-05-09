@@ -12,6 +12,9 @@ class Config:
         self.guild_id: int = self._require_int("GUILD_ID")
         self.log_channel_id: int = self._require_int("LOG_CHANNEL_ID")
         self.log_ignored_channel_ids: set[int] = self._optional_int_set("LOG_IGNORED_CHANNEL_IDS")
+        self.voice_leaderboard_channel_id: int | None = self._optional_int("VOICE_LEADERBOARD_CHANNEL_ID")
+        self.birthday_channel_id: int | None = self._optional_int("BIRTHDAY_CHANNEL_ID")
+        self.birthday_announce_channel_id: int | None = self._optional_int("BIRTHDAY_ANNOUNCE_CHANNEL_ID")
 
     @staticmethod
     def _require_str(key: str) -> str:

@@ -82,6 +82,8 @@ All tables are created automatically by the migrations in `bot/db/migrations/` w
 
 ### Schema
 
+All tables are created by migration files in `bot/db/migrations/`, applied alphabetically in a single transaction on startup.
+
 ```sql
 -- 001_initial.sql
 CREATE TABLE IF NOT EXISTS mod_actions (
@@ -94,23 +96,6 @@ CREATE TABLE IF NOT EXISTS mod_actions (
     created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 002_voice_sessions.sql
-CREATE TABLE IF NOT EXISTS voice_sessions (
-    id               BIGSERIAL PRIMARY KEY,
-    guild_id         BIGINT NOT NULL,
-    user_id          BIGINT NOT NULL,
-    channel_id       BIGINT NOT NULL,
-    joined_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    left_at          TIMESTAMPTZ,
-    duration_seconds INT
-);
-
-CREATE TABLE IF NOT EXISTS voice_leaderboard_config (
-    guild_id   BIGINT PRIMARY KEY,
-    channel_id BIGINT NOT NULL,
-    message_id BIGINT
-);
-
 -- 003_game_queue.sql
 CREATE TABLE IF NOT EXISTS game_presets (
     id           BIGSERIAL PRIMARY KEY,
@@ -121,24 +106,110 @@ CREATE TABLE IF NOT EXISTS game_presets (
 );
 
 CREATE TABLE IF NOT EXISTS game_queues (
-    id            BIGSERIAL PRIMARY KEY,
-    guild_id      BIGINT NOT NULL,
-    channel_id    BIGINT NOT NULL,
-    preset_id     BIGINT NOT NULL REFERENCES game_presets(id),
-    status        TEXT NOT NULL DEFAULT 'open',  -- open | filled | cancelled
-    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    filled_at     TIMESTAMPTZ,
-    start_time    TIMESTAMPTZ,
-    reminder_sent BOOLEAN NOT NULL DEFAULT FALSE,
-    message_id    BIGINT  -- added by 004_queue_message_id.sql
+    id              BIGSERIAL PRIMARY KEY,
+    guild_id        BIGINT NOT NULL,
+    channel_id      BIGINT NOT NULL,
+    preset_id       BIGINT NOT NULL REFERENCES game_presets(id),
+    status          TEXT NOT NULL DEFAULT 'open',  -- open | filled | done | cancelled
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    filled_at       TIMESTAMPTZ,
+    start_time      TIMESTAMPTZ,
+    reminder_sent   BOOLEAN NOT NULL DEFAULT FALSE,
+    message_id      BIGINT,
+    creator_user_id BIGINT
 );
 
 CREATE TABLE IF NOT EXISTS queue_members (
-    id        BIGSERIAL PRIMARY KEY,
-    queue_id  BIGINT NOT NULL REFERENCES game_queues(id),
-    user_id   BIGINT NOT NULL,
-    joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    id           BIGSERIAL PRIMARY KEY,
+    queue_id     BIGINT NOT NULL REFERENCES game_queues(id),
+    user_id      BIGINT NOT NULL,
+    joined_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    in_lane      BOOLEAN NOT NULL DEFAULT FALSE,
+    cant_attend  BOOLEAN NOT NULL DEFAULT FALSE,
     UNIQUE (queue_id, user_id)
+);
+
+-- 005_suggestions.sql
+CREATE TABLE IF NOT EXISTS suggestion_config (
+    guild_id   BIGINT PRIMARY KEY,
+    channel_id BIGINT NOT NULL,
+    message_id BIGINT
+);
+
+CREATE TABLE IF NOT EXISTS suggestions (
+    id         BIGSERIAL PRIMARY KEY,
+    number     INT NOT NULL,
+    guild_id   BIGINT NOT NULL,
+    author_id  BIGINT NOT NULL,
+    type       TEXT NOT NULL,       -- feature | improvement
+    content    TEXT NOT NULL,
+    status     TEXT NOT NULL DEFAULT 'open',  -- open | accepted | rejected | implemented
+    message_id BIGINT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (guild_id, number)
+);
+
+CREATE TABLE IF NOT EXISTS suggestion_votes (
+    suggestion_id BIGINT NOT NULL REFERENCES suggestions(id) ON DELETE CASCADE,
+    user_id       BIGINT NOT NULL,
+    vote          INT NOT NULL,     -- 1 = upvote, -1 = downvote
+    PRIMARY KEY (suggestion_id, user_id)
+);
+
+-- 008_audit_logs.sql
+CREATE TABLE IF NOT EXISTS audit_logs (
+    id         BIGSERIAL PRIMARY KEY,
+    guild_id   BIGINT NOT NULL,
+    event_type TEXT NOT NULL,
+    actor_id   BIGINT,
+    target_id  BIGINT,
+    channel_id BIGINT,
+    details    JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 009_discord_users.sql
+CREATE TABLE IF NOT EXISTS discord_users (
+    user_id      BIGINT PRIMARY KEY,
+    username     TEXT NOT NULL,
+    display_name TEXT,
+    avatar       TEXT,
+    updated_at   TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 010_voice_sessions.sql
+CREATE TABLE IF NOT EXISTS voice_sessions (
+    id         BIGSERIAL PRIMARY KEY,
+    guild_id   BIGINT NOT NULL,
+    user_id    BIGINT NOT NULL,
+    channel_id BIGINT NOT NULL,
+    started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    ended_at   TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS voice_leaderboard (
+    guild_id          BIGINT PRIMARY KEY,
+    channel_id        BIGINT NOT NULL,
+    weekly_message_id BIGINT,
+    alltime_message_id BIGINT
+);
+
+-- 011_birthdays.sql
+CREATE TABLE IF NOT EXISTS birthdays (
+    user_id    BIGINT PRIMARY KEY,
+    guild_id   BIGINT NOT NULL,
+    username   TEXT NOT NULL,
+    day        INT NOT NULL CHECK (day BETWEEN 1 AND 31),
+    month      INT NOT NULL CHECK (month BETWEEN 1 AND 12),
+    year       INT NOT NULL CHECK (year BETWEEN 1900 AND 2100),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS birthday_config (
+    guild_id             BIGINT PRIMARY KEY,
+    channel_id           BIGINT NOT NULL,
+    upcoming_message_id  BIGINT,
+    month_message_id     BIGINT
 );
 ```
 

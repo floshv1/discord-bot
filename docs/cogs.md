@@ -107,26 +107,37 @@ All commands are slash commands. Every action writes a row to the `mod_actions` 
 
 ## Voice Cog (`bot/cogs/voice/cog.py`)
 
-Tracks time spent in voice channels per user and maintains an auto-updating leaderboard.
+Tracks time spent in voice channels per user and maintains two auto-updating pinned leaderboards: one for the rolling 7-day window and one for all-time totals.
 
 ### Behavior
 
-- On **cog load**: closes any open sessions left over from a bot restart (sets `left_at = NOW()`)
-- On **voice state change**: inserts a new session row when a user joins, closes it when they leave
-- **Daily at UTC 00:00**: edits the pinned leaderboard message in the configured channel (or posts a new one if the message was deleted)
+- On **cog load** (after bot ready): closes any orphaned open sessions left from before a restart, then opens fresh sessions for all members currently in voice channels
+- On **voice state change**: opens a session row on join, closes it on leave; moves (channel switch) close the old session and open a new one; mute/deafen events are ignored
+- **Daily at midnight Paris time**: edits both pinned leaderboard messages in `VOICE_LEADERBOARD_CHANNEL_ID`
 
 ### Commands
 
 | Command | Permission | Description |
 |---|---|---|
-| `/voice stats [user]` | — | Shows weekly + all-time voice time and 5 most recent sessions for a user (defaults to yourself) |
-| `/voice leaderboard [period]` | — | Top 10 users by voice time; `period` is `weekly` (default) or `alltime` |
-| `/voice setchannel <channel>` | Manage Channels | Sets the channel for the persistent daily leaderboard message and posts it immediately |
+| `/voice setup` | Manage Guild | Posts the two pinned leaderboard messages to `VOICE_LEADERBOARD_CHANNEL_ID` and records their IDs in the DB. Run once after setting the env var. Re-running updates the stored message IDs. |
+
+### Leaderboard format
+
+Top 10 members by total seconds. Duration shown as `Xh YYm` (or `Zm` if under one hour).
+
+```
+#1 username — 12h 34m
+#2 username — 8h 02m
+…
+```
+
+- **Weekly** (`🎙️ Top Vocal — 7 derniers jours`): sums all session time where `started_at > NOW() - 7 days`, including any currently open sessions
+- **All-time** (`🏆 Top Vocal — Tout temps`): sums all completed sessions (`ended_at IS NOT NULL`)
 
 ### Notes
 
-- The leaderboard message ID is stored in `voice_leaderboard_config` so the bot always edits the same message rather than posting a new one each day
-- Set `VOICE_LEADERBOARD_CHANNEL_ID` in env to pre-configure the leaderboard channel at startup without needing `/voice setchannel`
+- Message IDs are stored in the `voice_leaderboard` table; the bot always edits the same messages rather than posting new ones
+- If `VOICE_LEADERBOARD_CHANNEL_ID` is not set the cog still tracks sessions — only the embed updates are skipped
 
 ---
 
@@ -198,3 +209,44 @@ Run `/suggest setup <channel>` to post the entry-point message. This is idempote
 - Suggestion numbers are guild-scoped and sequential (`#1`, `#2`, …)
 - A user can vote 👍 or 👎 once per suggestion; clicking the same button again toggles it off; switching direction replaces the previous vote
 - Vote views and setup buttons survive bot restarts (re-registered on `cog_load`)
+
+---
+
+## Birthday Cog (`bot/cogs/birthday/cog.py`)
+
+Members register their birthday once. Two pinned embeds update daily and the bot sends birthday wishes at midnight Paris time.
+
+### Setup
+
+1. Set `BIRTHDAY_CHANNEL_ID` (where the two pinned embeds live) and `BIRTHDAY_ANNOUNCE_CHANNEL_ID` (where birthday wishes are posted) in your env
+2. Run `/birthday setup` in any channel — the bot posts both embeds to `BIRTHDAY_CHANNEL_ID` and records their IDs in the DB
+
+### Commands
+
+| Command | Permission | Description |
+|---|---|---|
+| `/birthday set <day> <month> <year>` | — | Registers or updates your birthday. Immediately refreshes both pinned embeds. |
+| `/birthday delete` | — | Removes your birthday from the DB and refreshes both embeds |
+| `/birthday list` | — | Ephemeral embed showing all upcoming birthdays sorted by next occurrence |
+| `/birthday month` | — | Ephemeral embed showing birthdays in the current calendar month |
+| `/birthday setup` | Manage Guild | Posts the two pinned embeds to `BIRTHDAY_CHANNEL_ID` and stores their message IDs. Safe to re-run — replaces existing stored IDs. |
+
+### Pinned embeds
+
+| Embed | Title | Color | Content |
+|---|---|---|---|
+| Upcoming | 🎉 Anniversaires à venir | Blue | All registered birthdays sorted by days until next occurrence |
+| This month | 📅 Anniversaires de \<mois\> | Purple | Only birthdays in the current calendar month, sorted by day |
+
+Each field shows: `DD/MM (N ans) • dans X jours` or `aujourd'hui 🎂`.
+
+### Automatic behavior
+
+- **On cog load**: both embeds refresh immediately (so they're correct after a bot restart)
+- **Daily at midnight Paris time**: both embeds refresh, then the bot checks for today's birthdays and posts a wish to `BIRTHDAY_ANNOUNCE_CHANNEL_ID`
+
+### Notes
+
+- Birthdays are stored per `user_id` — a user has at most one entry across all guilds
+- If `BIRTHDAY_CHANNEL_ID` is not set, embed updates are skipped silently; commands still work
+- If `BIRTHDAY_ANNOUNCE_CHANNEL_ID` is not set, midnight wishes are skipped silently
