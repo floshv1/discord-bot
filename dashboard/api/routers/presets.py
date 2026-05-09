@@ -63,14 +63,34 @@ async def delete_preset(
 ):
     guild_id = GUILD_ID
 
-    try:
-        result = await pool.fetchrow(
-            "DELETE FROM game_presets WHERE id=$1 AND guild_id=$2 RETURNING id",
-            preset_id,
-            guild_id,
-        )
-    except asyncpg.ForeignKeyViolationError:
+    active = await pool.fetchval(
+        "SELECT COUNT(*) FROM game_queues WHERE preset_id=$1 AND guild_id=$2 AND status IN ('open','filled')",
+        preset_id,
+        guild_id,
+    )
+    if active:
         raise HTTPException(status_code=409, detail="Preset has active queues — cancel them first")
+
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            closed_ids = await conn.fetch(
+                "SELECT id FROM game_queues WHERE preset_id=$1 AND guild_id=$2",
+                preset_id,
+                guild_id,
+            )
+            if closed_ids:
+                ids = [r["id"] for r in closed_ids]
+                await conn.execute(
+                    "DELETE FROM queue_members WHERE queue_id = ANY($1::bigint[])", ids
+                )
+                await conn.execute(
+                    "DELETE FROM game_queues WHERE id = ANY($1::bigint[])", ids
+                )
+            result = await conn.fetchrow(
+                "DELETE FROM game_presets WHERE id=$1 AND guild_id=$2 RETURNING id",
+                preset_id,
+                guild_id,
+            )
 
     if result is None:
         raise HTTPException(status_code=404, detail="Preset not found")
