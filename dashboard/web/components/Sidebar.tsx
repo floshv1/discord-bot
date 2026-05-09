@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 
 const navItems = [
@@ -11,8 +12,32 @@ const navItems = [
   { href: "/suggestions", label: "💡 Suggestions" },
 ];
 
+interface User {
+  id: string;
+  username: string;
+  avatar: string | null;
+}
+
+function avatarUrl(user: User): string | null {
+  if (!user.avatar) return null;
+  return `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=64`;
+}
+
 export default function Sidebar() {
   const pathname = usePathname();
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    fetch("/auth/me", { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: User | null) => setUser(data))
+      .catch(() => setUser(null));
+  }, []);
+
+  async function logout() {
+    await fetch("/auth/logout", { method: "POST", credentials: "include" });
+    window.location.href = "/auth/login";
+  }
 
   return (
     <aside className="w-48 min-h-screen bg-slate-800 flex flex-col shrink-0">
@@ -44,11 +69,40 @@ export default function Sidebar() {
       </nav>
 
       {/* Footer / User */}
-      <div className="px-4 py-4 border-t border-slate-700 flex items-center gap-3">
-        <div className="w-8 h-8 rounded-full bg-purple-700 flex items-center justify-center text-white text-sm font-bold shrink-0">
-          A
-        </div>
-        <span className="text-slate-300 text-sm font-medium">Admin</span>
+      <div className="px-4 py-4 border-t border-slate-700">
+        {user ? (
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              {avatarUrl(user) ? (
+                <img
+                  src={avatarUrl(user)!}
+                  alt={user.username}
+                  className="w-8 h-8 rounded-full shrink-0"
+                />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-purple-700 flex items-center justify-center text-white text-sm font-bold shrink-0">
+                  {user.username[0].toUpperCase()}
+                </div>
+              )}
+              <span className="text-slate-300 text-sm font-medium truncate">
+                {user.username}
+              </span>
+            </div>
+            <button
+              onClick={logout}
+              className="text-xs text-slate-500 hover:text-slate-300 transition-colors text-left"
+            >
+              Log out
+            </button>
+          </div>
+        ) : (
+          <a
+            href="/auth/login"
+            className="text-sm text-purple-400 hover:text-purple-300 transition-colors"
+          >
+            Log in with Discord →
+          </a>
+        )}
       </div>
     </aside>
   );
