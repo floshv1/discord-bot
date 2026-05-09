@@ -26,5 +26,31 @@ services:
       interval: 5s
       retries: 5
 
+  api:
+    image: ghcr.io/floshv1/discord-bot-api:latest
+    restart: unless-stopped
+    ports:
+      - "8090:8000"
+    environment:
+      DATABASE_URL: postgresql://botuser:${POSTGRES_PASSWORD}@db:5432/discord_bot
+      GUILD_ID: ${GUILD_ID}
+      DASHBOARD_SECRET: ${DASHBOARD_SECRET}
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID}
+      DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET}
+      DISCORD_REDIRECT_URI: ${DISCORD_REDIRECT_URI:-http://localhost:8090/auth/callback}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3100/overview}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3100}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    image: ghcr.io/floshv1/discord-bot-web:latest
+    restart: unless-stopped
+    ports:
+      - "3100:3000"
+    depends_on:
+      - api
+
 volumes:
   pg_data:

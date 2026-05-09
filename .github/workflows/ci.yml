@@ -71,7 +71,7 @@ jobs:
         run: uv run pip-audit
 
   docker:
-    name: Build & Push Docker Image
+    name: Build & Push Bot Image
     runs-on: ubuntu-latest
     needs: [lint, test, security]
     if: github.ref == 'refs/heads/main'
@@ -94,3 +94,54 @@ jobs:
           context: .
           push: true
           tags: ghcr.io/floshv1/discord-bot:latest
+
+  docker-api:
+    name: Build & Push API Image
+    runs-on: ubuntu-latest
+    needs: [lint]
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ./dashboard/api
+          push: true
+          tags: ghcr.io/floshv1/discord-bot-api:latest
+
+  docker-web:
+    name: Build & Push Web Image
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ./dashboard/web
+          push: true
+          tags: ghcr.io/floshv1/discord-bot-web:latest
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}
