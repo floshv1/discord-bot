@@ -228,8 +228,14 @@ class MusicCog(commands.Cog):
             description=f"[{track.title}]({track.uri})",
             color=discord.Color.green(),
         )
-        embed.add_field(name="Duration", value=_fmt_ms(track.length))
-        embed.add_field(name="Requested by", value=req)
+        embed.add_field(name="Artist", value=track.author or "—", inline=True)
+        album_name = getattr(track.album, "name", None)
+        if album_name:
+            embed.add_field(name="Album", value=album_name, inline=True)
+        embed.add_field(name="Duration", value=_fmt_ms(track.length), inline=True)
+        embed.add_field(name="Requested by", value=req, inline=True)
+        if track.artwork:
+            embed.set_thumbnail(url=track.artwork)
         try:
             await player.text_channel.send(embed=embed)
         except discord.HTTPException:
