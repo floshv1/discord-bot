@@ -2,7 +2,8 @@ from unittest.mock import MagicMock
 
 import discord
 
-from bot.cogs.music.cog import _build_queue_embed, _fmt_ms
+from bot.cogs.music.cog import _fmt_ms
+from bot.cogs.music.views import QueueView
 
 
 def test_fmt_ms_seconds():
@@ -22,6 +23,8 @@ def _make_track(title: str, length_ms: int, uri: str = "https://youtube.com", re
     track.title = title
     track.length = length_ms
     track.uri = uri
+    track.author = "Artist"
+    track.artwork = None
     track.extras = MagicMock()
     track.extras.requester = requester_id
     return track
@@ -33,7 +36,7 @@ def test_build_queue_embed_empty():
     player.queue.is_empty = True
     player.queue.count = 0
     player.queue.__iter__ = lambda self: iter([])
-    embed = _build_queue_embed(player)
+    embed = QueueView(player).build_embed()
     assert isinstance(embed, discord.Embed)
     assert "empty" in embed.description.lower()
 
@@ -45,7 +48,7 @@ def test_build_queue_embed_with_tracks():
     player.queue.is_empty = False
     player.queue.count = 1
     player.queue.__iter__ = lambda self: iter([track_b])
-    embed = _build_queue_embed(player)
+    embed = QueueView(player).build_embed()
     assert "Song A" in embed.description
     assert "Song B" in embed.description
     assert "<@123>" in embed.description
