@@ -6,6 +6,7 @@ dependencies = [
     "discord.py>=2.4",
     "asyncpg>=0.30",
     "loguru>=0.7",
+    "wavelink>=3.4",
 ]
 
 [dependency-groups]

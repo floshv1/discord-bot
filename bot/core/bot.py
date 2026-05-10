@@ -13,6 +13,7 @@ COGS = [
     "bot.cogs.suggestions.cog",
     "bot.cogs.voice.cog",
     "bot.cogs.birthday.cog",
+    "bot.cogs.music.cog",
 ]
 
 

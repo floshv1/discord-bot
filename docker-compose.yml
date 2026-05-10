@@ -1,0 +1,53 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: botuser
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: discord_bot
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U botuser -d discord_bot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  lavalink:
+    image: ghcr.io/lavalink-devs/lavalink:4
+    restart: unless-stopped
+    volumes:
+      - ./lavalink/application.yml:/opt/Lavalink/application.yml
+    environment:
+      - LAVALINK_SERVER_PASSWORD=${LAVALINK_PASSWORD:-youshallnotpass}
+      - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID:-}
+      - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET:-}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:2333/v4/info -H 'Authorization: ${LAVALINK_PASSWORD:-youshallnotpass}' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  bot:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      lavalink:
+        condition: service_healthy
+    environment:
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+      - DATABASE_URL=postgresql://botuser:${POSTGRES_PASSWORD}@db:5432/discord_bot
+      - GUILD_ID=${GUILD_ID}
+      - LOG_CHANNEL_ID=${LOG_CHANNEL_ID}
+      - LOG_IGNORED_CHANNEL_IDS=${LOG_IGNORED_CHANNEL_IDS:-}
+      - VOICE_LEADERBOARD_CHANNEL_ID=${VOICE_LEADERBOARD_CHANNEL_ID:-}
+      - BIRTHDAY_CHANNEL_ID=${BIRTHDAY_CHANNEL_ID:-}
+      - BIRTHDAY_ANNOUNCE_CHANNEL_ID=${BIRTHDAY_ANNOUNCE_CHANNEL_ID:-}
+      - LAVALINK_URI=http://lavalink:2333
+      - LAVALINK_PASSWORD=${LAVALINK_PASSWORD:-youshallnotpass}
+
+volumes:
+  pgdata:

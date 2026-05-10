@@ -15,6 +15,8 @@ class Config:
         self.voice_leaderboard_channel_id: int | None = self._optional_int("VOICE_LEADERBOARD_CHANNEL_ID")
         self.birthday_channel_id: int | None = self._optional_int("BIRTHDAY_CHANNEL_ID")
         self.birthday_announce_channel_id: int | None = self._optional_int("BIRTHDAY_ANNOUNCE_CHANNEL_ID")
+        self.lavalink_uri: str = self._optional_str("LAVALINK_URI", "http://lavalink:2333")
+        self.lavalink_password: str = self._optional_str("LAVALINK_PASSWORD", "youshallnotpass")
 
     @staticmethod
     def _require_str(key: str) -> str:
@@ -55,3 +57,7 @@ class Config:
             return int(raw)
         except ValueError:
             raise ConfigError(f"Environment variable '{key}' must be an integer, got: '{raw}'")
+
+    @staticmethod
+    def _optional_str(key: str, default: str) -> str:
+        return os.environ.get(key) or default

@@ -34,3 +34,36 @@ def test_config_raises_on_invalid_int(monkeypatch):
 
     with pytest.raises(ConfigError, match="GUILD_ID"):
         Config()
+
+
+def test_lavalink_uri_default(monkeypatch):
+    monkeypatch.setenv("DISCORD_TOKEN", "token")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://localhost/test")
+    monkeypatch.setenv("GUILD_ID", "1")
+    monkeypatch.setenv("LOG_CHANNEL_ID", "2")
+    monkeypatch.delenv("LAVALINK_URI", raising=False)
+
+    cfg = Config()
+    assert cfg.lavalink_uri == "http://lavalink:2333"
+
+
+def test_lavalink_uri_override(monkeypatch):
+    monkeypatch.setenv("DISCORD_TOKEN", "token")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://localhost/test")
+    monkeypatch.setenv("GUILD_ID", "1")
+    monkeypatch.setenv("LOG_CHANNEL_ID", "2")
+    monkeypatch.setenv("LAVALINK_URI", "http://myhost:2333")
+
+    cfg = Config()
+    assert cfg.lavalink_uri == "http://myhost:2333"
+
+
+def test_lavalink_password_default(monkeypatch):
+    monkeypatch.setenv("DISCORD_TOKEN", "token")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://localhost/test")
+    monkeypatch.setenv("GUILD_ID", "1")
+    monkeypatch.setenv("LOG_CHANNEL_ID", "2")
+    monkeypatch.delenv("LAVALINK_PASSWORD", raising=False)
+
+    cfg = Config()
+    assert cfg.lavalink_password == "youshallnotpass"
