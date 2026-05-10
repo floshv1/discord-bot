@@ -84,18 +84,14 @@ class QueueView(discord.ui.View):
 
         if self.player.current and self.page == 0:
             cur = self.player.current
-            lines.append(
-                f"**Now playing:** [{cur.title}]({cur.uri}) — {cur.author} `{_fmt_ms(cur.length)}`"
-            )
+            lines.append(f"**Now playing:** [{cur.title}]({cur.uri}) — {cur.author} `{_fmt_ms(cur.length)}`")
 
         queue_tracks = list(self.player.queue)
         start = self.page * _TRACKS_PER_PAGE
         for i, track in enumerate(queue_tracks[start : start + _TRACKS_PER_PAGE], start=start + 1):
             requester_id = getattr(track.extras, "requester", None)
             req = f"<@{requester_id}>" if requester_id else "—"
-            lines.append(
-                f"`{i}.` [{track.title}]({track.uri}) — {track.author} `{_fmt_ms(track.length)}` · {req}"
-            )
+            lines.append(f"`{i}.` [{track.title}]({track.uri}) — {track.author} `{_fmt_ms(track.length)}` · {req}")
 
         embed.description = "\n".join(lines) if lines else "Queue is empty."
 
@@ -104,9 +100,7 @@ class QueueView(discord.ui.View):
 
         total_ms = sum(t.length for t in queue_tracks)
         page_str = f"Page {self.page + 1}/{self._max_page + 1} · " if self._max_page > 0 else ""
-        embed.set_footer(
-            text=f"{page_str}{self.player.queue.count} track(s) in queue — Total: {_fmt_ms(total_ms)}"
-        )
+        embed.set_footer(text=f"{page_str}{self.player.queue.count} track(s) in queue — Total: {_fmt_ms(total_ms)}")
         return embed
 
     async def _prev(self, interaction: discord.Interaction) -> None:
