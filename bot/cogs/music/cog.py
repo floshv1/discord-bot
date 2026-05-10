@@ -260,7 +260,7 @@ class MusicCog(commands.Cog):
 
         seed = payload.track
         try:
-            results = await wavelink.Playable.search(f"ytmsearch:{seed.author}")
+            results = await wavelink.Playable.search(seed.author, source=wavelink.TrackSource.YouTubeMusic)
         except wavelink.LavalinkException:
             return
 
