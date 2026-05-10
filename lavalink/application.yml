@@ -31,7 +31,6 @@ plugins:
     clients:
       - MUSIC
       - ANDROID_TESTSUITE
-      - WEB
       - TVHTML5EMBEDDED
   lavasrc:
     providers:
