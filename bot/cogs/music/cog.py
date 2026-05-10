@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import random
 from typing import cast
 
 import discord
@@ -9,6 +11,7 @@ from discord.ext import commands
 from loguru import logger
 
 from bot.cogs.music.player import MusicPlayer
+from bot.cogs.music.views import NowPlayingView, QueueView
 from bot.core.config import Config
 
 
@@ -21,28 +24,21 @@ def _fmt_ms(ms: int) -> str:
     return f"{m}:{s:02d}"
 
 
-def _build_queue_embed(player: MusicPlayer) -> discord.Embed:
-    embed = discord.Embed(title="Queue", color=discord.Color.blurple())
-    lines: list[str] = []
+async def _delete_after(msg: discord.Message, delay: float) -> None:
+    await asyncio.sleep(delay)
+    try:
+        await msg.delete()
+    except discord.HTTPException:
+        pass
 
-    if player.current:
-        lines.append(
-            f"**Now playing:** [{player.current.title}]({player.current.uri}) `{_fmt_ms(player.current.length)}`"
-        )
 
-    queue_tracks = list(player.queue)
-    for i, track in enumerate(queue_tracks[:10], start=1):
-        requester_id = getattr(track.extras, "requester", None)
-        req = f"<@{requester_id}>" if requester_id else "—"
-        lines.append(f"`{i}.` [{track.title}]({track.uri}) `{_fmt_ms(track.length)}` — {req}")
-
-    if player.queue.count > 10:
-        lines.append(f"*…and {player.queue.count - 10} more*")
-
-    embed.description = "\n".join(lines) if lines else "Queue is empty."
-    total_ms = sum(t.length for t in queue_tracks)
-    embed.set_footer(text=f"{player.queue.count} track(s) in queue — Total: {_fmt_ms(total_ms)}")
-    return embed
+async def _disable_now_playing(player: MusicPlayer) -> None:
+    if player.now_playing_message:
+        try:
+            await player.now_playing_message.edit(view=None)
+        except discord.HTTPException:
+            pass
+        player.now_playing_message = None
 
 
 class MusicCog(commands.Cog):
@@ -105,12 +101,16 @@ class MusicCog(commands.Cog):
             track = tracks[0]
             track.extras.requester = interaction.user.id
             await player.queue.put_wait(track)
-            msg = f"Queued **{track.title}** `{_fmt_ms(track.length)}`"
+            queue_pos = player.queue.count
+            msg = f"Queued **{track.title}** — {track.author} : `{_fmt_ms(track.length)}`"
+            if player.playing:
+                msg += f" (#{queue_pos} in queue)"
 
         if not player.playing:
             await player.play(player.queue.get())
 
-        await interaction.followup.send(msg)
+        response = await interaction.followup.send(msg)
+        asyncio.create_task(_delete_after(response, 15))
 
     @app_commands.command(name="playnext", description="Insert a song right after the current track.")
     @app_commands.describe(query="Song name, YouTube URL, or Spotify URL")
@@ -142,7 +142,10 @@ class MusicCog(commands.Cog):
         track = tracks.tracks[0] if isinstance(tracks, wavelink.Playlist) else tracks[0]
         track.extras.requester = interaction.user.id
         player.queue.put_at(0, track)
-        await interaction.followup.send(f"**{track.title}** will play next.")
+        response = await interaction.followup.send(
+            f"**{track.title}** — {track.author} : `{_fmt_ms(track.length)}` will play next."
+        )
+        asyncio.create_task(_delete_after(response, 15))
 
     @app_commands.command(name="skip", description="Skip the current track.")
     async def skip(self, interaction: discord.Interaction) -> None:
@@ -165,6 +168,7 @@ class MusicCog(commands.Cog):
         if not player or player.channel != interaction.user.voice.channel:
             await interaction.response.send_message("Join my voice channel first.", ephemeral=True)
             return
+        await _disable_now_playing(player)
         player.queue.clear()
         await interaction.response.send_message("Stopped and disconnected.")
         await player.disconnect()
@@ -175,7 +179,9 @@ class MusicCog(commands.Cog):
         if not player or (not player.current and player.queue.is_empty):
             await interaction.response.send_message("Nothing is playing.", ephemeral=True)
             return
-        await interaction.response.send_message(embed=_build_queue_embed(player))
+        view = QueueView(player)
+        await interaction.response.send_message(embed=view.build_embed(), view=view, ephemeral=True)
+        view.message = await interaction.original_response()
 
     @app_commands.command(name="remove", description="Remove a track from the queue by position.")
     @app_commands.describe(position="Position in the queue (1 = next track)")
@@ -196,7 +202,7 @@ class MusicCog(commands.Cog):
         player.queue.delete(position - 1)
         await interaction.response.send_message(f"Removed **{track.title}** from the queue.")
 
-    @app_commands.command(name="autoplay", description="Toggle autoplay (YouTube recommendations when queue ends).")
+    @app_commands.command(name="autoplay", description="Toggle autoplay (plays similar music when queue ends).")
     async def autoplay_toggle(self, interaction: discord.Interaction) -> None:
         if not interaction.user.voice or not interaction.user.voice.channel:
             await interaction.response.send_message("You need to be in a voice channel first.", ephemeral=True)
@@ -207,12 +213,10 @@ class MusicCog(commands.Cog):
             return
         player.autoplay_enabled = not player.autoplay_enabled
         if player.autoplay_enabled:
-            player.autoplay = wavelink.AutoPlayMode.enabled
             await interaction.response.send_message(
-                "Autoplay **enabled** — I'll keep the music going with recommendations."
+                "Autoplay **enabled** — I'll keep playing music similar to what's on."
             )
         else:
-            player.autoplay = wavelink.AutoPlayMode.partial
             await interaction.response.send_message("Autoplay **disabled** — I'll stop when the queue is empty.")
 
     @commands.Cog.listener()
@@ -220,6 +224,9 @@ class MusicCog(commands.Cog):
         player = cast("MusicPlayer | None", payload.player)
         if not isinstance(player, MusicPlayer) or not player.text_channel:
             return
+
+        await _disable_now_playing(player)
+
         track = payload.track
         requester_id = getattr(track.extras, "requester", None)
         req = f"<@{requester_id}>" if requester_id else "Autoplay"
@@ -236,15 +243,43 @@ class MusicCog(commands.Cog):
         embed.add_field(name="Requested by", value=req, inline=True)
         if track.artwork:
             embed.set_thumbnail(url=track.artwork)
+
+        view = NowPlayingView(player)
         try:
-            await player.text_channel.send(embed=embed)
+            player.now_playing_message = await player.text_channel.send(embed=embed, view=view)
         except discord.HTTPException:
             pass
+
+    @commands.Cog.listener()
+    async def on_wavelink_track_end(self, payload: wavelink.TrackEndEventPayload) -> None:
+        player = cast("MusicPlayer | None", payload.player)
+        if not isinstance(player, MusicPlayer) or not player.autoplay_enabled:
+            return
+        if not player.connected or not player.queue.is_empty:
+            return
+
+        seed = payload.track
+        try:
+            results = await wavelink.Playable.search(f"ytmsearch:{seed.author}")
+        except wavelink.LavalinkException:
+            return
+
+        if not results:
+            return
+
+        candidates = [t for t in results[:5] if t.identifier != seed.identifier]
+        if not candidates:
+            candidates = list(results[:3])
+
+        next_track = random.choice(candidates)
+        await player.queue.put_wait(next_track)
+        await player.play(player.queue.get())
 
     @commands.Cog.listener()
     async def on_wavelink_inactive_player(self, player: wavelink.Player) -> None:
         if not isinstance(player, MusicPlayer):
             return
+        await _disable_now_playing(player)
         if player.text_channel:
             try:
                 await player.text_channel.send("Left the voice channel due to inactivity.")
@@ -264,6 +299,7 @@ class MusicCog(commands.Cog):
         if before.channel is None or before.channel != player.channel:
             return
         if not any(not m.bot for m in player.channel.members):
+            await _disable_now_playing(player)
             if player.text_channel:
                 try:
                     await player.text_channel.send("Everyone left — disconnecting.")

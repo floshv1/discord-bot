@@ -11,3 +11,4 @@ class MusicPlayer(wavelink.Player):
         self.autoplay_enabled: bool = False
         self.autoplay = wavelink.AutoPlayMode.partial
         self.inactive_timeout = 300  # seconds before on_wavelink_inactive_player fires
+        self.now_playing_message: discord.Message | None = None
