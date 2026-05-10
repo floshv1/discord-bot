@@ -11,9 +11,28 @@ services:
       VOICE_LEADERBOARD_CHANNEL_ID: ${VOICE_LEADERBOARD_CHANNEL_ID:-}
       BIRTHDAY_CHANNEL_ID: ${BIRTHDAY_CHANNEL_ID:-}
       BIRTHDAY_ANNOUNCE_CHANNEL_ID: ${BIRTHDAY_ANNOUNCE_CHANNEL_ID:-}
+      LAVALINK_URI: http://lavalink:2333
+      LAVALINK_PASSWORD: ${LAVALINK_PASSWORD:-youshallnotpass}
     depends_on:
       db:
         condition: service_healthy
+      lavalink:
+        condition: service_healthy
+
+  lavalink:
+    image: ghcr.io/lavalink-devs/lavalink:4
+    restart: unless-stopped
+    volumes:
+      - ./lavalink/application.yml:/opt/Lavalink/application.yml
+    environment:
+      - LAVALINK_SERVER_PASSWORD=${LAVALINK_PASSWORD:-youshallnotpass}
+      - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID:-}
+      - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET:-}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:2333/v4/info -H 'Authorization: ${LAVALINK_PASSWORD:-youshallnotpass}' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
 
   db:
     image: postgres:16-alpine
