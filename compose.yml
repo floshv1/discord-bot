@@ -68,7 +68,7 @@ services:
     image: ghcr.io/floshv1/discord-bot-web:latest
     restart: unless-stopped
     ports:
-      - "3100:3000"
+      - "127.0.0.1:3100:3000"
     environment:
       BACKEND_URL: http://api:8000
     depends_on:
