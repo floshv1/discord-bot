@@ -30,8 +30,8 @@ plugins:
     allowDirectPlaylistIds: true
     clients:
       - MUSIC
-      - ANDROID_TESTSUITE
-      - TVHTML5EMBEDDED
+      - ANDROID_VR
+      - WEB
   lavasrc:
     providers:
       - 'ytsearch:"%ISRC%"'
