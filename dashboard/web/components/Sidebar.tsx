@@ -10,6 +10,8 @@ const navItems = [
   { href: "/moderation", label: "🔨 Moderation" },
   { href: "/queues", label: "🎮 Queues" },
   { href: "/suggestions", label: "💡 Suggestions" },
+  { href: "/voice", label: "🎙️ Voice" },
+  { href: "/birthdays", label: "🎂 Birthdays" },
 ];
 
 interface User {
