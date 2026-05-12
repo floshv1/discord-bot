@@ -7,6 +7,7 @@ dependencies = [
     "asyncpg>=0.30",
     "loguru>=0.7",
     "wavelink>=3.4",
+    "urllib3>=2.7.0",
 ]
 
 [dependency-groups]
