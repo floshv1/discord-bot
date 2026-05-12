@@ -233,7 +233,7 @@ class MusicCog(commands.Cog):
         else:
             await interaction.response.send_message("Autoplay **disabled** — I'll stop when the queue is empty.")
 
-    @app_commands.command(name="history", description="Show the last 10 tracks played this session.")
+    @app_commands.command(name="played", description="Show the last 10 tracks played this session.")
     async def history(self, interaction: discord.Interaction) -> None:
         player = self._player(interaction)
         if not player or not player.recent_tracks:
