@@ -226,11 +226,11 @@ def test_build_autoplay_query_pattern_0_uses_artist():
     assert _build_autoplay_query(tracks, 0) == "Daft Punk"
 
 
-def test_build_autoplay_query_pattern_1_uses_title_and_artist():
+def test_build_autoplay_query_pattern_1_uses_songs_like():
     from bot.cogs.music.cog import _build_autoplay_query
 
     tracks = [_make_track_with_author("Daft Punk", "Get Lucky")]
-    assert _build_autoplay_query(tracks, 1) == "Get Lucky Daft Punk"
+    assert _build_autoplay_query(tracks, 1) == "songs like Get Lucky"
 
 
 def test_build_autoplay_query_pattern_2_uses_mix():
@@ -240,12 +240,26 @@ def test_build_autoplay_query_pattern_2_uses_mix():
     assert _build_autoplay_query(tracks, 2) == "Daft Punk mix"
 
 
-def test_build_autoplay_query_wraps_at_3():
+def test_build_autoplay_query_pattern_3_uses_similar_to():
     from bot.cogs.music.cog import _build_autoplay_query
 
     tracks = [_make_track_with_author("Daft Punk", "Get Lucky")]
-    assert _build_autoplay_query(tracks, 3) == _build_autoplay_query(tracks, 0)
-    assert _build_autoplay_query(tracks, 4) == _build_autoplay_query(tracks, 1)
+    assert _build_autoplay_query(tracks, 3) == "music similar to Daft Punk"
+
+
+def test_build_autoplay_query_pattern_4_uses_playlist():
+    from bot.cogs.music.cog import _build_autoplay_query
+
+    tracks = [_make_track_with_author("Daft Punk", "Get Lucky")]
+    assert _build_autoplay_query(tracks, 4) == "Get Lucky playlist"
+
+
+def test_build_autoplay_query_wraps_at_5():
+    from bot.cogs.music.cog import _build_autoplay_query
+
+    tracks = [_make_track_with_author("Daft Punk", "Get Lucky")]
+    assert _build_autoplay_query(tracks, 5) == _build_autoplay_query(tracks, 0)
+    assert _build_autoplay_query(tracks, 6) == _build_autoplay_query(tracks, 1)
 
 
 def test_build_autoplay_query_uses_most_common_artist():
@@ -277,7 +291,7 @@ def test_build_autoplay_query_title_comes_from_last_track():
         _make_track_with_author("Daft Punk", "One More Time"),
         _make_track_with_author("Daft Punk", "Get Lucky"),
     ]
-    assert _build_autoplay_query(tracks, 1) == "Get Lucky Daft Punk"
+    assert _build_autoplay_query(tracks, 1) == "songs like Get Lucky"
 
 
 def test_build_queue_embed_with_tracks():

@@ -47,10 +47,12 @@ def _build_autoplay_query(recent_tracks: list, pattern_index: int) -> str:
     primary_title = recent_tracks[-1].title
     patterns = [
         primary_artist,
-        f"{primary_title} {primary_artist}",
+        f"songs like {primary_title}",
         f"{primary_artist} mix",
+        f"music similar to {primary_artist}",
+        f"{primary_title} playlist",
     ]
-    return patterns[pattern_index % 3]
+    return patterns[pattern_index % 5]
 
 
 class MusicCog(commands.Cog):
@@ -230,6 +232,56 @@ class MusicCog(commands.Cog):
             )
         else:
             await interaction.response.send_message("Autoplay **disabled** — I'll stop when the queue is empty.")
+
+    @app_commands.command(
+        name="autoplay_preview", description="Preview the next autoplay suggestions without playing them."
+    )
+    async def autoplay_preview(self, interaction: discord.Interaction) -> None:
+        player = self._player(interaction)
+        if not player:
+            await interaction.response.send_message("Nothing is currently playing.", ephemeral=True)
+            return
+        if not player.autoplay_enabled:
+            await interaction.response.send_message(
+                "Autoplay is currently disabled — enable it with `/autoplay` first.", ephemeral=True
+            )
+            return
+
+        recent = list(player.recent_tracks)[-3:]
+        if not recent:
+            await interaction.response.send_message("No tracks have been played yet.", ephemeral=True)
+            return
+
+        await interaction.response.defer(ephemeral=True)
+
+        query = _build_autoplay_query(recent, player.seed_pattern_index)
+
+        try:
+            results = await wavelink.Playable.search(query, source=wavelink.TrackSource.YouTubeMusic)
+        except wavelink.LavalinkException:
+            await interaction.followup.send("Could not fetch suggestions from YouTube Music.", ephemeral=True)
+            return
+
+        if not results:
+            await interaction.followup.send("No suggestions found for this query.", ephemeral=True)
+            return
+
+        candidates = [t for t in results[:10] if t.identifier not in player.played_ids]
+        if not candidates:
+            candidates = list(results[:5])
+
+        embed = discord.Embed(
+            title="Autoplay Preview",
+            description=f"Query: `{query}`\n\n",
+            color=discord.Color.blurple(),
+        )
+        lines = [
+            f"`{i}.` [{t.title}]({t.uri}) — {t.author} `{_fmt_ms(t.length)}`" for i, t in enumerate(candidates[:5], 1)
+        ]
+        embed.description += "\n".join(lines)
+        embed.set_footer(text="Autoplay will pick the first result not already in your history.")
+
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
     @commands.Cog.listener()
     async def on_wavelink_track_start(self, payload: wavelink.TrackStartEventPayload) -> None:
