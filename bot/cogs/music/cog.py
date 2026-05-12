@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-import random
+from collections import Counter
 from typing import cast
 
 import discord
@@ -39,6 +39,18 @@ async def _disable_now_playing(player: MusicPlayer) -> None:
         except discord.HTTPException:
             pass
         player.now_playing_message = None
+
+
+def _build_autoplay_query(recent_tracks: list, pattern_index: int) -> str:
+    artist_counts = Counter(t.author for t in recent_tracks)
+    primary_artist = artist_counts.most_common(1)[0][0]
+    primary_title = recent_tracks[-1].title
+    patterns = [
+        primary_artist,
+        f"{primary_title} {primary_artist}",
+        f"{primary_artist} mix",
+    ]
+    return patterns[pattern_index % 3]
 
 
 class MusicCog(commands.Cog):
@@ -222,7 +234,13 @@ class MusicCog(commands.Cog):
     @commands.Cog.listener()
     async def on_wavelink_track_start(self, payload: wavelink.TrackStartEventPayload) -> None:
         player = cast("MusicPlayer | None", payload.player)
-        if not isinstance(player, MusicPlayer) or not player.text_channel:
+        if not isinstance(player, MusicPlayer):
+            return
+
+        player.played_ids.add(payload.track.identifier)
+        player.recent_tracks.append(payload.track)
+
+        if not player.text_channel:
             return
 
         await _disable_now_playing(player)
@@ -258,20 +276,26 @@ class MusicCog(commands.Cog):
         if not player.connected or not player.queue.is_empty:
             return
 
-        seed = payload.track
+        recent = list(player.recent_tracks)[-3:]
+        if not recent:
+            return
+
+        query = _build_autoplay_query(recent, player.seed_pattern_index)
+        player.seed_pattern_index += 1
+
         try:
-            results = await wavelink.Playable.search(seed.author, source=wavelink.TrackSource.YouTubeMusic)
+            results = await wavelink.Playable.search(query, source=wavelink.TrackSource.YouTubeMusic)
         except wavelink.LavalinkException:
             return
 
         if not results:
             return
 
-        candidates = [t for t in results[:5] if t.identifier != seed.identifier]
+        candidates = [t for t in results[:10] if t.identifier not in player.played_ids]
         if not candidates:
             candidates = list(results[:3])
 
-        next_track = random.choice(candidates)
+        next_track = candidates[0]
         await player.queue.put_wait(next_track)
         await player.play(player.queue.get())
 
