@@ -241,10 +241,7 @@ class MusicCog(commands.Cog):
             return
 
         tracks = list(player.recent_tracks)
-        lines = [
-            f"`{i}.` [{t.title}]({t.uri}) — {t.author} `{_fmt_ms(t.length)}`"
-            for i, t in enumerate(tracks, 1)
-        ]
+        lines = [f"`{i}.` [{t.title}]({t.uri}) — {t.author} `{_fmt_ms(t.length)}`" for i, t in enumerate(tracks, 1)]
         embed = discord.Embed(
             title="Session History",
             description="\n".join(lines),
@@ -364,10 +361,7 @@ class MusicCog(commands.Cog):
             return
 
         _MAX_MS = 10 * 60 * 1000  # ignore compilations / mixes longer than 10 min
-        candidates = [
-            t for t in results[:10]
-            if t.identifier not in player.played_ids and t.length <= _MAX_MS
-        ]
+        candidates = [t for t in results[:10] if t.identifier not in player.played_ids and t.length <= _MAX_MS]
         if not candidates:
             candidates = [t for t in results[:5] if t.length <= _MAX_MS] or list(results[:3])
 
