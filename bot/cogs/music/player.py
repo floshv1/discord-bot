@@ -16,4 +16,3 @@ class MusicPlayer(wavelink.Player):
         self.now_playing_message: discord.Message | None = None
         self.played_ids: set[str] = set()
         self.recent_tracks: deque[wavelink.Playable] = deque(maxlen=10)
-        self.seed_pattern_index: int = 0

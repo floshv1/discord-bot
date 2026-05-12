@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-from collections import Counter
 from typing import cast
 
 import discord
@@ -41,20 +40,6 @@ async def _disable_now_playing(player: MusicPlayer) -> None:
         player.now_playing_message = None
 
 
-def _build_autoplay_query(recent_tracks: list, pattern_index: int) -> str:
-    artist_counts = Counter(t.author for t in recent_tracks)
-    primary_artist = artist_counts.most_common(1)[0][0]
-    primary_title = recent_tracks[-1].title
-    patterns = [
-        primary_artist,
-        f"{primary_artist} fans also like",
-        f"{primary_artist} mix",
-        f"music similar to {primary_artist}",
-        f"{primary_title} playlist",
-    ]
-    return patterns[pattern_index % 5]
-
-
 class MusicCog(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
@@ -64,7 +49,7 @@ class MusicCog(commands.Cog):
         node = wavelink.Node(uri=self.config.lavalink_uri, password=self.config.lavalink_password)
         try:
             await wavelink.Pool.connect(nodes=[node], client=self.bot)
-            logger.info("Connected to Lavalink node at %s.", self.config.lavalink_uri)
+            logger.info("Connected to Lavalink node at {}.", self.config.lavalink_uri)
         except Exception:
             logger.exception("Could not connect to Lavalink — music commands will be unavailable.")
 
@@ -227,10 +212,12 @@ class MusicCog(commands.Cog):
             return
         player.autoplay_enabled = not player.autoplay_enabled
         if player.autoplay_enabled:
+            player.autoplay = wavelink.AutoPlayMode.enabled
             await interaction.response.send_message(
                 "Autoplay **enabled** — I'll keep playing music similar to what's on."
             )
         else:
+            player.autoplay = wavelink.AutoPlayMode.partial
             await interaction.response.send_message("Autoplay **disabled** — I'll stop when the queue is empty.")
 
     @app_commands.command(name="played", description="Show the last 10 tracks played this session.")
@@ -264,44 +251,22 @@ class MusicCog(commands.Cog):
             )
             return
 
-        recent = list(player.recent_tracks)[-3:]
-        if not recent:
-            await interaction.response.send_message("No tracks have been played yet.", ephemeral=True)
+        tracks = list(player.auto_queue)[:5]
+        if not tracks:
+            await interaction.response.send_message(
+                "No suggestions ready yet — YouTube is still fetching recommendations.", ephemeral=True
+            )
             return
-
-        await interaction.response.defer(ephemeral=True)
-
-        query = _build_autoplay_query(recent, player.seed_pattern_index)
-
-        try:
-            results = await wavelink.Playable.search(query, source=wavelink.TrackSource.YouTubeMusic)
-        except wavelink.LavalinkException:
-            await interaction.followup.send("Could not fetch suggestions from YouTube Music.", ephemeral=True)
-            return
-
-        if not results:
-            await interaction.followup.send("No suggestions found for this query.", ephemeral=True)
-            return
-
-        _MAX_MS = 10 * 60 * 1000
-        candidates = [t for t in results[:10] if t.identifier not in player.played_ids and t.length <= _MAX_MS]
-        if not candidates:
-            candidates = [t for t in results[:5] if t.length <= _MAX_MS] or list(results[:3])
 
         embed = discord.Embed(
             title="Autoplay Preview",
-            description=f"Query: `{query}`\n\n",
+            description="Next up from YouTube Music recommendations:\n\n",
             color=discord.Color.blurple(),
         )
-        lines = [
-            f"`{i}.` [{t.title}]({t.uri}) — {t.author} `{_fmt_ms(t.length)}`" for i, t in enumerate(candidates[:5], 1)
-        ]
+        lines = [f"`{i}.` [{t.title}]({t.uri}) — {t.author} `{_fmt_ms(t.length)}`" for i, t in enumerate(tracks, 1)]
         embed.description += "\n".join(lines)
-        embed.set_footer(
-            text="Autoplay will pick the first result not already in your history (tracks over 10 min excluded)."
-        )
-
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        embed.set_footer(text="These are YouTube's recommendations based on what's currently playing.")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @commands.Cog.listener()
     async def on_wavelink_track_start(self, payload: wavelink.TrackStartEventPayload) -> None:
@@ -339,38 +304,6 @@ class MusicCog(commands.Cog):
             player.now_playing_message = await player.text_channel.send(embed=embed, view=view)
         except discord.HTTPException:
             pass
-
-    @commands.Cog.listener()
-    async def on_wavelink_track_end(self, payload: wavelink.TrackEndEventPayload) -> None:
-        player = cast("MusicPlayer | None", payload.player)
-        if not isinstance(player, MusicPlayer) or not player.autoplay_enabled:
-            return
-        if not player.connected or not player.queue.is_empty:
-            return
-
-        recent = list(player.recent_tracks)[-3:]
-        if not recent:
-            return
-
-        query = _build_autoplay_query(recent, player.seed_pattern_index)
-        player.seed_pattern_index += 1
-
-        try:
-            results = await wavelink.Playable.search(query, source=wavelink.TrackSource.YouTubeMusic)
-        except wavelink.LavalinkException:
-            return
-
-        if not results:
-            return
-
-        _MAX_MS = 10 * 60 * 1000  # ignore compilations / mixes longer than 10 min
-        candidates = [t for t in results[:10] if t.identifier not in player.played_ids and t.length <= _MAX_MS]
-        if not candidates:
-            candidates = [t for t in results[:5] if t.length <= _MAX_MS] or list(results[:3])
-
-        next_track = candidates[0]
-        await player.queue.put_wait(next_track)
-        await player.play(player.queue.get())
 
     @commands.Cog.listener()
     async def on_wavelink_inactive_player(self, player: wavelink.Player) -> None:

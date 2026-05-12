@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import discord
+import wavelink
 
 from bot.cogs.music.player import MusicPlayer
 
@@ -48,6 +49,9 @@ class NowPlayingView(discord.ui.View):
             await interaction.response.send_message("Join my voice channel first.", ephemeral=True)
             return
         self.player.autoplay_enabled = not self.player.autoplay_enabled
+        self.player.autoplay = (
+            wavelink.AutoPlayMode.enabled if self.player.autoplay_enabled else wavelink.AutoPlayMode.partial
+        )
         self._sync()
         await interaction.response.edit_message(view=self)
 
