@@ -90,8 +90,10 @@ async def test_autoplay_uses_top_candidate_not_random():
 
     result_a = MagicMock()
     result_a.identifier = "a"
+    result_a.length = 180_000
     result_b = MagicMock()
     result_b.identifier = "b"
+    result_b.length = 180_000
 
     payload = MagicMock()
     payload.player = player
@@ -124,8 +126,10 @@ async def test_autoplay_skips_already_played_tracks():
 
     already_played = MagicMock()
     already_played.identifier = "already"
+    already_played.length = 180_000
     fresh = MagicMock()
     fresh.identifier = "fresh"
+    fresh.length = 180_000
 
     payload = MagicMock()
     payload.player = player
@@ -157,6 +161,7 @@ async def test_autoplay_increments_seed_pattern_index():
 
     result = MagicMock()
     result.identifier = "r"
+    result.length = 180_000
 
     payload = MagicMock()
     payload.player = player

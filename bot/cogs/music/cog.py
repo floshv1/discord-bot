@@ -233,6 +233,26 @@ class MusicCog(commands.Cog):
         else:
             await interaction.response.send_message("Autoplay **disabled** — I'll stop when the queue is empty.")
 
+    @app_commands.command(name="history", description="Show the last 10 tracks played this session.")
+    async def history(self, interaction: discord.Interaction) -> None:
+        player = self._player(interaction)
+        if not player or not player.recent_tracks:
+            await interaction.response.send_message("No tracks have been played yet this session.", ephemeral=True)
+            return
+
+        tracks = list(player.recent_tracks)
+        lines = [
+            f"`{i}.` [{t.title}]({t.uri}) — {t.author} `{_fmt_ms(t.length)}`"
+            for i, t in enumerate(tracks, 1)
+        ]
+        embed = discord.Embed(
+            title="Session History",
+            description="\n".join(lines),
+            color=discord.Color.dark_grey(),
+        )
+        embed.set_footer(text=f"{len(tracks)} track(s) played this session.")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
     @app_commands.command(
         name="autoplay_preview", description="Preview the next autoplay suggestions without playing them."
     )
@@ -343,9 +363,13 @@ class MusicCog(commands.Cog):
         if not results:
             return
 
-        candidates = [t for t in results[:10] if t.identifier not in player.played_ids]
+        _MAX_MS = 10 * 60 * 1000  # ignore compilations / mixes longer than 10 min
+        candidates = [
+            t for t in results[:10]
+            if t.identifier not in player.played_ids and t.length <= _MAX_MS
+        ]
         if not candidates:
-            candidates = list(results[:3])
+            candidates = [t for t in results[:5] if t.length <= _MAX_MS] or list(results[:3])
 
         next_track = candidates[0]
         await player.queue.put_wait(next_track)
