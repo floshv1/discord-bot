@@ -231,11 +231,11 @@ def test_build_autoplay_query_pattern_0_uses_artist():
     assert _build_autoplay_query(tracks, 0) == "Daft Punk"
 
 
-def test_build_autoplay_query_pattern_1_uses_songs_like():
+def test_build_autoplay_query_pattern_1_uses_fans_also_like():
     from bot.cogs.music.cog import _build_autoplay_query
 
     tracks = [_make_track_with_author("Daft Punk", "Get Lucky")]
-    assert _build_autoplay_query(tracks, 1) == "songs like Get Lucky"
+    assert _build_autoplay_query(tracks, 1) == "Daft Punk fans also like"
 
 
 def test_build_autoplay_query_pattern_2_uses_mix():

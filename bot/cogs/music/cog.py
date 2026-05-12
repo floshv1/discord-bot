@@ -47,7 +47,7 @@ def _build_autoplay_query(recent_tracks: list, pattern_index: int) -> str:
     primary_title = recent_tracks[-1].title
     patterns = [
         primary_artist,
-        f"songs like {primary_title}",
+        f"{primary_artist} fans also like",
         f"{primary_artist} mix",
         f"music similar to {primary_artist}",
         f"{primary_title} playlist",
@@ -283,9 +283,10 @@ class MusicCog(commands.Cog):
             await interaction.followup.send("No suggestions found for this query.", ephemeral=True)
             return
 
-        candidates = [t for t in results[:10] if t.identifier not in player.played_ids]
+        _MAX_MS = 10 * 60 * 1000
+        candidates = [t for t in results[:10] if t.identifier not in player.played_ids and t.length <= _MAX_MS]
         if not candidates:
-            candidates = list(results[:5])
+            candidates = [t for t in results[:5] if t.length <= _MAX_MS] or list(results[:3])
 
         embed = discord.Embed(
             title="Autoplay Preview",
@@ -296,7 +297,7 @@ class MusicCog(commands.Cog):
             f"`{i}.` [{t.title}]({t.uri}) — {t.author} `{_fmt_ms(t.length)}`" for i, t in enumerate(candidates[:5], 1)
         ]
         embed.description += "\n".join(lines)
-        embed.set_footer(text="Autoplay will pick the first result not already in your history.")
+        embed.set_footer(text="Autoplay will pick the first result not already in your history (tracks over 10 min excluded).")
 
         await interaction.followup.send(embed=embed, ephemeral=True)
 
