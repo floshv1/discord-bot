@@ -296,7 +296,7 @@ def test_build_autoplay_query_title_comes_from_last_track():
         _make_track_with_author("Daft Punk", "One More Time"),
         _make_track_with_author("Daft Punk", "Get Lucky"),
     ]
-    assert _build_autoplay_query(tracks, 1) == "songs like Get Lucky"
+    assert _build_autoplay_query(tracks, 4) == "Get Lucky playlist"
 
 
 def test_build_queue_embed_with_tracks():

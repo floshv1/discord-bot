@@ -297,7 +297,9 @@ class MusicCog(commands.Cog):
             f"`{i}.` [{t.title}]({t.uri}) — {t.author} `{_fmt_ms(t.length)}`" for i, t in enumerate(candidates[:5], 1)
         ]
         embed.description += "\n".join(lines)
-        embed.set_footer(text="Autoplay will pick the first result not already in your history (tracks over 10 min excluded).")
+        embed.set_footer(
+            text="Autoplay will pick the first result not already in your history (tracks over 10 min excluded)."
+        )
 
         await interaction.followup.send(embed=embed, ephemeral=True)
 
