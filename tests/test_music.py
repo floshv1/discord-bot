@@ -3,8 +3,8 @@ from unittest.mock import MagicMock
 
 import discord
 
-from bot.cogs.music.cog import _fmt_ms
 from bot.cogs.music.player import MusicPlayer
+from bot.cogs.music.utils import _fmt_ms
 from bot.cogs.music.views import QueueView
 
 

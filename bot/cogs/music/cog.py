@@ -10,17 +10,9 @@ from discord.ext import commands
 from loguru import logger
 
 from bot.cogs.music.player import MusicPlayer
+from bot.cogs.music.utils import _fmt_ms
 from bot.cogs.music.views import NowPlayingView, QueueView
 from bot.core.config import Config
-
-
-def _fmt_ms(ms: int) -> str:
-    s = ms // 1000
-    m, s = divmod(s, 60)
-    h, m = divmod(m, 60)
-    if h:
-        return f"{h}:{m:02d}:{s:02d}"
-    return f"{m}:{s:02d}"
 
 
 async def _delete_after(msg: discord.Message, delay: float) -> None:
@@ -38,6 +30,25 @@ async def _disable_now_playing(player: MusicPlayer) -> None:
         except discord.HTTPException:
             pass
         player.now_playing_message = None
+
+
+def _build_now_playing_embed(track: wavelink.Playable) -> discord.Embed:
+    requester_id = getattr(track.extras, "requester", None)
+    req = f"<@{requester_id}>" if requester_id else "Autoplay"
+    embed = discord.Embed(
+        title="Now Playing",
+        description=f"[{track.title}]({track.uri})",
+        color=discord.Color.green(),
+    )
+    embed.add_field(name="Artist", value=track.author or "—", inline=True)
+    album_name = getattr(track.album, "name", None)
+    if album_name:
+        embed.add_field(name="Album", value=album_name, inline=True)
+    embed.add_field(name="Duration", value=_fmt_ms(track.length), inline=True)
+    embed.add_field(name="Requested by", value=req, inline=True)
+    if track.artwork:
+        embed.set_thumbnail(url=track.artwork)
+    return embed
 
 
 class MusicCog(commands.Cog):
@@ -141,6 +152,8 @@ class MusicCog(commands.Cog):
         track = tracks.tracks[0] if isinstance(tracks, wavelink.Playlist) else tracks[0]
         track.extras.requester = interaction.user.id
         player.queue.put_at(0, track)
+        if not player.playing:
+            await player.play(player.queue.get())
         response = await interaction.followup.send(
             f"**{track.title}** — {track.author} : `{_fmt_ms(track.length)}` will play next."
         )
@@ -156,6 +169,7 @@ class MusicCog(commands.Cog):
             await interaction.response.send_message("Join my voice channel first.", ephemeral=True)
             return
         await interaction.response.send_message("Skipped.")
+        asyncio.create_task(_delete_after(await interaction.original_response(), 5))
         await player.stop(force=True)
 
     @app_commands.command(name="stop", description="Stop playback, clear the queue, and disconnect.")
@@ -200,6 +214,7 @@ class MusicCog(commands.Cog):
         track = player.queue.peek(position - 1)
         player.queue.delete(position - 1)
         await interaction.response.send_message(f"Removed **{track.title}** from the queue.")
+        asyncio.create_task(_delete_after(await interaction.original_response(), 10))
 
     @app_commands.command(name="autoplay", description="Toggle autoplay (plays similar music when queue ends).")
     async def autoplay_toggle(self, interaction: discord.Interaction) -> None:
@@ -219,6 +234,36 @@ class MusicCog(commands.Cog):
         else:
             player.autoplay = wavelink.AutoPlayMode.partial
             await interaction.response.send_message("Autoplay **disabled** — I'll stop when the queue is empty.")
+
+    @app_commands.command(name="pause", description="Pause or resume playback.")
+    async def pause(self, interaction: discord.Interaction) -> None:
+        if not interaction.user.voice or not interaction.user.voice.channel:
+            await interaction.response.send_message("You need to be in a voice channel first.", ephemeral=True)
+            return
+        player = self._player(interaction)
+        if not player or player.channel != interaction.user.voice.channel:
+            await interaction.response.send_message("Join my voice channel first.", ephemeral=True)
+            return
+        if not player.current:
+            await interaction.response.send_message("Nothing is currently playing.", ephemeral=True)
+            return
+        await player.pause(not player.paused)
+        state = "Paused." if player.paused else "Resumed."
+        await interaction.response.send_message(state)
+        asyncio.create_task(_delete_after(await interaction.original_response(), 5))
+
+    @app_commands.command(name="nowplaying", description="Show what's currently playing.")
+    async def nowplaying(self, interaction: discord.Interaction) -> None:
+        player = self._player(interaction)
+        if not player or not player.current:
+            await interaction.response.send_message("Nothing is currently playing.", ephemeral=True)
+            return
+        await _disable_now_playing(player)
+        embed = _build_now_playing_embed(player.current)
+        view = NowPlayingView(player)
+        await interaction.response.send_message(embed=embed, view=view)
+        player.now_playing_message = await interaction.original_response()
+        view.message = player.now_playing_message
 
     @app_commands.command(name="played", description="Show the last 10 tracks played this session.")
     async def history(self, interaction: discord.Interaction) -> None:
@@ -277,31 +322,21 @@ class MusicCog(commands.Cog):
         player.played_ids.add(payload.track.identifier)
         player.recent_tracks.append(payload.track)
 
+        track = payload.track
+        requester_id = getattr(track.extras, "requester", None)
+
+        if requester_id and player.autoplay_enabled:
+            player.auto_queue.reset()
+
         if not player.text_channel:
             return
 
         await _disable_now_playing(player)
-
-        track = payload.track
-        requester_id = getattr(track.extras, "requester", None)
-        req = f"<@{requester_id}>" if requester_id else "Autoplay"
-        embed = discord.Embed(
-            title="Now Playing",
-            description=f"[{track.title}]({track.uri})",
-            color=discord.Color.green(),
-        )
-        embed.add_field(name="Artist", value=track.author or "—", inline=True)
-        album_name = getattr(track.album, "name", None)
-        if album_name:
-            embed.add_field(name="Album", value=album_name, inline=True)
-        embed.add_field(name="Duration", value=_fmt_ms(track.length), inline=True)
-        embed.add_field(name="Requested by", value=req, inline=True)
-        if track.artwork:
-            embed.set_thumbnail(url=track.artwork)
-
+        embed = _build_now_playing_embed(track)
         view = NowPlayingView(player)
         try:
             player.now_playing_message = await player.text_channel.send(embed=embed, view=view)
+            view.message = player.now_playing_message
         except discord.HTTPException:
             pass
 

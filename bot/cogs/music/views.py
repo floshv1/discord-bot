@@ -4,23 +4,19 @@ import discord
 import wavelink
 
 from bot.cogs.music.player import MusicPlayer
+from bot.cogs.music.utils import _fmt_ms
 
 _TRACKS_PER_PAGE = 10
 
 
-def _fmt_ms(ms: int) -> str:
-    s = ms // 1000
-    m, s = divmod(s, 60)
-    h, m = divmod(m, 60)
-    if h:
-        return f"{h}:{m:02d}:{s:02d}"
-    return f"{m}:{s:02d}"
-
-
 class NowPlayingView(discord.ui.View):
     def __init__(self, player: MusicPlayer) -> None:
-        super().__init__(timeout=None)
+        super().__init__(timeout=900)
         self.player = player
+        self.message: discord.Message | None = None
+
+        self._pause_btn = discord.ui.Button(label="", style=discord.ButtonStyle.secondary)
+        self._pause_btn.callback = self._toggle_pause
 
         self._skip_btn = discord.ui.Button(label="⏭ Skip", style=discord.ButtonStyle.secondary)
         self._skip_btn.callback = self._skip
@@ -28,14 +24,31 @@ class NowPlayingView(discord.ui.View):
         self._autoplay_btn = discord.ui.Button(label="", style=discord.ButtonStyle.secondary)
         self._autoplay_btn.callback = self._toggle_autoplay
 
+        self._queue_btn = discord.ui.Button(label="📋 Queue", style=discord.ButtonStyle.secondary)
+        self._queue_btn.callback = self._show_queue
+
+        self.add_item(self._pause_btn)
         self.add_item(self._skip_btn)
         self.add_item(self._autoplay_btn)
+        self.add_item(self._queue_btn)
         self._sync()
 
     def _sync(self) -> None:
+        paused = self.player.paused
+        self._pause_btn.label = "▶ Resume" if paused else "⏸ Pause"
+        self._pause_btn.style = discord.ButtonStyle.primary if paused else discord.ButtonStyle.secondary
+
         on = self.player.autoplay_enabled
         self._autoplay_btn.label = f"🔀 Autoplay: {'On' if on else 'Off'}"
         self._autoplay_btn.style = discord.ButtonStyle.green if on else discord.ButtonStyle.secondary
+
+    async def _toggle_pause(self, interaction: discord.Interaction) -> None:
+        if not interaction.user.voice or interaction.user.voice.channel != self.player.channel:
+            await interaction.response.send_message("Join my voice channel first.", ephemeral=True)
+            return
+        await self.player.pause(not self.player.paused)
+        self._sync()
+        await interaction.response.edit_message(view=self)
 
     async def _skip(self, interaction: discord.Interaction) -> None:
         if not interaction.user.voice or interaction.user.voice.channel != self.player.channel:
@@ -55,6 +68,21 @@ class NowPlayingView(discord.ui.View):
         self._sync()
         await interaction.response.edit_message(view=self)
 
+    async def _show_queue(self, interaction: discord.Interaction) -> None:
+        view = QueueView(self.player)
+        await interaction.response.send_message(embed=view.build_embed(), view=view, ephemeral=True)
+        view.message = await interaction.original_response()
+
+    async def on_timeout(self) -> None:
+        if not self.message or self.player.now_playing_message != self.message:
+            return
+        for item in self.children:
+            item.disabled = True  # type: ignore[attr-defined]
+        try:
+            await self.message.edit(view=self)
+        except discord.HTTPException:
+            pass
+
 
 class QueueView(discord.ui.View):
     def __init__(self, player: MusicPlayer) -> None:
@@ -66,10 +94,14 @@ class QueueView(discord.ui.View):
         self._prev_btn = discord.ui.Button(label="◀ Prev", style=discord.ButtonStyle.secondary)
         self._prev_btn.callback = self._prev
 
+        self._refresh_btn = discord.ui.Button(label="🔄", style=discord.ButtonStyle.secondary)
+        self._refresh_btn.callback = self._refresh
+
         self._next_btn = discord.ui.Button(label="Next ▶", style=discord.ButtonStyle.secondary)
         self._next_btn.callback = self._next
 
         self.add_item(self._prev_btn)
+        self.add_item(self._refresh_btn)
         self.add_item(self._next_btn)
         self._sync()
 
@@ -86,9 +118,11 @@ class QueueView(discord.ui.View):
         embed = discord.Embed(title="Queue", color=discord.Color.blurple())
         lines: list[str] = []
 
-        if self.player.current and self.page == 0:
-            cur = self.player.current
-            lines.append(f"**Now playing:** [{cur.title}]({cur.uri}) — {cur.author} `{_fmt_ms(cur.length)}`")
+        current = self.player.current
+        if current and self.page == 0:
+            lines.append(
+                f"**Now playing:** [{current.title}]({current.uri}) — {current.author} `{_fmt_ms(current.length)}`"
+            )
 
         queue_tracks = list(self.player.queue)
         start = self.page * _TRACKS_PER_PAGE
@@ -99,16 +133,21 @@ class QueueView(discord.ui.View):
 
         embed.description = "\n".join(lines) if lines else "Queue is empty."
 
-        if self.player.current and self.player.current.artwork:
-            embed.set_thumbnail(url=self.player.current.artwork)
+        if current and current.artwork:
+            embed.set_thumbnail(url=current.artwork)
 
-        total_ms = sum(t.length for t in queue_tracks)
+        total_ms = (current.length if current else 0) + sum(t.length for t in queue_tracks)
         page_str = f"Page {self.page + 1}/{self._max_page + 1} · " if self._max_page > 0 else ""
         embed.set_footer(text=f"{page_str}{self.player.queue.count} track(s) in queue — Total: {_fmt_ms(total_ms)}")
         return embed
 
     async def _prev(self, interaction: discord.Interaction) -> None:
         self.page = max(0, self.page - 1)
+        self._sync()
+        await interaction.response.edit_message(embed=self.build_embed(), view=self)
+
+    async def _refresh(self, interaction: discord.Interaction) -> None:
+        self.page = min(self.page, self._max_page)
         self._sync()
         await interaction.response.edit_message(embed=self.build_embed(), view=self)
 
