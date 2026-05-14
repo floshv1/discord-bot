@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from routers.birthdays import router as birthdays_router
 from routers.logs import router as logs_router
 from routers.moderation import router as moderation_router
+from routers.music import router as music_router
 from routers.overview import router as overview_router
 from routers.presets import router as presets_router
 from routers.queues import router as queues_router
@@ -53,6 +54,7 @@ app.include_router(suggestions_router, prefix="/api/suggestions")
 app.include_router(overview_router, prefix="/api/overview")
 app.include_router(voice_router, prefix="/api/voice")
 app.include_router(birthdays_router, prefix="/api/birthdays")
+app.include_router(music_router, prefix="/api/music")
 
 
 @app.get("/health")

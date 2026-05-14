@@ -9,10 +9,12 @@ from discord import app_commands
 from discord.ext import commands
 from loguru import logger
 
+from bot.cogs.music import db_sync
 from bot.cogs.music.player import MusicPlayer
 from bot.cogs.music.utils import _fmt_ms
 from bot.cogs.music.views import NowPlayingView, QueueView
 from bot.core.config import Config
+from bot.db.client import get_pool
 
 
 async def _delete_after(msg: discord.Message, delay: float) -> None:
@@ -56,6 +58,26 @@ class MusicCog(commands.Cog):
         self.bot = bot
         self.config: Config = bot.config  # type: ignore[attr-defined]
 
+    async def cog_unload(self) -> None:
+        if hasattr(self, "_cmd_task"):
+            self._cmd_task.cancel()
+            try:
+                await self._cmd_task
+            except asyncio.CancelledError:
+                pass
+
+    async def _command_poll_loop(self) -> None:
+        while True:
+            await asyncio.sleep(0.5)
+            try:
+                pool = get_pool()
+                for guild in self.bot.guilds:
+                    player = cast("MusicPlayer | None", guild.voice_client)
+                    if isinstance(player, MusicPlayer):
+                        await db_sync.poll_and_execute_commands(pool, player)
+            except Exception:
+                logger.exception("Error in music command poll loop.")
+
     async def cog_load(self) -> None:
         node = wavelink.Node(uri=self.config.lavalink_uri, password=self.config.lavalink_password)
         try:
@@ -63,6 +85,8 @@ class MusicCog(commands.Cog):
             logger.info("Connected to Lavalink node at {}.", self.config.lavalink_uri)
         except Exception:
             logger.exception("Could not connect to Lavalink — music commands will be unavailable.")
+
+        self._cmd_task = asyncio.create_task(self._command_poll_loop())
 
     def _player(self, interaction: discord.Interaction) -> MusicPlayer | None:
         return cast("MusicPlayer | None", interaction.guild.voice_client)
@@ -119,6 +143,10 @@ class MusicCog(commands.Cog):
         if not player.playing:
             await player.play(player.queue.get())
 
+        try:
+            await db_sync.sync_queue(get_pool(), player)
+        except Exception:
+            logger.exception("Failed to sync music queue after play.")
         response = await interaction.followup.send(msg)
         asyncio.create_task(_delete_after(response, 15))
 
@@ -154,6 +182,10 @@ class MusicCog(commands.Cog):
         player.queue.put_at(0, track)
         if not player.playing:
             await player.play(player.queue.get())
+        try:
+            await db_sync.sync_queue(get_pool(), player)
+        except Exception:
+            logger.exception("Failed to sync music queue after playnext.")
         response = await interaction.followup.send(
             f"**{track.title}** — {track.author} : `{_fmt_ms(track.length)}` will play next."
         )
@@ -171,6 +203,7 @@ class MusicCog(commands.Cog):
         await interaction.response.send_message("Skipped.")
         asyncio.create_task(_delete_after(await interaction.original_response(), 5))
         await player.stop(force=True)
+        # DB state is updated via on_wavelink_track_start when the next track begins
 
     @app_commands.command(name="stop", description="Stop playback, clear the queue, and disconnect.")
     async def stop(self, interaction: discord.Interaction) -> None:
@@ -184,6 +217,10 @@ class MusicCog(commands.Cog):
         await _disable_now_playing(player)
         player.queue.clear()
         await interaction.response.send_message("Stopped and disconnected.")
+        try:
+            await db_sync.clear_state(get_pool(), player.guild.id)
+        except Exception:
+            logger.exception("Failed to clear music state after stop.")
         await player.disconnect()
 
     @app_commands.command(name="list", description="Show the current queue.")
@@ -213,6 +250,10 @@ class MusicCog(commands.Cog):
             return
         track = player.queue.peek(position - 1)
         player.queue.delete(position - 1)
+        try:
+            await db_sync.sync_queue(get_pool(), player)
+        except Exception:
+            logger.exception("Failed to sync music queue after remove.")
         await interaction.response.send_message(f"Removed **{track.title}** from the queue.")
         asyncio.create_task(_delete_after(await interaction.original_response(), 10))
 
@@ -234,6 +275,10 @@ class MusicCog(commands.Cog):
         else:
             player.autoplay = wavelink.AutoPlayMode.partial
             await interaction.response.send_message("Autoplay **disabled** — I'll stop when the queue is empty.")
+        try:
+            await db_sync.sync_state(get_pool(), player)
+        except Exception:
+            logger.exception("Failed to sync music state after autoplay toggle.")
 
     @app_commands.command(name="pause", description="Pause or resume playback.")
     async def pause(self, interaction: discord.Interaction) -> None:
@@ -248,6 +293,10 @@ class MusicCog(commands.Cog):
             await interaction.response.send_message("Nothing is currently playing.", ephemeral=True)
             return
         await player.pause(not player.paused)
+        try:
+            await db_sync.sync_state(get_pool(), player)
+        except Exception:
+            logger.exception("Failed to sync music state after pause toggle.")
         state = "Paused." if player.paused else "Resumed."
         await interaction.response.send_message(state)
         asyncio.create_task(_delete_after(await interaction.original_response(), 5))
@@ -322,6 +371,20 @@ class MusicCog(commands.Cog):
         player.played_ids.add(payload.track.identifier)
         player.recent_tracks.append(payload.track)
 
+        try:
+            pool = get_pool()
+        except Exception:
+            logger.exception("Failed to get DB pool on track start.")
+        else:
+            try:
+                await db_sync.sync_state(pool, player)
+            except Exception:
+                logger.exception("Failed to sync music state on track start.")
+            try:
+                await db_sync.sync_queue(pool, player)
+            except Exception:
+                logger.exception("Failed to sync music queue on track start.")
+
         track = payload.track
         requester_id = getattr(track.extras, "requester", None)
 
@@ -350,6 +413,10 @@ class MusicCog(commands.Cog):
                 await player.text_channel.send("Left the voice channel due to inactivity.")
             except discord.HTTPException:
                 pass
+        try:
+            await db_sync.clear_state(get_pool(), player.guild.id)
+        except Exception:
+            logger.exception("Failed to clear music state on inactive player.")
         await player.disconnect()
 
     @commands.Cog.listener()
@@ -371,6 +438,10 @@ class MusicCog(commands.Cog):
                 except discord.HTTPException:
                     pass
             player.queue.clear()
+            try:
+                await db_sync.clear_state(get_pool(), player.guild.id)
+            except Exception:
+                logger.exception("Failed to clear music state when everyone left.")
             await player.disconnect()
 
 

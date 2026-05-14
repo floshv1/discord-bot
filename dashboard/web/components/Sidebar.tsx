@@ -12,6 +12,7 @@ const navItems = [
   { href: "/suggestions", label: "💡 Suggestions" },
   { href: "/voice", label: "🎙️ Voice" },
   { href: "/birthdays", label: "🎂 Birthdays" },
+  { href: "/music", label: "🎵 Music" },
 ];
 
 interface User {
