@@ -288,8 +288,8 @@ def test_now_playing_embed_shows_next_track():
     player = _make_player_for_embed(queue_tracks=[next_track])
     embed = _build_now_playing_embed(track, player)
     field_names = [f.name for f in embed.fields]
-    assert "Prochain" in field_names
-    next_field = next(f for f in embed.fields if f.name == "Prochain")
+    assert "Next song" in field_names
+    next_field = next(f for f in embed.fields if f.name == "Next song")
     assert "Next Song" in next_field.value
 
 
@@ -299,7 +299,7 @@ def test_now_playing_embed_shows_autoplay_when_empty_and_enabled():
     track = _make_track("My Song", 180_000)
     player = _make_player_for_embed(queue_tracks=[], autoplay_enabled=True)
     embed = _build_now_playing_embed(track, player)
-    next_field = next((f for f in embed.fields if f.name == "Prochain"), None)
+    next_field = next((f for f in embed.fields if f.name == "Next song"), None)
     assert next_field is not None
     assert "Autoplay" in next_field.value
 
@@ -311,7 +311,7 @@ def test_now_playing_embed_no_prochain_when_empty_and_autoplay_off():
     player = _make_player_for_embed(queue_tracks=[], autoplay_enabled=False)
     embed = _build_now_playing_embed(track, player)
     field_names = [f.name for f in embed.fields]
-    assert "Prochain" not in field_names
+    assert "Next song" not in field_names
 
 
 # --- autoplay filter in on_wavelink_track_start ---

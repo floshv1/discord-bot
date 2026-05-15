@@ -14,6 +14,7 @@ COGS = [
     "bot.cogs.voice.cog",
     "bot.cogs.birthday.cog",
     "bot.cogs.music.cog",
+    "bot.cogs.setup.cog",
 ]
 
 

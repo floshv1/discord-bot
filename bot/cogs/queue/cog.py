@@ -103,7 +103,7 @@ def _build_embed(queue, members: list) -> discord.Embed:
 
     if cant_members:
         cant_list = "\n".join(f"<@{m['user_id']}>" for m in cant_members)
-        embed.add_field(name="Can't be here", value=cant_list, inline=True)
+        embed.add_field(name="Can't attend", value=cant_list, inline=True)
 
     if queue["start_time"]:
         ts = int(queue["start_time"].timestamp())
@@ -183,7 +183,7 @@ class JoinButton(discord.ui.Button):
 class ICantButton(discord.ui.Button):
     def __init__(self, queue_id: int, disabled: bool = False):
         super().__init__(
-            label="I can't",
+            label="Can't attend",
             style=discord.ButtonStyle.secondary,
             emoji="🚫",
             custom_id=f"queue:cant:{queue_id}",
@@ -465,7 +465,7 @@ class QueueCog(commands.Cog):
 
         if notify:
             await interaction.channel.send(  # type: ignore[union-attr]
-                f"{notify} — Une queue **{game.upper()}** vient d'être créée ! Rejoins ici 👆",
+                f"{notify} — A **{game.upper()}** queue just opened! Join here 👆",
                 reference=msg,
             )
 

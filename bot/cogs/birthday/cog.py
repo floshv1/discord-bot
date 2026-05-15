@@ -12,19 +12,19 @@ from loguru import logger
 from bot.db.client import get_pool
 
 PARIS_TZ = ZoneInfo("Europe/Paris")
-MOIS_FR = [
-    "janvier",
-    "février",
-    "mars",
-    "avril",
-    "mai",
-    "juin",
-    "juillet",
-    "août",
-    "septembre",
-    "octobre",
-    "novembre",
-    "décembre",
+MONTHS_EN = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
 ]
 
 
@@ -40,8 +40,8 @@ def _next_occurrence(day: int, month: int, today: date) -> date:
 
 def _days_label(delta: int) -> str:
     if delta == 0:
-        return "aujourd'hui 🎂"
-    return f"dans {delta} jour{'s' if delta != 1 else ''}"
+        return "today 🎂"
+    return f"in {delta} day{'s' if delta != 1 else ''}"
 
 
 class BirthdayCog(commands.Cog):
@@ -97,14 +97,14 @@ class BirthdayCog(commands.Cog):
             items.append((delta, r, age))
         items.sort(key=lambda x: x[0])
 
-        embed = discord.Embed(title="🎉 Anniversaires à venir", color=discord.Color.blue())
+        embed = discord.Embed(title="🎉 Upcoming Birthdays", color=discord.Color.blue())
         if not items:
-            embed.description = "Aucun anniversaire enregistré."
+            embed.description = "No birthdays registered yet."
         else:
             for delta, r, age in items:
                 embed.add_field(
                     name=r["username"],
-                    value=f"{r['day']:02d}/{r['month']:02d} ({age} ans) • {_days_label(delta)}",
+                    value=f"{r['day']:02d}/{r['month']:02d} ({age} y/o) · {_days_label(delta)}",
                     inline=False,
                 )
 
@@ -138,7 +138,7 @@ class BirthdayCog(commands.Cog):
         now = datetime.datetime.now(PARIS_TZ)
         today = now.date()
         month = now.month
-        nom_mois = MOIS_FR[month - 1]
+        month_name = MONTHS_EN[month - 1]
 
         rows = await pool.fetch(
             "SELECT user_id, username, day, month, year FROM birthdays WHERE guild_id = $1 AND month = $2 ORDER BY day",
@@ -147,11 +147,11 @@ class BirthdayCog(commands.Cog):
         )
 
         embed = discord.Embed(
-            title=f"📅 Anniversaires de {nom_mois.capitalize()}",
+            title=f"📅 {month_name} Birthdays",
             color=discord.Color.purple(),
         )
         if not rows:
-            embed.description = f"Aucun anniversaire en {nom_mois.capitalize()}."
+            embed.description = f"No birthdays in {month_name}."
         else:
             for r in rows:
                 next_bd = _next_occurrence(r["day"], r["month"], today)
@@ -159,7 +159,7 @@ class BirthdayCog(commands.Cog):
                 age = next_bd.year - r["year"]
                 embed.add_field(
                     name=r["username"],
-                    value=f"{r['day']:02d}/{r['month']:02d} ({age} ans) • {_days_label(delta)}",
+                    value=f"{r['day']:02d}/{r['month']:02d} ({age} y/o) · {_days_label(delta)}",
                     inline=False,
                 )
 
@@ -199,22 +199,22 @@ class BirthdayCog(commands.Cog):
         if not channel:
             return
 
-        wishes = "\n".join(f"- <@{r['user_id']}>, {now.year - r['year']} ans 🎈" for r in rows)
-        await channel.send(f"🎂 Joyeux anniversaire à :\n{wishes}")
+        wishes = "\n".join(f"- <@{r['user_id']}> turns {now.year - r['year']} today 🎈" for r in rows)
+        await channel.send(f"🎂 Happy birthday to:\n{wishes}")
 
-    birthday = app_commands.Group(name="birthday", description="Commandes d'anniversaire.")
+    birthday = app_commands.Group(name="birthday", description="Birthday commands.")
 
-    @birthday.command(name="set", description="Enregistre votre anniversaire.")
-    @app_commands.describe(day="Jour (1-31)", month="Mois (1-12)", year="Année (ex: 2002)")
+    @birthday.command(name="set", description="Register your birthday.")
+    @app_commands.describe(day="Day (1-31)", month="Month (1-12)", year="Year (e.g. 2002)")
     async def birthday_set(self, interaction: discord.Interaction, day: int, month: int, year: int) -> None:
         if not (1 <= day <= 31):
-            await interaction.response.send_message("Jour invalide (1-31).", ephemeral=True)
+            await interaction.response.send_message("Invalid day (1-31).", ephemeral=True)
             return
         if not (1 <= month <= 12):
-            await interaction.response.send_message("Mois invalide (1-12).", ephemeral=True)
+            await interaction.response.send_message("Invalid month (1-12).", ephemeral=True)
             return
         if not (1900 <= year <= 2100):
-            await interaction.response.send_message("Année invalide (1900-2100).", ephemeral=True)
+            await interaction.response.send_message("Invalid year (1900-2100).", ephemeral=True)
             return
 
         pool = get_pool()
@@ -237,13 +237,11 @@ class BirthdayCog(commands.Cog):
             year,
         )
 
-        await interaction.response.send_message(
-            f"🎉 Anniversaire enregistré : {day:02d}/{month:02d}/{year} !", ephemeral=True
-        )
+        await interaction.response.send_message(f"🎉 Birthday saved: {day:02d}/{month:02d}/{year}!", ephemeral=True)
         await self._update_upcoming_embed()
         await self._update_month_embed()
 
-    @birthday.command(name="delete", description="Supprime votre anniversaire.")
+    @birthday.command(name="delete", description="Delete your registered birthday.")
     async def birthday_delete(self, interaction: discord.Interaction) -> None:
         pool = get_pool()
         result = await pool.execute(
@@ -251,14 +249,14 @@ class BirthdayCog(commands.Cog):
             interaction.user.id,
         )
         if result == "DELETE 0":
-            await interaction.response.send_message("Vous n'avez pas d'anniversaire enregistré.", ephemeral=True)
+            await interaction.response.send_message("You have no birthday registered.", ephemeral=True)
             return
 
-        await interaction.response.send_message("✅ Anniversaire supprimé.", ephemeral=True)
+        await interaction.response.send_message("✅ Birthday removed.", ephemeral=True)
         await self._update_upcoming_embed()
         await self._update_month_embed()
 
-    @birthday.command(name="list", description="Affiche les anniversaires à venir.")
+    @birthday.command(name="list", description="Show all upcoming birthdays.")
     async def birthday_list(self, interaction: discord.Interaction) -> None:
         pool = get_pool()
         rows = await pool.fetch(
@@ -275,102 +273,18 @@ class BirthdayCog(commands.Cog):
             items.append((delta, r, age))
         items.sort(key=lambda x: x[0])
 
-        embed = discord.Embed(title="🎉 Anniversaires à venir", color=discord.Color.blue())
+        embed = discord.Embed(title="🎉 Upcoming Birthdays", color=discord.Color.blue())
         if not items:
-            embed.description = "Aucun anniversaire enregistré."
+            embed.description = "No birthdays registered yet."
         else:
             for delta, r, age in items:
                 embed.add_field(
                     name=r["username"],
-                    value=f"{r['day']:02d}/{r['month']:02d} ({age} ans) • {_days_label(delta)}",
+                    value=f"{r['day']:02d}/{r['month']:02d} ({age} y/o) · {_days_label(delta)}",
                     inline=False,
                 )
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
-
-    @birthday.command(name="month", description="Affiche les anniversaires du mois en cours.")
-    async def birthday_month(self, interaction: discord.Interaction) -> None:
-        now = datetime.datetime.now(PARIS_TZ)
-        today = now.date()
-        month = now.month
-        nom_mois = MOIS_FR[month - 1]
-
-        pool = get_pool()
-        rows = await pool.fetch(
-            "SELECT user_id, username, day, month, year FROM birthdays WHERE guild_id = $1 AND month = $2 ORDER BY day",
-            interaction.guild_id,
-            month,
-        )
-
-        embed = discord.Embed(
-            title=f"📅 Anniversaires de {nom_mois.capitalize()}",
-            color=discord.Color.purple(),
-        )
-        if not rows:
-            embed.description = f"Aucun anniversaire en {nom_mois.capitalize()}."
-        else:
-            for r in rows:
-                next_bd = _next_occurrence(r["day"], r["month"], today)
-                delta = (next_bd - today).days
-                age = next_bd.year - r["year"]
-                embed.add_field(
-                    name=r["username"],
-                    value=f"{r['day']:02d}/{r['month']:02d} ({age} ans) • {_days_label(delta)}",
-                    inline=False,
-                )
-
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-
-    @birthday.command(name="setup", description="Initialise les messages d'anniversaire (modérateurs).")
-    @app_commands.default_permissions(manage_guild=True)
-    async def birthday_setup(self, interaction: discord.Interaction) -> None:
-        config = self.bot.config  # type: ignore[attr-defined]
-        if not config.birthday_channel_id:
-            await interaction.response.send_message("❌ `BIRTHDAY_CHANNEL_ID` n'est pas configuré.", ephemeral=True)
-            return
-
-        guild = interaction.guild
-        channel = guild.get_channel(config.birthday_channel_id)
-        if not channel:
-            await interaction.response.send_message("❌ Canal introuvable.", ephemeral=True)
-            return
-
-        await interaction.response.defer(ephemeral=True)
-
-        upcoming_msg = await channel.send(
-            embed=discord.Embed(
-                title="🎉 Anniversaires à venir",
-                description="Chargement...",
-                color=discord.Color.blue(),
-            )
-        )
-        month_msg = await channel.send(
-            embed=discord.Embed(
-                title="📅 Anniversaires du mois",
-                description="Chargement...",
-                color=discord.Color.purple(),
-            )
-        )
-
-        pool = get_pool()
-        await pool.execute(
-            """
-            INSERT INTO birthday_config (guild_id, channel_id, upcoming_message_id, month_message_id)
-            VALUES ($1, $2, $3, $4)
-            ON CONFLICT (guild_id) DO UPDATE
-              SET channel_id = EXCLUDED.channel_id,
-                  upcoming_message_id = EXCLUDED.upcoming_message_id,
-                  month_message_id = EXCLUDED.month_message_id
-            """,
-            interaction.guild_id,
-            channel.id,
-            upcoming_msg.id,
-            month_msg.id,
-        )
-
-        await self._update_upcoming_embed()
-        await self._update_month_embed()
-        await interaction.followup.send("✅ Messages d'anniversaire initialisés.", ephemeral=True)
 
 
 async def setup(bot: commands.Bot) -> None:

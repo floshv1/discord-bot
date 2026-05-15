@@ -110,6 +110,7 @@ class VoteButton(discord.ui.Button):
         )
         view = SuggestionVoteView(suggestion_id, int(vote_up), int(vote_down))
         await interaction.response.edit_message(embed=embed, view=view)
+        await interaction.followup.send("Vote registered!", ephemeral=True)
 
 
 class SuggestionVoteView(discord.ui.View):
@@ -229,37 +230,6 @@ class SuggestionCog(commands.Cog):
             self.bot.add_view(SuggestionVoteView(row["id"]))
 
     suggest = discord.app_commands.Group(name="suggest", description="Suggestion system commands.")
-
-    @suggest.command(name="setup", description="Post the suggestion entry-point message in a channel.")
-    @discord.app_commands.describe(channel="Channel where suggestions will be collected")
-    @discord.app_commands.default_permissions(manage_channels=True)
-    async def suggest_setup(self, interaction: discord.Interaction, channel: discord.TextChannel) -> None:
-        pool = get_pool()
-
-        embed = discord.Embed(
-            title="💡 Suggestions",
-            description=(
-                "Have an idea to make the bot better?\n\n"
-                "✨ **New Feature** — suggest something brand new\n"
-                "🔧 **Improvement** — improve an existing feature"
-            ),
-            color=discord.Color.blurple(),
-        )
-        view = SetupView()
-        msg = await channel.send(embed=embed, view=view)
-
-        await pool.execute(
-            """
-            INSERT INTO suggestion_config (guild_id, channel_id, message_id)
-            VALUES ($1, $2, $3)
-            ON CONFLICT (guild_id) DO UPDATE SET channel_id = $2, message_id = $3
-            """,
-            interaction.guild_id,
-            channel.id,
-            msg.id,
-        )
-
-        await interaction.response.send_message(f"Suggestion channel set to {channel.mention}!", ephemeral=True)
 
     @suggest.command(name="status", description="Update the status of a suggestion.")
     @discord.app_commands.describe(number="Suggestion number (e.g. 3)", status="New status")

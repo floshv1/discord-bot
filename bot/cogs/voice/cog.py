@@ -4,7 +4,6 @@ import datetime
 from zoneinfo import ZoneInfo
 
 import discord
-from discord import app_commands
 from discord.ext import commands, tasks
 from loguru import logger
 
@@ -126,10 +125,10 @@ class VoiceCog(commands.Cog):
         )
 
         now = datetime.datetime.now(PARIS_TZ)
-        embed = discord.Embed(title="🎙️ Top Vocal — 7 derniers jours", color=discord.Color.blurple())
-        embed.set_footer(text=f"Mis à jour le {now.strftime('%d/%m à %H:%M')}")
+        embed = discord.Embed(title="🎙️ Voice — Last 7 Days", color=discord.Color.blurple())
+        embed.set_footer(text=f"Updated {now.strftime('%d/%m at %H:%M')}")
         if not rows:
-            embed.description = "Aucune session cette semaine."
+            embed.description = "No voice sessions this week."
         else:
             lines = []
             for i, r in enumerate(rows, 1):
@@ -179,10 +178,10 @@ class VoiceCog(commands.Cog):
         )
 
         now = datetime.datetime.now(PARIS_TZ)
-        embed = discord.Embed(title="🏆 Top Vocal — Tout temps", color=discord.Color.gold())
-        embed.set_footer(text=f"Mis à jour le {now.strftime('%d/%m à %H:%M')}")
+        embed = discord.Embed(title="🏆 Voice — All Time", color=discord.Color.gold())
+        embed.set_footer(text=f"Updated {now.strftime('%d/%m at %H:%M')}")
         if not rows:
-            embed.description = "Aucune session enregistrée."
+            embed.description = "No sessions recorded."
         else:
             lines = []
             for i, r in enumerate(rows, 1):
@@ -202,61 +201,6 @@ class VoiceCog(commands.Cog):
             await msg.edit(embed=embed)
         except discord.NotFound:
             logger.warning("Voice all-time leaderboard message not found.")
-
-    voice = app_commands.Group(name="voice", description="Commandes du leaderboard vocal.")
-
-    @voice.command(name="setup", description="Initialise les messages du leaderboard vocal.")
-    @app_commands.default_permissions(manage_guild=True)
-    async def voice_setup(self, interaction: discord.Interaction) -> None:
-        config = self.bot.config  # type: ignore[attr-defined]
-        if not config.voice_leaderboard_channel_id:
-            await interaction.response.send_message(
-                "❌ `VOICE_LEADERBOARD_CHANNEL_ID` n'est pas configuré.", ephemeral=True
-            )
-            return
-
-        guild = interaction.guild
-        channel = guild.get_channel(config.voice_leaderboard_channel_id)
-        if not channel:
-            await interaction.response.send_message("❌ Canal introuvable.", ephemeral=True)
-            return
-
-        await interaction.response.defer(ephemeral=True)
-
-        weekly_msg = await channel.send(
-            embed=discord.Embed(
-                title="🎙️ Top Vocal — 7 derniers jours",
-                description="Chargement...",
-                color=discord.Color.blurple(),
-            )
-        )
-        alltime_msg = await channel.send(
-            embed=discord.Embed(
-                title="🏆 Top Vocal — Tout temps",
-                description="Chargement...",
-                color=discord.Color.gold(),
-            )
-        )
-
-        pool = get_pool()
-        await pool.execute(
-            """
-            INSERT INTO voice_leaderboard (guild_id, channel_id, weekly_message_id, alltime_message_id)
-            VALUES ($1, $2, $3, $4)
-            ON CONFLICT (guild_id) DO UPDATE
-              SET channel_id = EXCLUDED.channel_id,
-                  weekly_message_id = EXCLUDED.weekly_message_id,
-                  alltime_message_id = EXCLUDED.alltime_message_id
-            """,
-            interaction.guild_id,
-            channel.id,
-            weekly_msg.id,
-            alltime_msg.id,
-        )
-
-        await self._update_weekly_message()
-        await self._update_alltime_message()
-        await interaction.followup.send("✅ Leaderboard vocal initialisé.", ephemeral=True)
 
 
 async def setup(bot: commands.Bot) -> None:

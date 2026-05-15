@@ -63,9 +63,14 @@ def _build_now_playing_embed(track: wavelink.Playable, player: MusicPlayer) -> d
     queue_list = list(player.queue)
     if queue_list:
         next_track = queue_list[0]
-        embed.add_field(name="Prochain", value=f"[{next_track.title}]({next_track.uri})", inline=True)
+        embed.add_field(name="Next song", value=f"[{next_track.title}]({next_track.uri})", inline=True)
     elif player.autoplay_enabled:
-        embed.add_field(name="Prochain", value="Autoplay", inline=True)
+        auto_list = list(player.auto_queue)
+        if auto_list:
+            next_auto = auto_list[0]
+            embed.add_field(name="Next song", value=f"🔀 [{next_auto.title}]({next_auto.uri})", inline=True)
+        else:
+            embed.add_field(name="Next song", value="🔀 Autoplay", inline=True)
 
     if track.artwork:
         embed.set_thumbnail(url=track.artwork)
@@ -162,8 +167,8 @@ class MusicCog(commands.Cog):
 
         try:
             tracks: wavelink.Search = await wavelink.Playable.search(query)
-        except wavelink.LavalinkException as e:
-            await interaction.followup.send(f"Could not load track: {e}", ephemeral=True)
+        except wavelink.LavalinkException:
+            await interaction.followup.send("Couldn't load that track. Try a different search or URL.", ephemeral=True)
             return
 
         if not tracks:
@@ -229,8 +234,8 @@ class MusicCog(commands.Cog):
 
         try:
             tracks: wavelink.Search = await wavelink.Playable.search(query)
-        except wavelink.LavalinkException as e:
-            await interaction.followup.send(f"Could not load track: {e}", ephemeral=True)
+        except wavelink.LavalinkException:
+            await interaction.followup.send("Couldn't load that track. Try a different search or URL.", ephemeral=True)
             return
 
         if not tracks:
@@ -260,8 +265,7 @@ class MusicCog(commands.Cog):
         if not player or player.channel != interaction.user.voice.channel:
             await interaction.response.send_message("Join my voice channel first.", ephemeral=True)
             return
-        await interaction.response.send_message("Skipped.")
-        asyncio.create_task(_delete_after(await interaction.original_response(), 5))
+        await interaction.response.send_message("Skipped.", ephemeral=True)
         await player.stop(force=True)
         # DB state is updated via on_wavelink_track_start when the next track begins
 
@@ -315,8 +319,7 @@ class MusicCog(commands.Cog):
             await db_sync.sync_queue(get_pool(), player)
         except Exception:
             logger.exception("Failed to sync music queue after remove.")
-        await interaction.response.send_message(f"Removed **{track.title}** from the queue.")
-        asyncio.create_task(_delete_after(await interaction.original_response(), 10))
+        await interaction.response.send_message(f"Removed **{track.title}** from the queue.", ephemeral=True)
 
     @app_commands.command(name="autoplay", description="Toggle autoplay (plays similar music when queue ends).")
     async def autoplay_toggle(self, interaction: discord.Interaction) -> None:
@@ -331,11 +334,13 @@ class MusicCog(commands.Cog):
         if player.autoplay_enabled:
             player.autoplay = wavelink.AutoPlayMode.enabled
             await interaction.response.send_message(
-                "Autoplay **enabled** — I'll keep playing music similar to what's on."
+                "Autoplay **enabled** — I'll keep playing music similar to what's on.", ephemeral=True
             )
         else:
             player.autoplay = wavelink.AutoPlayMode.partial
-            await interaction.response.send_message("Autoplay **disabled** — I'll stop when the queue is empty.")
+            await interaction.response.send_message(
+                "Autoplay **disabled** — I'll stop when the queue is empty.", ephemeral=True
+            )
         try:
             await db_sync.sync_state(get_pool(), player)
         except Exception:
@@ -359,8 +364,7 @@ class MusicCog(commands.Cog):
         except Exception:
             logger.exception("Failed to sync music state after pause toggle.")
         state = "Paused." if player.paused else "Resumed."
-        await interaction.response.send_message(state)
-        asyncio.create_task(_delete_after(await interaction.original_response(), 5))
+        await interaction.response.send_message(state, ephemeral=True)
 
     @app_commands.command(name="nowplaying", description="Show what's currently playing.")
     async def nowplaying(self, interaction: discord.Interaction) -> None:
@@ -376,54 +380,6 @@ class MusicCog(commands.Cog):
         player.now_playing_message = await interaction.original_response()
         view.message = player.now_playing_message
         player._progress_task = asyncio.create_task(_progress_loop(player))
-
-    @app_commands.command(name="played", description="Show the last 10 tracks played this session.")
-    async def history(self, interaction: discord.Interaction) -> None:
-        player = self._player(interaction)
-        if not player or not player.recent_tracks:
-            await interaction.response.send_message("No tracks have been played yet this session.", ephemeral=True)
-            return
-
-        tracks = list(player.recent_tracks)
-        lines = [f"`{i}.` [{t.title}]({t.uri}) — {t.author} `{_fmt_ms(t.length)}`" for i, t in enumerate(tracks, 1)]
-        embed = discord.Embed(
-            title="Session History",
-            description="\n".join(lines),
-            color=discord.Color.dark_grey(),
-        )
-        embed.set_footer(text=f"{len(tracks)} track(s) played this session.")
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-
-    @app_commands.command(
-        name="autoplay_preview", description="Preview the next autoplay suggestions without playing them."
-    )
-    async def autoplay_preview(self, interaction: discord.Interaction) -> None:
-        player = self._player(interaction)
-        if not player:
-            await interaction.response.send_message("Nothing is currently playing.", ephemeral=True)
-            return
-        if not player.autoplay_enabled:
-            await interaction.response.send_message(
-                "Autoplay is currently disabled — enable it with `/autoplay` first.", ephemeral=True
-            )
-            return
-
-        tracks = list(player.auto_queue)[:5]
-        if not tracks:
-            await interaction.response.send_message(
-                "No suggestions ready yet — YouTube is still fetching recommendations.", ephemeral=True
-            )
-            return
-
-        embed = discord.Embed(
-            title="Autoplay Preview",
-            description="Next up from YouTube Music recommendations:\n\n",
-            color=discord.Color.blurple(),
-        )
-        lines = [f"`{i}.` [{t.title}]({t.uri}) — {t.author} `{_fmt_ms(t.length)}`" for i, t in enumerate(tracks, 1)]
-        embed.description += "\n".join(lines)
-        embed.set_footer(text="These are YouTube's recommendations based on what's currently playing.")
-        await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @app_commands.command(name="lyrics", description="Show lyrics for the current track.")
     async def lyrics(self, interaction: discord.Interaction) -> None:
