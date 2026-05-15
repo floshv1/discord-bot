@@ -7,6 +7,60 @@ from bot.cogs.music.player import MusicPlayer
 from bot.cogs.music.utils import _fmt_ms
 
 _TRACKS_PER_PAGE = 10
+_LYRICS_PAGE_SIZE = 1500
+
+
+class LyricsView(discord.ui.View):
+    def __init__(self, title: str, lyrics: str) -> None:
+        super().__init__(timeout=300)
+        self.title = title
+        self.pages = [lyrics[i : i + _LYRICS_PAGE_SIZE] for i in range(0, len(lyrics), _LYRICS_PAGE_SIZE)]
+        self.page = 0
+        self.message: discord.Message | None = None
+
+        self._prev_btn = discord.ui.Button(label="◀ Prev", style=discord.ButtonStyle.secondary)
+        self._prev_btn.callback = self._prev
+
+        self._next_btn = discord.ui.Button(label="Next ▶", style=discord.ButtonStyle.secondary)
+        self._next_btn.callback = self._next
+
+        self.add_item(self._prev_btn)
+        self.add_item(self._next_btn)
+        self._sync()
+
+    def _sync(self) -> None:
+        self._prev_btn.disabled = self.page == 0
+        self._next_btn.disabled = self.page >= len(self.pages) - 1
+
+    def build_embed(self) -> discord.Embed:
+        page_info = f"Page {self.page + 1}/{len(self.pages)}" if len(self.pages) > 1 else ""
+        embed = discord.Embed(
+            title=f"Lyrics — {self.title}",
+            description=self.pages[self.page],
+            color=discord.Color.purple(),
+        )
+        if page_info:
+            embed.set_footer(text=page_info)
+        return embed
+
+    async def _prev(self, interaction: discord.Interaction) -> None:
+        self.page = max(0, self.page - 1)
+        self._sync()
+        await interaction.response.edit_message(embed=self.build_embed(), view=self)
+
+    async def _next(self, interaction: discord.Interaction) -> None:
+        self.page = min(len(self.pages) - 1, self.page + 1)
+        self._sync()
+        await interaction.response.edit_message(embed=self.build_embed(), view=self)
+
+    async def on_timeout(self) -> None:
+        for item in self.children:
+            item.disabled = True  # type: ignore[attr-defined]
+        if self.message:
+            try:
+                await self.message.edit(view=self)
+            except discord.HTTPException:
+                pass
 
 
 class NowPlayingView(discord.ui.View):

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from typing import cast
 
+import aiohttp
 import discord
 import wavelink
 from discord import app_commands
@@ -11,8 +12,14 @@ from loguru import logger
 
 from bot.cogs.music import db_sync
 from bot.cogs.music.player import MusicPlayer
-from bot.cogs.music.utils import _fmt_ms
-from bot.cogs.music.views import NowPlayingView, QueueView
+from bot.cogs.music.utils import (
+    _fmt_ms,
+    calculate_eta,
+    format_progress_bar,
+    is_filtered_autoplay_track,
+    titles_similar,
+)
+from bot.cogs.music.views import LyricsView, NowPlayingView, QueueView
 from bot.core.config import Config
 from bot.db.client import get_pool
 
@@ -34,7 +41,7 @@ async def _disable_now_playing(player: MusicPlayer) -> None:
         player.now_playing_message = None
 
 
-def _build_now_playing_embed(track: wavelink.Playable) -> discord.Embed:
+def _build_now_playing_embed(track: wavelink.Playable, player: MusicPlayer) -> discord.Embed:
     requester_id = getattr(track.extras, "requester", None)
     req = f"<@{requester_id}>" if requester_id else "Autoplay"
     embed = discord.Embed(
@@ -42,15 +49,54 @@ def _build_now_playing_embed(track: wavelink.Playable) -> discord.Embed:
         description=f"[{track.title}]({track.uri})",
         color=discord.Color.green(),
     )
+    embed.add_field(
+        name="Progress",
+        value=format_progress_bar(player.position, track.length),
+        inline=False,
+    )
     embed.add_field(name="Artist", value=track.author or "—", inline=True)
     album_name = getattr(track.album, "name", None)
     if album_name:
         embed.add_field(name="Album", value=album_name, inline=True)
-    embed.add_field(name="Duration", value=_fmt_ms(track.length), inline=True)
     embed.add_field(name="Requested by", value=req, inline=True)
+
+    queue_list = list(player.queue)
+    if queue_list:
+        next_track = queue_list[0]
+        embed.add_field(name="Prochain", value=f"[{next_track.title}]({next_track.uri})", inline=True)
+    elif player.autoplay_enabled:
+        embed.add_field(name="Prochain", value="Autoplay", inline=True)
+
     if track.artwork:
         embed.set_thumbnail(url=track.artwork)
     return embed
+
+
+async def _cancel_progress_task(player: MusicPlayer) -> None:
+    if player._progress_task and not player._progress_task.done():
+        player._progress_task.cancel()
+        try:
+            await player._progress_task
+        except asyncio.CancelledError:
+            pass
+    player._progress_task = None
+
+
+async def _progress_loop(player: MusicPlayer) -> None:
+    try:
+        while True:
+            await asyncio.sleep(5)
+            if not player.current or not player.now_playing_message:
+                break
+            embed = _build_now_playing_embed(player.current, player)
+            try:
+                await player.now_playing_message.edit(embed=embed)
+            except discord.NotFound:
+                break
+            except discord.HTTPException:
+                pass
+    except asyncio.CancelledError:
+        pass
 
 
 class MusicCog(commands.Cog):
@@ -134,11 +180,25 @@ class MusicCog(commands.Cog):
         else:
             track = tracks[0]
             track.extras.requester = interaction.user.id
+
+            duplicate_warning = ""
+            if player.playing:
+                all_queued = list(player.queue)
+                candidates = [(i + 1, t) for i, t in enumerate(all_queued) if titles_similar(track.title, t.title)]
+                if not candidates and player.current and titles_similar(track.title, player.current.title):
+                    candidates = [(0, player.current)]
+                if candidates:
+                    pos, dup = candidates[0]
+                    where = "currently playing" if pos == 0 else f"#{pos} in queue"
+                    duplicate_warning = f"\n⚠️ **{dup.title}** is already {where} — might be a duplicate."
+
             await player.queue.put_wait(track)
             queue_pos = player.queue.count
             msg = f"Queued **{track.title}** — {track.author} : `{_fmt_ms(track.length)}`"
             if player.playing:
-                msg += f" (#{queue_pos} in queue)"
+                eta_ms = calculate_eta(player, queue_pos - 1)
+                msg += f" (#{queue_pos} in queue · in ≈ {_fmt_ms(eta_ms)})"
+            msg += duplicate_warning
 
         if not player.playing:
             await player.play(player.queue.get())
@@ -214,6 +274,7 @@ class MusicCog(commands.Cog):
         if not player or player.channel != interaction.user.voice.channel:
             await interaction.response.send_message("Join my voice channel first.", ephemeral=True)
             return
+        await _cancel_progress_task(player)
         await _disable_now_playing(player)
         player.queue.clear()
         await interaction.response.send_message("Stopped and disconnected.")
@@ -307,12 +368,14 @@ class MusicCog(commands.Cog):
         if not player or not player.current:
             await interaction.response.send_message("Nothing is currently playing.", ephemeral=True)
             return
+        await _cancel_progress_task(player)
         await _disable_now_playing(player)
-        embed = _build_now_playing_embed(player.current)
+        embed = _build_now_playing_embed(player.current, player)
         view = NowPlayingView(player)
         await interaction.response.send_message(embed=embed, view=view)
         player.now_playing_message = await interaction.original_response()
         view.message = player.now_playing_message
+        player._progress_task = asyncio.create_task(_progress_loop(player))
 
     @app_commands.command(name="played", description="Show the last 10 tracks played this session.")
     async def history(self, interaction: discord.Interaction) -> None:
@@ -362,14 +425,54 @@ class MusicCog(commands.Cog):
         embed.set_footer(text="These are YouTube's recommendations based on what's currently playing.")
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
+    @app_commands.command(name="lyrics", description="Show lyrics for the current track.")
+    async def lyrics(self, interaction: discord.Interaction) -> None:
+        player = self._player(interaction)
+        if not player or not player.current:
+            await interaction.response.send_message("Nothing is currently playing.", ephemeral=True)
+            return
+
+        await interaction.response.defer(ephemeral=True)
+        track = player.current
+        params = {"track_name": track.title, "artist_name": track.author or ""}
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    "https://lrclib.net/api/get", params=params, timeout=aiohttp.ClientTimeout(total=5)
+                ) as resp:
+                    if resp.status == 404:
+                        await interaction.followup.send("No lyrics found for this track.", ephemeral=True)
+                        return
+                    resp.raise_for_status()
+                    data = await resp.json()
+        except Exception:
+            await interaction.followup.send("Could not fetch lyrics — try again later.", ephemeral=True)
+            return
+
+        plain = (data.get("plainLyrics") or "").strip()
+        if not plain:
+            await interaction.followup.send("No lyrics found for this track.", ephemeral=True)
+            return
+
+        view = LyricsView(track.title, plain)
+        msg = await interaction.followup.send(embed=view.build_embed(), view=view, ephemeral=True)
+        view.message = msg
+
     @commands.Cog.listener()
     async def on_wavelink_track_start(self, payload: wavelink.TrackStartEventPayload) -> None:
         player = cast("MusicPlayer | None", payload.player)
         if not isinstance(player, MusicPlayer):
             return
 
-        player.played_ids.add(payload.track.identifier)
-        player.recent_tracks.append(payload.track)
+        track = payload.track
+        requester_id = getattr(track.extras, "requester", None)
+
+        if not requester_id and player.autoplay_enabled and is_filtered_autoplay_track(track):
+            await player.stop(force=True)
+            return
+
+        player.played_ids.add(track.identifier)
+        player.recent_tracks.append(track)
 
         try:
             pool = get_pool()
@@ -385,21 +488,20 @@ class MusicCog(commands.Cog):
             except Exception:
                 logger.exception("Failed to sync music queue on track start.")
 
-        track = payload.track
-        requester_id = getattr(track.extras, "requester", None)
-
         if requester_id and player.autoplay_enabled:
             player.auto_queue.reset()
 
         if not player.text_channel:
             return
 
+        await _cancel_progress_task(player)
         await _disable_now_playing(player)
-        embed = _build_now_playing_embed(track)
+        embed = _build_now_playing_embed(track, player)
         view = NowPlayingView(player)
         try:
             player.now_playing_message = await player.text_channel.send(embed=embed, view=view)
             view.message = player.now_playing_message
+            player._progress_task = asyncio.create_task(_progress_loop(player))
         except discord.HTTPException:
             pass
 
@@ -407,6 +509,7 @@ class MusicCog(commands.Cog):
     async def on_wavelink_inactive_player(self, player: wavelink.Player) -> None:
         if not isinstance(player, MusicPlayer):
             return
+        await _cancel_progress_task(player)
         await _disable_now_playing(player)
         if player.text_channel:
             try:
@@ -431,6 +534,7 @@ class MusicCog(commands.Cog):
         if before.channel is None or before.channel != player.channel:
             return
         if not any(not m.bot for m in player.channel.members):
+            await _cancel_progress_task(player)
             await _disable_now_playing(player)
             if player.text_channel:
                 try:
