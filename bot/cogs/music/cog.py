@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 from typing import cast
 
-import aiohttp
 import discord
 import wavelink
 from discord import app_commands
@@ -15,6 +14,7 @@ from bot.cogs.music.player import MusicPlayer
 from bot.cogs.music.utils import (
     _fmt_ms,
     calculate_eta,
+    fetch_lyrics,
     format_progress_bar,
     is_filtered_autoplay_track,
     titles_similar,
@@ -434,27 +434,12 @@ class MusicCog(commands.Cog):
 
         await interaction.response.defer(ephemeral=True)
         track = player.current
-        params = {"track_name": track.title, "artist_name": track.author or ""}
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    "https://lrclib.net/api/get", params=params, timeout=aiohttp.ClientTimeout(total=5)
-                ) as resp:
-                    if resp.status == 404:
-                        await interaction.followup.send("No lyrics found for this track.", ephemeral=True)
-                        return
-                    resp.raise_for_status()
-                    data = await resp.json()
-        except Exception:
-            await interaction.followup.send("Could not fetch lyrics — try again later.", ephemeral=True)
-            return
-
-        plain = (data.get("plainLyrics") or "").strip()
-        if not plain:
+        lyrics = await fetch_lyrics(track.title, track.author or "")
+        if not lyrics:
             await interaction.followup.send("No lyrics found for this track.", ephemeral=True)
             return
 
-        view = LyricsView(track.title, plain)
+        view = LyricsView(track.title, lyrics)
         msg = await interaction.followup.send(embed=view.build_embed(), view=view, ephemeral=True)
         view.message = msg
 

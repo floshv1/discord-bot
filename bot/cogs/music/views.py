@@ -4,7 +4,7 @@ import discord
 import wavelink
 
 from bot.cogs.music.player import MusicPlayer
-from bot.cogs.music.utils import _fmt_ms
+from bot.cogs.music.utils import _fmt_ms, fetch_lyrics
 
 _TRACKS_PER_PAGE = 10
 _LYRICS_PAGE_SIZE = 1500
@@ -69,21 +69,31 @@ class NowPlayingView(discord.ui.View):
         self.player = player
         self.message: discord.Message | None = None
 
-        self._pause_btn = discord.ui.Button(label="", style=discord.ButtonStyle.secondary)
+        # Row 0 — playback controls
+        self._prev_track_btn = discord.ui.Button(label="⏮ Prev", style=discord.ButtonStyle.secondary, row=0)
+        self._prev_track_btn.callback = self._play_previous
+
+        self._pause_btn = discord.ui.Button(label="", style=discord.ButtonStyle.secondary, row=0)
         self._pause_btn.callback = self._toggle_pause
 
-        self._skip_btn = discord.ui.Button(label="⏭ Skip", style=discord.ButtonStyle.secondary)
+        self._skip_btn = discord.ui.Button(label="⏭ Skip", style=discord.ButtonStyle.secondary, row=0)
         self._skip_btn.callback = self._skip
 
-        self._autoplay_btn = discord.ui.Button(label="", style=discord.ButtonStyle.secondary)
+        self._autoplay_btn = discord.ui.Button(label="", style=discord.ButtonStyle.secondary, row=0)
         self._autoplay_btn.callback = self._toggle_autoplay
 
-        self._queue_btn = discord.ui.Button(label="📋 Queue", style=discord.ButtonStyle.secondary)
+        # Row 1 — utilities
+        self._lyrics_btn = discord.ui.Button(label="🎵 Lyrics", style=discord.ButtonStyle.secondary, row=1)
+        self._lyrics_btn.callback = self._show_lyrics
+
+        self._queue_btn = discord.ui.Button(label="📋 Queue", style=discord.ButtonStyle.secondary, row=1)
         self._queue_btn.callback = self._show_queue
 
+        self.add_item(self._prev_track_btn)
         self.add_item(self._pause_btn)
         self.add_item(self._skip_btn)
         self.add_item(self._autoplay_btn)
+        self.add_item(self._lyrics_btn)
         self.add_item(self._queue_btn)
         self._sync()
 
@@ -95,6 +105,21 @@ class NowPlayingView(discord.ui.View):
         on = self.player.autoplay_enabled
         self._autoplay_btn.label = f"🔀 Autoplay: {'On' if on else 'Off'}"
         self._autoplay_btn.style = discord.ButtonStyle.green if on else discord.ButtonStyle.secondary
+
+        self._prev_track_btn.disabled = len(self.player.recent_tracks) < 2
+
+    async def _play_previous(self, interaction: discord.Interaction) -> None:
+        if not interaction.user.voice or interaction.user.voice.channel != self.player.channel:
+            await interaction.response.send_message("Join my voice channel first.", ephemeral=True)
+            return
+        recent = list(self.player.recent_tracks)
+        if len(recent) < 2:
+            await interaction.response.send_message("No previous track available.", ephemeral=True)
+            return
+        prev_track = recent[-2]
+        self.player.queue.put_at(0, prev_track)
+        await interaction.response.defer()
+        await self.player.stop(force=True)
 
     async def _toggle_pause(self, interaction: discord.Interaction) -> None:
         if not interaction.user.voice or interaction.user.voice.channel != self.player.channel:
@@ -121,6 +146,20 @@ class NowPlayingView(discord.ui.View):
         )
         self._sync()
         await interaction.response.edit_message(view=self)
+
+    async def _show_lyrics(self, interaction: discord.Interaction) -> None:
+        track = self.player.current
+        if not track:
+            await interaction.response.send_message("Nothing is playing.", ephemeral=True)
+            return
+        await interaction.response.defer(ephemeral=True)
+        lyrics = await fetch_lyrics(track.title, track.author or "")
+        if not lyrics:
+            await interaction.followup.send("No lyrics found for this track.", ephemeral=True)
+            return
+        view = LyricsView(track.title, lyrics)
+        msg = await interaction.followup.send(embed=view.build_embed(), view=view, ephemeral=True)
+        view.message = msg
 
     async def _show_queue(self, interaction: discord.Interaction) -> None:
         view = QueueView(self.player)

@@ -57,3 +57,23 @@ def calculate_eta(player: object, queue_insert_index: int) -> int:
 def is_filtered_autoplay_track(track: object) -> bool:
     title = getattr(track, "title", "") or ""
     return bool(_AUTOPLAY_FILTER.search(title))
+
+
+async def fetch_lyrics(title: str, artist: str) -> str | None:
+    import aiohttp
+
+    params = {"track_name": title, "artist_name": artist}
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                "https://lrclib.net/api/get",
+                params=params,
+                timeout=aiohttp.ClientTimeout(total=5),
+            ) as resp:
+                if resp.status == 404:
+                    return None
+                resp.raise_for_status()
+                data = await resp.json()
+                return (data.get("plainLyrics") or "").strip() or None
+    except Exception:
+        return None

@@ -12,7 +12,7 @@ from bot.cogs.music.utils import (
     is_filtered_autoplay_track,
     titles_similar,
 )
-from bot.cogs.music.views import QueueView
+from bot.cogs.music.views import NowPlayingView, QueueView
 
 
 def test_fmt_ms_seconds():
@@ -361,6 +361,48 @@ async def test_track_start_does_not_skip_user_requested_track():
     await cog.on_wavelink_track_start(payload)
 
     player.stop.assert_not_called()
+
+
+# --- NowPlayingView buttons ---
+
+
+def _make_now_playing_player(*, history_count: int = 0) -> MagicMock:
+    player = MagicMock()
+    player.paused = False
+    player.autoplay_enabled = False
+    player.recent_tracks = deque(
+        [_make_track(f"Track {i}", 180_000) for i in range(history_count)],
+        maxlen=10,
+    )
+    return player
+
+
+def test_now_playing_view_has_lyrics_button():
+    player = _make_now_playing_player()
+    view = NowPlayingView(player)
+    labels = [item.label for item in view.children]
+    assert any("Lyrics" in label for label in labels)
+
+
+def test_now_playing_view_has_prev_button():
+    player = _make_now_playing_player()
+    view = NowPlayingView(player)
+    labels = [item.label for item in view.children]
+    assert any("Prev" in label for label in labels)
+
+
+def test_now_playing_view_prev_disabled_when_single_history():
+    player = _make_now_playing_player(history_count=1)
+    view = NowPlayingView(player)
+    prev_btn = next(item for item in view.children if "Prev" in item.label)
+    assert prev_btn.disabled is True
+
+
+def test_now_playing_view_prev_enabled_with_two_history():
+    player = _make_now_playing_player(history_count=2)
+    view = NowPlayingView(player)
+    prev_btn = next(item for item in view.children if "Prev" in item.label)
+    assert prev_btn.disabled is False
 
 
 def test_build_queue_embed_with_tracks():
