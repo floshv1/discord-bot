@@ -15,6 +15,10 @@ _AUTOPLAY_FILTER = re.compile(
     re.IGNORECASE,
 )
 
+_FEAT_BARE = re.compile(r"\s+(?:feat\.?|ft\.?|featuring)\s+.+$", re.IGNORECASE)
+_VEVO = re.compile(r"vevo$", re.IGNORECASE)
+_ARTIST_SONG = re.compile(r"^(.+?)\s+[-–]\s+(.+)$")
+
 
 def _fmt_ms(ms: int) -> str:
     s = ms // 1000
@@ -59,21 +63,50 @@ def is_filtered_autoplay_track(track: object) -> bool:
     return bool(_AUTOPLAY_FILTER.search(title))
 
 
+def clean_for_lyrics(title: str, artist: str) -> tuple[str, str]:
+    clean = _TITLE_NOISE.sub("", title).strip()
+    m = _ARTIST_SONG.match(clean)
+    if m:
+        potential_artist, potential_song = m.group(1).strip(), m.group(2).strip()
+        clean = potential_song
+        if not artist or _VEVO.search(artist) or " " not in artist:
+            artist = potential_artist
+    clean = _FEAT_BARE.sub("", clean).strip()
+    artist = _VEVO.sub("", artist).strip()
+    return clean, artist
+
+
 async def fetch_lyrics(title: str, artist: str) -> str | None:
     import aiohttp
 
-    params = {"track_name": title, "artist_name": artist}
-    try:
-        async with aiohttp.ClientSession() as session:
+    clean, clean_artist = clean_for_lyrics(title, artist)
+    async with aiohttp.ClientSession() as session:
+        try:
             async with session.get(
                 "https://lrclib.net/api/get",
-                params=params,
+                params={"track_name": clean, "artist_name": clean_artist},
                 timeout=aiohttp.ClientTimeout(total=5),
             ) as resp:
-                if resp.status == 404:
-                    return None
+                if resp.status != 404:
+                    resp.raise_for_status()
+                    data = await resp.json()
+                    lyrics = (data.get("plainLyrics") or "").strip()
+                    if lyrics:
+                        return lyrics
+        except Exception:
+            pass
+
+        try:
+            async with session.get(
+                "https://lrclib.net/api/search",
+                params={"q": f"{clean} {clean_artist}".strip()},
+                timeout=aiohttp.ClientTimeout(total=5),
+            ) as resp:
                 resp.raise_for_status()
-                data = await resp.json()
-                return (data.get("plainLyrics") or "").strip() or None
-    except Exception:
-        return None
+                results = await resp.json()
+                if results:
+                    return (results[0].get("plainLyrics") or "").strip() or None
+        except Exception:
+            pass
+
+    return None
