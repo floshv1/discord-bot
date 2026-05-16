@@ -98,7 +98,7 @@ async def _progress_loop(player: MusicPlayer) -> None:
                 await player.now_playing_message.edit(embed=embed)
             except discord.NotFound:
                 break
-            except discord.HTTPException:
+            except (TimeoutError, discord.HTTPException):
                 pass
     except asyncio.CancelledError:
         pass

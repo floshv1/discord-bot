@@ -40,6 +40,10 @@ class VoiceCog(commands.Cog):
         await self.bot.wait_until_ready()
         await self._initial_sync()
 
+    @leaderboard_ticker.error
+    async def leaderboard_ticker_error(self, error: BaseException) -> None:
+        logger.warning("leaderboard_ticker error (will retry next tick): %s", error)
+
     async def _initial_sync(self) -> None:
         pool = get_pool()
         guild_id = self.bot.config.guild_id  # type: ignore[attr-defined]
@@ -146,8 +150,8 @@ class VoiceCog(commands.Cog):
         try:
             msg = await channel.fetch_message(row["weekly_message_id"])
             await msg.edit(embed=embed)
-        except discord.NotFound:
-            logger.warning("Voice weekly leaderboard message not found.")
+        except discord.HTTPException as e:
+            logger.warning("Failed to update weekly leaderboard: %s", e)
 
     async def _update_alltime_message(self) -> None:
         config = self.bot.config  # type: ignore[attr-defined]
@@ -199,8 +203,8 @@ class VoiceCog(commands.Cog):
         try:
             msg = await channel.fetch_message(row["alltime_message_id"])
             await msg.edit(embed=embed)
-        except discord.NotFound:
-            logger.warning("Voice all-time leaderboard message not found.")
+        except discord.HTTPException as e:
+            logger.warning("Failed to update all-time leaderboard: %s", e)
 
 
 async def setup(bot: commands.Bot) -> None:
