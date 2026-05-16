@@ -96,17 +96,18 @@ async def fetch_lyrics(title: str, artist: str) -> str | None:
         except Exception:
             pass
 
-        try:
-            async with session.get(
-                "https://lrclib.net/api/search",
-                params={"q": f"{clean} {clean_artist}".strip()},
-                timeout=aiohttp.ClientTimeout(total=5),
-            ) as resp:
-                resp.raise_for_status()
-                results = await resp.json()
-                if results:
-                    return (results[0].get("plainLyrics") or "").strip() or None
-        except Exception:
-            pass
+        for query in (f"{clean} {clean_artist}".strip(), clean):
+            try:
+                async with session.get(
+                    "https://lrclib.net/api/search",
+                    params={"q": query},
+                    timeout=aiohttp.ClientTimeout(total=5),
+                ) as resp:
+                    resp.raise_for_status()
+                    results = await resp.json()
+                    if results:
+                        return (results[0].get("plainLyrics") or "").strip() or None
+            except Exception:
+                pass
 
     return None
