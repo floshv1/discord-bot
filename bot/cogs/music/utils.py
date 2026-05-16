@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import re
 
+from loguru import logger
+
 _TITLE_NOISE = re.compile(
     r"\s*[\(\[]\s*(?:official\s*(?:music\s*)?video|official\s*audio|official|"
     r"lyrics?|audio|hd|4k|mv|feat\.?\s*[^\)\]]+|ft\.?\s*[^\)\]]+)\s*[\)\]]"
@@ -11,7 +13,8 @@ _TITLE_NOISE = re.compile(
 
 _AUTOPLAY_FILTER = re.compile(
     r"\b(?:live\s+(?:at|in|from|session|version|performance)|concert|en\s+direct"
-    r"|live(?!\s+\w)|covered?\s+by|cover|tribute|remix|bootleg|extended\s+mix|vip\s+mix)\b",
+    r"|live(?!\s+\w)|covered?\s+by|cover|tribute|remix|bootleg|extended\s+mix|vip\s+mix"
+    r"|lyric\s+video|lyrics?|radio\s+edit)\b",
     re.IGNORECASE,
 )
 
@@ -80,6 +83,7 @@ async def fetch_lyrics(title: str, artist: str) -> str | None:
     import aiohttp
 
     clean, clean_artist = clean_for_lyrics(title, artist)
+    logger.debug("fetch_lyrics: raw=({!r}, {!r}) clean=({!r}, {!r})", title, artist, clean, clean_artist)
     async with aiohttp.ClientSession() as session:
         try:
             async with session.get(
@@ -87,14 +91,15 @@ async def fetch_lyrics(title: str, artist: str) -> str | None:
                 params={"track_name": clean, "artist_name": clean_artist},
                 timeout=aiohttp.ClientTimeout(total=5),
             ) as resp:
+                logger.debug("fetch_lyrics: /api/get status={}", resp.status)
                 if resp.status != 404:
                     resp.raise_for_status()
                     data = await resp.json()
                     lyrics = (data.get("plainLyrics") or "").strip()
                     if lyrics:
                         return lyrics
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("fetch_lyrics: /api/get error: {}", e)
 
         for query in (f"{clean} {clean_artist}".strip(), clean):
             try:
@@ -103,11 +108,13 @@ async def fetch_lyrics(title: str, artist: str) -> str | None:
                     params={"q": query},
                     timeout=aiohttp.ClientTimeout(total=5),
                 ) as resp:
+                    logger.debug("fetch_lyrics: /api/search q={!r} status={}", query, resp.status)
                     resp.raise_for_status()
                     results = await resp.json()
                     if results:
                         return (results[0].get("plainLyrics") or "").strip() or None
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("fetch_lyrics: /api/search q={!r} error: {}", query, e)
 
+    logger.debug("fetch_lyrics: all attempts exhausted for {!r}", title)
     return None
