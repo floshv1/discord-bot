@@ -192,9 +192,7 @@ class QueueCog(commands.Cog):
             await interaction.response.send_message(f"A preset for **{game}** already exists.", ephemeral=True)
             return
         await self.refresh_panel()
-        await interaction.response.send_message(
-            f"Added preset **{game}** ({player_count} players).", ephemeral=True
-        )
+        await interaction.response.send_message(f"Added preset **{game}** ({player_count} players).", ephemeral=True)
 
     @queue.command(name="remove", description="Remove a game preset.")
     @app_commands.describe(game="Game preset to remove")
@@ -224,8 +222,7 @@ class QueueCog(commands.Cog):
         async with pool.acquire() as conn:
             async with conn.transaction():
                 await conn.execute(
-                    "DELETE FROM queue_members WHERE queue_id IN "
-                    "(SELECT id FROM game_queues WHERE preset_id = $1)",
+                    "DELETE FROM queue_members WHERE queue_id IN (SELECT id FROM game_queues WHERE preset_id = $1)",
                     preset["id"],
                 )
                 await conn.execute("DELETE FROM game_queues WHERE preset_id = $1", preset["id"])
