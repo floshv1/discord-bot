@@ -22,6 +22,48 @@ docker compose down
 docker compose down -v
 ```
 
+> `compose.yml` is the production stack and pulls prebuilt images from GHCR. To run **your local
+> code** instead, use the development environment below.
+
+---
+
+## Development environment
+
+`compose.dev.yml` builds the bot from local source and runs it against its **own** Postgres +
+Lavalink, fully isolated from production (separate Docker project name, network, and database
+volume). It reads its variables from `.env.dev` so the dev/test bot uses a **different token** —
+Discord allows only one gateway connection per token, so this avoids clashing with the production bot.
+
+### One-time setup
+
+1. Create a **separate** Discord application + bot token at
+   [discord.com/developers/applications](https://discord.com/developers/applications) and invite it to a
+   **test server**. (Reusing the production token would make the two bots disconnect each other.)
+2. Copy the dev env template and fill it in:
+   ```bash
+   cp .env.dev.example .env.dev
+   ```
+   Set `DISCORD_TOKEN` (test bot), `GUILD_ID` (test server), `LOG_CHANNEL_ID` (a channel in the test
+   server) and `POSTGRES_PASSWORD`. `.env.dev` is gitignored.
+
+### Run
+
+```bash
+docker compose -f compose.dev.yml --env-file .env.dev up --build   # start (builds local code)
+docker compose -f compose.dev.yml --env-file .env.dev down          # stop
+docker compose -f compose.dev.yml --env-file .env.dev down -v       # stop + wipe the dev DB
+```
+
+The dev Postgres is exposed on `127.0.0.1:5433` (not 5432) so it never clashes with a local
+production database. Migrations apply automatically on startup, just like production.
+
+### Run tests / lint locally (no Docker)
+
+```bash
+uv run ruff check .   # lint
+uv run pytest         # tests
+```
+
 ---
 
 ## Komodo
@@ -71,6 +113,44 @@ git push main
 3. Set the polling interval (e.g. 1 minute)
 
 No GitHub secrets needed. Komodo initiates all outbound connections.
+
+### Development stack (branch `dev`)
+
+A **second, separate** Komodo stack can run the `dev` branch for testing, fully isolated from
+production. Unlike the production stack (which pulls prebuilt `:latest` images), the dev stack
+**builds the image from source** via `compose.dev.yml` (`build: .`) — so it always runs the exact
+code on `dev`, and **nothing in the production pipeline (`ci.yml`, `compose.yml`) is touched**.
+Pushing `dev` does not trigger CI (CI runs on `main` only), so no image is ever published.
+
+**One-time setup in Komodo UI:**
+
+1. **Create a new Stack** (separate from the production one).
+2. Point it at this repo, **branch `dev`**, **compose file `compose.dev.yml`**.
+3. **Set environment variables** in the stack (the Komodo equivalent of `.env.dev`):
+
+   | Variable | Value |
+   |---|---|
+   | `DISCORD_TOKEN` | Token of a **dedicated TEST bot** (never the production token) |
+   | `POSTGRES_PASSWORD` | Any value (the dev DB is isolated) |
+   | `GUILD_ID` | Your **test** server ID |
+   | `LOG_CHANNEL_ID` | A channel ID in the **test** server |
+
+   Optional: `LOG_IGNORED_CHANNEL_IDS`, `VOICE_LEADERBOARD_CHANNEL_ID`, `BIRTHDAY_CHANNEL_ID`,
+   `BIRTHDAY_ANNOUNCE_CHANNEL_ID`, `LAVALINK_PASSWORD`. `DATABASE_URL` is built inside the compose file.
+
+4. **Deploy.** Because `compose.dev.yml` declares `build: .`, Komodo builds the bot image from the
+   `dev` branch on deploy (no GHCR pull). **Do not enable GHCR auto-redeploy** for this stack — it has
+   no published image to poll. To test new code, **redeploy the stack** (Komodo re-clones `dev` and
+   rebuilds), or enable a git poll/webhook on `dev` to automate it.
+
+**Isolation guarantees:**
+
+- Separate Compose project (`discord-bot-dev`) and database volume (`pgdata_dev`) — the dev DB can
+  never touch production data. The dev Postgres is exposed on `127.0.0.1:5433` (not 5432).
+- **Use a separate TEST bot token.** Discord allows only one gateway connection per token, so reusing
+  the production token would make the two bots disconnect each other.
+- The dev stack runs its own Postgres + Lavalink alongside production. Stop it when not testing to
+  free resources.
 
 ---
 
@@ -211,7 +291,32 @@ CREATE TABLE IF NOT EXISTS birthday_config (
     upcoming_message_id  BIGINT,
     month_message_id     BIGINT
 );
+
+-- 013_queue_rework.sql
+CREATE TABLE IF NOT EXISTS queue_config (
+    guild_id         BIGINT PRIMARY KEY,
+    channel_id       BIGINT NOT NULL,
+    panel_message_id BIGINT
+);
+
+CREATE TABLE IF NOT EXISTS game_subscriptions (
+    id        BIGSERIAL PRIMARY KEY,
+    guild_id  BIGINT NOT NULL,
+    user_id   BIGINT NOT NULL,
+    preset_id BIGINT NOT NULL REFERENCES game_presets(id) ON DELETE CASCADE,
+    UNIQUE (guild_id, user_id, preset_id)
+);
+
+-- game_queues gains a per-queue size override and an idle-expiry timestamp:
+ALTER TABLE game_queues ADD COLUMN IF NOT EXISTS player_count INT;            -- NULL = preset default
+ALTER TABLE game_queues ADD COLUMN IF NOT EXISTS last_activity_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 ```
+
+### Game queue setup
+
+After inviting the bot, an admin runs `/setup queue #channel` once to post the control panel in a
+dedicated channel. Members create queues by tapping a game button (choosing Duo / Flex / Custom size),
+and opt into per-game ping notifications via the panel's **Subscriptions** button.
 
 ---
 

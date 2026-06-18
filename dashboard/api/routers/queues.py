@@ -24,7 +24,7 @@ async def list_queues(
         SELECT gq.id, gq.guild_id, gq.channel_id, gq.preset_id, gq.status,
                gq.created_at, gq.filled_at, gq.start_time, gq.reminder_sent,
                gq.creator_user_id,
-               gp.name as game_name, gp.player_count
+               gp.name as game_name, COALESCE(gq.player_count, gp.player_count) as player_count
         FROM game_queues gq
         JOIN game_presets gp ON gp.id = gq.preset_id
         WHERE gq.guild_id = $1 AND gq.status IN ('open', 'filled')

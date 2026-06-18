@@ -8,6 +8,7 @@ dependencies = [
     "loguru>=0.7",
     "wavelink>=3.4",
     "urllib3>=2.7.0",
+    "tzdata>=2024.1",
 ]
 
 [dependency-groups]

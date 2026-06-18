@@ -78,6 +78,9 @@ class VoiceCog(commands.Cog):
     ) -> None:
         if member.bot:
             return
+        # Single-guild bot: ignore voice activity from any other server (e.g. a test server).
+        if member.guild.id != self.bot.config.guild_id:  # type: ignore[attr-defined]
+            return
         if before.channel == after.channel:
             return
 

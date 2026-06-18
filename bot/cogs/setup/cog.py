@@ -8,6 +8,9 @@ from discord import app_commands
 from discord.ext import commands
 
 from bot.cogs.birthday.cog import MONTHS_EN, BirthdayCog
+from bot.cogs.queue import service as queue_service
+from bot.cogs.queue.embeds import build_panel_embed
+from bot.cogs.queue.views import PanelView
 from bot.cogs.suggestions.cog import SetupView
 from bot.cogs.voice.cog import VoiceCog
 from bot.db.client import get_pool
@@ -136,6 +139,18 @@ class SetupCog(commands.Cog):
             msg.id,
         )
         await interaction.response.send_message(f"Suggestion channel set to {channel.mention}!", ephemeral=True)
+
+    @setup.command(name="queue", description="Post the game-queue control panel in a channel.")
+    @app_commands.describe(channel="Channel that will host the queue panel and queue cards")
+    @app_commands.default_permissions(manage_channels=True)
+    async def setup_queue(self, interaction: discord.Interaction, channel: discord.TextChannel) -> None:
+        await interaction.response.defer(ephemeral=True)
+        presets = await queue_service.list_presets(interaction.guild_id)
+        view = PanelView(presets)
+        msg = await channel.send(embed=build_panel_embed(), view=view)
+        self.bot.add_view(view)
+        await queue_service.set_queue_config(interaction.guild_id, channel.id, msg.id)
+        await interaction.followup.send(f"Queue panel posted in {channel.mention}!", ephemeral=True)
 
 
 async def setup(bot: commands.Bot) -> None:

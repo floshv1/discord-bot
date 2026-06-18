@@ -6,6 +6,10 @@
 
 Listens to Discord gateway events and posts a compact color-coded embed to `LOG_CHANNEL_ID` for each one.
 
+> **Single-guild filtering:** the bot is designed for one server (`GUILD_ID`). Every listener ignores
+> events from any other guild it happens to share (e.g. a test server), so they never leak into the log
+> channel. The voice cog applies the same `GUILD_ID` filter to session tracking.
+
 ### Embed format
 
 ```
@@ -141,28 +145,46 @@ Top 10 members by total seconds. Duration shown as `Xh YYm` (or `Zm` if under on
 
 ---
 
-## Queue Cog (`bot/cogs/queue/cog.py`)
+## Queue Cog (`bot/cogs/queue/`)
 
-Game lobby queue system. Members join a queue; the embed auto-updates as players fill in. Start times are interpreted in **Europe/Paris** timezone.
+Game-lobby queue system built around a **persistent control panel** in a dedicated channel.
+A member taps a game, picks a size (Duo / Full team / Custom), and a queue card is posted that
+others join with a button. The first joiner is the host's duo partner. Start times are interpreted
+in **Europe/Paris** timezone. Split into focused modules: `cog.py` (commands + ticker), `views.py`
+(panel, size picker, modals, subscriptions, card), `service.py` (DB helpers), `embeds.py` (embed builders).
+
+### Setup
+
+Run `/setup queue <channel>` once (see the Setup Cog). It posts the control panel in the chosen
+channel and stores it in `queue_config`. All queue cards and pings then appear in that channel.
 
 ### Default presets
 
-Seeded automatically on startup (once per guild):
+Seeded automatically on startup (once per guild): `lol` (5), `overwatch` (5).
 
-| Game | Players |
+### Control panel
+
+| Button | Action |
 |---|---|
-| `lol` | 5 |
-| `overwatch` | 5 |
+| 🎮 *\<game>* (one per preset) | Opens an ephemeral size picker: **Duo (2)** / **Full team (preset size)** / **Custom…** |
+| ➕ Other game | Modal to start a queue for any game (name + size + optional time); creates the preset if new |
+| 🔔 Subscriptions | Ephemeral multi-select to opt in/out of per-game ping notifications |
 
-### Commands
+### Queue card buttons
+
+| Button | Who | Action |
+|---|---|---|
+| ✅ Join | anyone | Join the queue (overflow goes to a waiting list once full) |
+| 🚫 Can't attend | members | Leave; if you held a main slot, the first waiting player is promoted (FIFO) |
+| ⏰ Set time | host | Set/update the start time (modal) |
+| 🏁 Close | anyone in the queue / Manage Messages | Closes the queue; the card is removed shortly after |
+
+### Slash commands
 
 | Command | Permission | Description |
 |---|---|---|
-| `/queue join <game> [start_time]` | — | Joins the open queue for a game (creates it if none exists). Optional `start_time` in `HH:MM` (Paris time) |
-| `/queue list` | — | Lists all open queues with player counts and start times |
-| `/queue cancel <game>` | — | Cancels the active queue for a game and updates the embed |
-| `/queue add <game> <player_count>` | Kick Members | Adds a custom game preset (2–100 players) |
-| `/queue remove <game>` | Kick Members | Removes a game preset |
+| `/queue add <game> <player_count>` | Kick Members | Adds a game preset (2–100); refreshes the panel |
+| `/queue remove <game>` | Kick Members | Removes a preset (blocked while it has active queues); refreshes the panel |
 
 ### Embed states
 
@@ -170,13 +192,20 @@ Seeded automatically on startup (once per guild):
 |---|---|---|
 | `open` | 🎮 GAME | Blurple |
 | `filled` | ✅ GAME — Lobby ready! | Green |
+| `done` | 🏁 GAME — Game over! | Gold |
 | `cancelled` | ❌ GAME — Cancelled | Dark Grey |
 
-### Automatic behavior
+### Subscriptions
 
-- **Auto-expire**: open queues older than 1 hour are cancelled every minute; the embed updates to show the cancelled state
-- **Start-time reminder**: ~10 minutes before the configured start time, the bot sends a message in the queue channel mentioning all current members
-- **Persistent buttons**: Join / Leave buttons survive bot restarts (views re-registered on `cog_load`)
+Stored in `game_subscriptions` (per guild/user/preset). When a queue is created, every subscriber
+of that game (except the host) is pinged once in the channel. Toggle anytime via the panel's 🔔 button.
+
+### Automatic behavior (ticker, every minute)
+
+- **Auto-close past start**: queues whose `start_time` passed by more than 30 min are closed; the card is removed
+- **Idle expiry** (safety net for queues with no start time): open after ~45 min idle, filled after ~2 h idle are cancelled and removed (`last_activity_at` is bumped on every join / can't-attend)
+- **Start-time reminder**: ~10 min before the start time, the bot pings the current main members
+- **Persistent views**: the panel and all active queue cards survive restarts (re-registered on `cog_load`)
 
 ---
 
@@ -250,3 +279,19 @@ Each field shows: `DD/MM (N ans) • dans X jours` or `aujourd'hui 🎂`.
 - Birthdays are stored per `user_id` — a user has at most one entry across all guilds
 - If `BIRTHDAY_CHANNEL_ID` is not set, embed updates are skipped silently; commands still work
 - If `BIRTHDAY_ANNOUNCE_CHANNEL_ID` is not set, midnight wishes are skipped silently
+
+---
+
+## Setup Cog (`bot/cogs/setup/cog.py`)
+
+Admin-only `/setup` group that initializes the message-based features (posts their entry-point /
+panel messages and records the message IDs in the DB so they persist across restarts).
+
+| Command | Permission | Description |
+|---|---|---|
+| `/setup voice` | Manage Guild | Posts the two voice-leaderboard messages to `VOICE_LEADERBOARD_CHANNEL_ID` |
+| `/setup birthday` | Manage Guild | Posts the two birthday messages to `BIRTHDAY_CHANNEL_ID` |
+| `/setup suggestions <channel>` | Manage Channels | Posts the suggestion entry-point message in the channel |
+| `/setup queue <channel>` | Manage Channels | Posts the game-queue control panel in the channel |
+
+Each command is safe to re-run — it reposts the message and updates the stored ID.

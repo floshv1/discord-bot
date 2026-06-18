@@ -1,36 +1,28 @@
 from __future__ import annotations
 
 import datetime
-from zoneinfo import ZoneInfo
 
 import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 from loguru import logger
 
+from bot.cogs.queue import service
+from bot.cogs.queue.embeds import build_panel_embed
+from bot.cogs.queue.views import PanelView, make_card_view
 from bot.core.config import Config
 from bot.db.client import get_pool
-
-PARIS_TZ = ZoneInfo("Europe/Paris")
 
 DEFAULT_PRESETS = [
     ("lol", 5),
     ("overwatch", 5),
 ]
 
-
-def _parse_start_time(time_str: str) -> datetime.datetime | None:
-    for fmt in ("%H:%M", "%H:%M:%S"):
-        try:
-            t = datetime.datetime.strptime(time_str, fmt).time()
-            now_paris = datetime.datetime.now(tz=PARIS_TZ)
-            dt = datetime.datetime.combine(now_paris.date(), t, tzinfo=PARIS_TZ)
-            if dt <= now_paris:
-                dt += datetime.timedelta(days=1)
-            return dt.astimezone(datetime.UTC)
-        except ValueError:
-            continue
-    return None
+# Lifecycle thresholds.
+AUTO_CLOSE_AFTER_START = datetime.timedelta(minutes=30)
+IDLE_EXPIRY_OPEN = datetime.timedelta(minutes=45)
+IDLE_EXPIRY_FILLED = datetime.timedelta(hours=2)
+REMINDER_LEAD = datetime.timedelta(minutes=10)
 
 
 async def _game_autocomplete(interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
@@ -41,273 +33,6 @@ async def _game_autocomplete(interaction: discord.Interaction, current: str) -> 
         f"%{current}%",
     )
     return [app_commands.Choice(name=row["name"], value=row["name"]) for row in rows]
-
-
-async def _fetch_queue_state(queue_id: int):
-    pool = get_pool()
-    queue = await pool.fetchrow(
-        """
-        SELECT gq.id, gq.status, gq.start_time, gq.creator_user_id, gp.name, gp.player_count
-        FROM game_queues gq
-        JOIN game_presets gp ON gp.id = gq.preset_id
-        WHERE gq.id = $1
-        """,
-        queue_id,
-    )
-    members = (
-        await pool.fetch(
-            """
-            SELECT user_id, in_lane, cant_attend
-            FROM queue_members
-            WHERE queue_id = $1
-            ORDER BY cant_attend, in_lane, joined_at
-            """,
-            queue_id,
-        )
-        if queue
-        else []
-    )
-    return queue, members
-
-
-def _build_embed(queue, members: list) -> discord.Embed:
-    main_members = [m for m in members if not m["in_lane"] and not m["cant_attend"]]
-    waiting_members = [m for m in members if m["in_lane"] and not m["cant_attend"]]
-    cant_members = [m for m in members if m["cant_attend"]]
-    count = len(main_members)
-    needed = queue["player_count"]
-    status = queue["status"]
-    name = queue["name"].upper()
-
-    if status == "filled":
-        title = f"✅ {name} — Lobby ready!"
-        color = discord.Color.green()
-    elif status == "done":
-        title = f"🏁 {name} — Game over!"
-        color = discord.Color.gold()
-    elif status == "open":
-        title = f"🎮 {name}"
-        color = discord.Color.blurple()
-    else:
-        title = f"❌ {name} — Cancelled"
-        color = discord.Color.dark_grey()
-
-    embed = discord.Embed(title=title, color=color)
-
-    player_list = "\n".join(f"<@{m['user_id']}>" for m in main_members) if main_members else "*No players yet*"
-    embed.add_field(name=f"Players — {count}/{needed}", value=player_list, inline=True)
-
-    if waiting_members:
-        waiting_list = "\n".join(f"<@{m['user_id']}>" for m in waiting_members)
-        embed.add_field(name=f"Waiting — {len(waiting_members)}", value=waiting_list, inline=True)
-
-    if cant_members:
-        cant_list = "\n".join(f"<@{m['user_id']}>" for m in cant_members)
-        embed.add_field(name="Can't attend", value=cant_list, inline=True)
-
-    if queue["start_time"]:
-        ts = int(queue["start_time"].timestamp())
-        paris_str = queue["start_time"].astimezone(PARIS_TZ).strftime("%H:%M")
-        embed.add_field(name="Start time", value=f"<t:{ts}:t> ({paris_str} Paris)", inline=True)
-
-    return embed
-
-
-def _make_view(queue_id: int, status: str) -> QueueView:
-    active = status in ("open", "filled")
-    return QueueView(
-        queue_id,
-        join_disabled=(not active),
-        cant_disabled=(not active),
-        done_disabled=(not active),
-    )
-
-
-class JoinButton(discord.ui.Button):
-    def __init__(self, queue_id: int, disabled: bool = False):
-        super().__init__(
-            label="Join",
-            style=discord.ButtonStyle.green,
-            emoji="✅",
-            custom_id=f"queue:join:{queue_id}",
-            disabled=disabled,
-        )
-
-    async def callback(self, interaction: discord.Interaction) -> None:
-        queue_id = int(self.custom_id.split(":")[2])
-        pool = get_pool()
-
-        queue, members = await _fetch_queue_state(queue_id)
-        if not queue or queue["status"] not in ("open", "filled"):
-            await interaction.response.send_message("This queue is no longer open.", ephemeral=True)
-            return
-
-        existing = next((m for m in members if m["user_id"] == interaction.user.id), None)
-        if existing and not existing["cant_attend"]:
-            await interaction.response.send_message("You are already in this queue.", ephemeral=True)
-            return
-
-        active_main = [m for m in members if not m["in_lane"] and not m["cant_attend"]]
-        in_lane = len(active_main) >= queue["player_count"]
-
-        if existing and existing["cant_attend"]:
-            await pool.execute(
-                "UPDATE queue_members SET cant_attend = FALSE, in_lane = $1 WHERE queue_id = $2 AND user_id = $3",
-                in_lane,
-                queue_id,
-                interaction.user.id,
-            )
-        else:
-            await pool.execute(
-                "INSERT INTO queue_members (queue_id, user_id, in_lane) VALUES ($1, $2, $3)",
-                queue_id,
-                interaction.user.id,
-                in_lane,
-            )
-
-        queue, members = await _fetch_queue_state(queue_id)
-        main_members = [m for m in members if not m["in_lane"] and not m["cant_attend"]]
-        if len(main_members) >= queue["player_count"] and queue["status"] == "open":
-            await pool.execute(
-                "UPDATE game_queues SET status = 'filled', filled_at = NOW() WHERE id = $1",
-                queue_id,
-            )
-            queue, members = await _fetch_queue_state(queue_id)
-
-        await interaction.response.edit_message(
-            embed=_build_embed(queue, members),
-            view=_make_view(queue_id, queue["status"]),
-        )
-
-
-class ICantButton(discord.ui.Button):
-    def __init__(self, queue_id: int, disabled: bool = False):
-        super().__init__(
-            label="Can't attend",
-            style=discord.ButtonStyle.secondary,
-            emoji="🚫",
-            custom_id=f"queue:cant:{queue_id}",
-            disabled=disabled,
-        )
-
-    async def callback(self, interaction: discord.Interaction) -> None:
-        queue_id = int(self.custom_id.split(":")[2])
-        pool = get_pool()
-
-        queue, members = await _fetch_queue_state(queue_id)
-        member = next((m for m in members if m["user_id"] == interaction.user.id), None)
-
-        if not member or member["cant_attend"]:
-            await interaction.response.send_message("You are not actively in this queue.", ephemeral=True)
-            return
-
-        was_in_main = not member["in_lane"]
-
-        await pool.execute(
-            "UPDATE queue_members SET cant_attend = TRUE WHERE queue_id = $1 AND user_id = $2",
-            queue_id,
-            interaction.user.id,
-        )
-
-        if was_in_main:
-            await pool.execute(
-                "UPDATE game_queues SET status = 'open', filled_at = NULL WHERE id = $1 AND status = 'filled'",
-                queue_id,
-            )
-            promoted = await pool.fetchrow(
-                """
-                UPDATE queue_members SET in_lane = FALSE
-                WHERE queue_id = $1 AND user_id = (
-                    SELECT user_id FROM queue_members
-                    WHERE queue_id = $1 AND in_lane = TRUE AND cant_attend = FALSE
-                    ORDER BY joined_at LIMIT 1
-                )
-                RETURNING user_id
-                """,
-                queue_id,
-            )
-            if promoted:
-                await interaction.channel.send(  # type: ignore[union-attr]
-                    f"<@{promoted['user_id']}> was moved up into **{queue['name'].upper()}**! 🎉",
-                    delete_after=30,
-                )
-
-        queue, members = await _fetch_queue_state(queue_id)
-        main_members = [m for m in members if not m["in_lane"] and not m["cant_attend"]]
-        if was_in_main and len(main_members) >= queue["player_count"]:
-            await pool.execute(
-                "UPDATE game_queues SET status = 'filled', filled_at = NOW() WHERE id = $1 AND status = 'open'",
-                queue_id,
-            )
-            queue, members = await _fetch_queue_state(queue_id)
-
-        await interaction.response.edit_message(
-            embed=_build_embed(queue, members),
-            view=_make_view(queue_id, queue["status"]),
-        )
-
-
-class DoneButton(discord.ui.Button):
-    def __init__(self, queue_id: int, disabled: bool = False):
-        super().__init__(
-            label="Done",
-            style=discord.ButtonStyle.success,
-            emoji="🏁",
-            custom_id=f"queue:done:{queue_id}",
-            disabled=disabled,
-        )
-
-    async def callback(self, interaction: discord.Interaction) -> None:
-        queue_id = int(self.custom_id.split(":")[2])
-        pool = get_pool()
-
-        queue, _ = await _fetch_queue_state(queue_id)
-        if not queue or queue["status"] not in ("open", "filled"):
-            await interaction.response.send_message("This queue is no longer active.", ephemeral=True)
-            return
-
-        if queue["creator_user_id"] != interaction.user.id:
-            await interaction.response.send_message("Only the queue creator can mark this as done.", ephemeral=True)
-            return
-
-        await pool.execute("UPDATE game_queues SET status = 'done' WHERE id = $1", queue_id)
-        queue, members = await _fetch_queue_state(queue_id)
-
-        await interaction.response.edit_message(
-            embed=_build_embed(queue, members),
-            view=_make_view(queue_id, "done"),
-        )
-
-
-class QueueView(discord.ui.View):
-    def __init__(
-        self,
-        queue_id: int,
-        join_disabled: bool = False,
-        cant_disabled: bool = False,
-        done_disabled: bool = False,
-    ):
-        super().__init__(timeout=None)
-        self.add_item(JoinButton(queue_id, disabled=join_disabled))
-        self.add_item(ICantButton(queue_id, disabled=cant_disabled))
-        self.add_item(DoneButton(queue_id, disabled=done_disabled))
-
-
-async def _cancel_queue_message(bot: commands.Bot, row) -> None:
-    if not (row["channel_id"] and row["message_id"]):
-        return
-    channel = bot.get_channel(row["channel_id"])
-    if not channel:
-        return
-    try:
-        msg = await channel.fetch_message(row["message_id"])
-        queue, members = await _fetch_queue_state(row["id"])
-        await msg.edit(
-            embed=_build_embed(queue, members),
-            view=_make_view(row["id"], "cancelled"),
-        )
-    except discord.NotFound:
-        pass
 
 
 class QueueCog(commands.Cog):
@@ -328,49 +53,96 @@ class QueueCog(commands.Cog):
                 name,
                 count,
             )
+
+        # Re-register the persistent panel view (if configured) and refresh its message.
+        await self.refresh_panel()
+
+        # Re-register persistent views for every active queue card.
         active = await pool.fetch(
             "SELECT id, status FROM game_queues WHERE status IN ('open', 'filled') AND guild_id = $1",
             self.config.guild_id,
         )
         for row in active:
-            self.bot.add_view(_make_view(row["id"], row["status"]))
+            self.bot.add_view(make_card_view(row["id"], row["status"]))
+
         self.queue_ticker.start()
 
     async def cog_unload(self) -> None:
         self.queue_ticker.cancel()
+
+    async def refresh_panel(self) -> None:
+        """Rebuild and edit the control-panel message so its game buttons match the presets."""
+        config = await service.get_queue_config(self.config.guild_id)
+        if not config or not config["panel_message_id"]:
+            return
+        channel = self.bot.get_channel(config["channel_id"])
+        if channel is None:
+            return
+        presets = await service.list_presets(self.config.guild_id)
+        view = PanelView(presets)
+        self.bot.add_view(view)
+        try:
+            msg = await channel.fetch_message(config["panel_message_id"])
+            await msg.edit(embed=build_panel_embed(), view=view)
+        except discord.NotFound:
+            logger.warning("Queue panel message not found; run /setup queue again.")
+
+    async def _remove_card(self, row) -> None:
+        if not (row["channel_id"] and row["message_id"]):
+            return
+        channel = self.bot.get_channel(row["channel_id"])
+        if channel is None:
+            return
+        try:
+            msg = await channel.fetch_message(row["message_id"])
+            await msg.delete()
+        except discord.NotFound:
+            pass
 
     @tasks.loop(minutes=1)
     async def queue_ticker(self) -> None:
         pool = get_pool()
         now = datetime.datetime.now(tz=datetime.UTC)
 
+        # 1. Auto-close queues whose start time passed (host forgot to close).
+        closed = await pool.fetch(
+            """
+            UPDATE game_queues SET status = 'done'
+            WHERE status IN ('open', 'filled')
+              AND start_time IS NOT NULL AND start_time < $1
+            RETURNING id, channel_id, message_id,
+                      (SELECT name FROM game_presets WHERE id = preset_id) AS game_name
+            """,
+            now - AUTO_CLOSE_AFTER_START,
+        )
+        for row in closed:
+            await self._remove_card(row)
+            logger.info(f"Auto-closed queue {row['id']} ({row['game_name']}) past start time")
+
+        # 2. Idle-expiry safety net for queues without a start time.
         expired_open = await pool.fetch(
             """
             UPDATE game_queues SET status = 'cancelled'
-            WHERE status = 'open' AND created_at < $1
+            WHERE status = 'open' AND start_time IS NULL AND last_activity_at < $1
             RETURNING id, channel_id, message_id,
                       (SELECT name FROM game_presets WHERE id = preset_id) AS game_name
             """,
-            now - datetime.timedelta(hours=1),
+            now - IDLE_EXPIRY_OPEN,
         )
-        for row in expired_open:
-            await _cancel_queue_message(self.bot, row)
-            logger.info(f"Expired open queue {row['id']} ({row['game_name']})")
-
         expired_filled = await pool.fetch(
             """
             UPDATE game_queues SET status = 'cancelled'
-            WHERE status = 'filled' AND filled_at < $1
+            WHERE status = 'filled' AND start_time IS NULL AND last_activity_at < $1
             RETURNING id, channel_id, message_id,
                       (SELECT name FROM game_presets WHERE id = preset_id) AS game_name
             """,
-            now - datetime.timedelta(hours=2),
+            now - IDLE_EXPIRY_FILLED,
         )
-        for row in expired_filled:
-            await _cancel_queue_message(self.bot, row)
-            logger.info(f"Expired filled queue {row['id']} ({row['game_name']})")
+        for row in (*expired_open, *expired_filled):
+            await self._remove_card(row)
+            logger.info(f"Expired idle queue {row['id']} ({row['game_name']})")
 
-        remind_cutoff = now + datetime.timedelta(minutes=10)
+        # 3. Start-time reminders (~10 min before).
         to_remind = await pool.fetch(
             """
             UPDATE game_queues SET reminder_sent = TRUE
@@ -381,19 +153,19 @@ class QueueCog(commands.Cog):
             RETURNING id, channel_id,
                       (SELECT name FROM game_presets WHERE id = preset_id) AS game_name
             """,
-            remind_cutoff,
+            now + REMINDER_LEAD,
             now,
         )
         for row in to_remind:
             channel = self.bot.get_channel(row["channel_id"])
-            if not channel:
+            if channel is None:
                 continue
             members = await pool.fetch(
                 "SELECT user_id FROM queue_members WHERE queue_id = $1 AND in_lane = FALSE AND cant_attend = FALSE",
                 row["id"],
             )
             mentions = " ".join(f"<@{m['user_id']}>" for m in members)
-            await channel.send(f"⏰ **{row['game_name']}** starts in ~10 minutes! {mentions}")
+            await channel.send(f"⏰ **{row['game_name'].upper()}** starts in ~10 minutes! {mentions}")
 
     @queue_ticker.before_loop
     async def before_ticker(self) -> None:
@@ -401,115 +173,8 @@ class QueueCog(commands.Cog):
 
     queue = app_commands.Group(name="queue", description="Game lobby queue commands.")
 
-    @queue.command(name="create", description="Create a new game queue.")
-    @app_commands.describe(
-        game="Game to queue for",
-        start_time="Optional start time in Paris time, e.g. 21:00",
-        notify="Users/roles to ping when the queue is created, e.g. @friend @TeamRole",
-    )
-    @app_commands.autocomplete(game=_game_autocomplete)
-    async def queue_create(
-        self,
-        interaction: discord.Interaction,
-        game: str,
-        start_time: str | None = None,
-        notify: str | None = None,
-    ) -> None:
-        pool = get_pool()
-
-        preset = await pool.fetchrow(
-            "SELECT id, player_count FROM game_presets WHERE guild_id = $1 AND name = $2",
-            interaction.guild_id,
-            game.lower(),
-        )
-        if not preset:
-            await interaction.response.send_message(
-                f"No preset found for **{game}**. Use `/queue add` to create one.", ephemeral=True
-            )
-            return
-
-        parsed_time: datetime.datetime | None = None
-        if start_time:
-            parsed_time = _parse_start_time(start_time)
-            if not parsed_time:
-                await interaction.response.send_message("Invalid time format. Use HH:MM, e.g. `21:00`.", ephemeral=True)
-                return
-
-        queue_row = await pool.fetchrow(
-            """
-            INSERT INTO game_queues (guild_id, channel_id, preset_id, start_time, creator_user_id)
-            VALUES ($1, $2, $3, $4, $5)
-            RETURNING id
-            """,
-            interaction.guild_id,
-            interaction.channel_id,
-            preset["id"],
-            parsed_time,
-            interaction.user.id,
-        )
-        queue_id = queue_row["id"]
-        await pool.execute(
-            "INSERT INTO queue_members (queue_id, user_id, in_lane) VALUES ($1, $2, FALSE)",
-            queue_id,
-            interaction.user.id,
-        )
-
-        queue, members = await _fetch_queue_state(queue_id)
-        embed = _build_embed(queue, members)
-        view = _make_view(queue_id, "open")
-
-        await interaction.response.send_message(embed=embed, view=view)
-        msg = await interaction.original_response()
-        await pool.execute("UPDATE game_queues SET message_id = $1 WHERE id = $2", msg.id, queue_id)
-        self.bot.add_view(view)
-
-        if notify:
-            await interaction.channel.send(  # type: ignore[union-attr]
-                f"{notify} — A **{game.upper()}** queue just opened! Join here 👆",
-                reference=msg,
-            )
-
-    @queue.command(name="list", description="List all open game queues.")
-    async def queue_list(self, interaction: discord.Interaction) -> None:
-        pool = get_pool()
-        rows = await pool.fetch(
-            """
-            SELECT gq.id, gp.name, gp.player_count, gq.start_time, gq.status,
-                   gq.channel_id, gq.message_id, gq.creator_user_id,
-                   COUNT(qm.id) FILTER (WHERE NOT qm.in_lane AND NOT qm.cant_attend) AS member_count
-            FROM game_queues gq
-            JOIN game_presets gp ON gp.id = gq.preset_id
-            LEFT JOIN queue_members qm ON qm.queue_id = gq.id
-            WHERE gq.guild_id = $1 AND gq.status IN ('open', 'filled')
-            GROUP BY gq.id, gp.name, gp.player_count, gq.start_time, gq.status,
-                     gq.channel_id, gq.message_id, gq.creator_user_id
-            ORDER BY gq.created_at
-            """,
-            interaction.guild_id,
-        )
-        if not rows:
-            await interaction.response.send_message("No open queues right now.", ephemeral=True)
-            return
-
-        embed = discord.Embed(title="Open queues", color=discord.Color.blurple())
-        for row in rows:
-            status_icon = "✅" if row["status"] == "filled" else "🎮"
-            lines = [f"{status_icon} **{row['member_count']}/{row['player_count']} players**"]
-            lines.append(f"Created by <@{row['creator_user_id']}>")
-            if row["start_time"]:
-                paris_str = row["start_time"].astimezone(PARIS_TZ).strftime("%H:%M")
-                ts = int(row["start_time"].timestamp())
-                lines.append(f"Starts <t:{ts}:t> ({paris_str} Paris)")
-            if row["channel_id"] and row["message_id"]:
-                jump_url = (
-                    f"https://discord.com/channels/{interaction.guild_id}/{row['channel_id']}/{row['message_id']}"
-                )
-                lines.append(f"[Jump to queue]({jump_url})")
-            embed.add_field(name=row["name"].upper(), value="\n".join(lines), inline=False)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-
-    @queue.command(name="add", description="Add a custom game preset.")
-    @app_commands.describe(game="Game name", player_count="Number of players needed")
+    @queue.command(name="add", description="Add a game preset (shows as a button on the queue panel).")
+    @app_commands.describe(game="Game name", player_count="Default number of players")
     @app_commands.default_permissions(kick_members=True)
     async def queue_add(self, interaction: discord.Interaction, game: str, player_count: int) -> None:
         if player_count < 2 or player_count > 100:
@@ -526,37 +191,10 @@ class QueueCog(commands.Cog):
         except Exception:
             await interaction.response.send_message(f"A preset for **{game}** already exists.", ephemeral=True)
             return
-        await interaction.response.send_message(f"Added preset **{game}** ({player_count} players).", ephemeral=True)
-
-    @queue.command(name="cancel", description="Cancel your most recent active queue for a game.")
-    @app_commands.describe(game="Game queue to cancel")
-    @app_commands.autocomplete(game=_game_autocomplete)
-    async def queue_cancel(self, interaction: discord.Interaction, game: str) -> None:
-        pool = get_pool()
-        row = await pool.fetchrow(
-            """
-            SELECT gq.id, gq.channel_id, gq.message_id FROM game_queues gq
-            JOIN game_presets gp ON gp.id = gq.preset_id
-            WHERE gq.guild_id = $1 AND gp.name = $2
-              AND gq.status IN ('open', 'filled')
-              AND gq.creator_user_id = $3
-            ORDER BY gq.created_at DESC
-            LIMIT 1
-            """,
-            interaction.guild_id,
-            game.lower(),
-            interaction.user.id,
+        await self.refresh_panel()
+        await interaction.response.send_message(
+            f"Added preset **{game}** ({player_count} players).", ephemeral=True
         )
-        if not row:
-            await interaction.response.send_message(
-                f"No active **{game}** queue found that you created. Use the Done button on someone else's queue.",
-                ephemeral=True,
-            )
-            return
-
-        await pool.execute("UPDATE game_queues SET status = 'cancelled' WHERE id = $1", row["id"])
-        await _cancel_queue_message(self.bot, row)
-        await interaction.response.send_message(f"Your **{game}** queue has been cancelled.", ephemeral=True)
 
     @queue.command(name="remove", description="Remove a game preset.")
     @app_commands.describe(game="Game preset to remove")
@@ -564,14 +202,36 @@ class QueueCog(commands.Cog):
     @app_commands.default_permissions(kick_members=True)
     async def queue_remove(self, interaction: discord.Interaction, game: str) -> None:
         pool = get_pool()
-        deleted = await pool.execute(
-            "DELETE FROM game_presets WHERE guild_id = $1 AND name = $2",
+        preset = await pool.fetchrow(
+            "SELECT id FROM game_presets WHERE guild_id = $1 AND name = $2",
             interaction.guild_id,
             game.lower(),
         )
-        if deleted == "DELETE 0":
+        if not preset:
             await interaction.response.send_message(f"No preset found for **{game}**.", ephemeral=True)
             return
+
+        active = await pool.fetchval(
+            "SELECT COUNT(*) FROM game_queues WHERE preset_id = $1 AND status IN ('open', 'filled')",
+            preset["id"],
+        )
+        if active:
+            await interaction.response.send_message(
+                f"**{game}** still has active queues — close them first.", ephemeral=True
+            )
+            return
+
+        async with pool.acquire() as conn:
+            async with conn.transaction():
+                await conn.execute(
+                    "DELETE FROM queue_members WHERE queue_id IN "
+                    "(SELECT id FROM game_queues WHERE preset_id = $1)",
+                    preset["id"],
+                )
+                await conn.execute("DELETE FROM game_queues WHERE preset_id = $1", preset["id"])
+                await conn.execute("DELETE FROM game_presets WHERE id = $1", preset["id"])
+
+        await self.refresh_panel()
         await interaction.response.send_message(f"Removed preset **{game}**.", ephemeral=True)
 
 
