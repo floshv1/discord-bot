@@ -140,6 +140,27 @@ class SetupCog(commands.Cog):
         )
         await interaction.response.send_message(f"Suggestion channel set to {channel.mention}!", ephemeral=True)
 
+    @setup.command(name="reprimand", description="Configure the Ennemi Public role and goulag channel.")
+    @app_commands.describe(role="Role applied to reprimanded members", channel="Channel they're restricted to")
+    @app_commands.default_permissions(manage_guild=True)
+    async def setup_reprimand(
+        self, interaction: discord.Interaction, role: discord.Role, channel: discord.TextChannel
+    ) -> None:
+        pool = get_pool()
+        await pool.execute(
+            """
+            INSERT INTO reprimand_config (guild_id, role_id, channel_id)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (guild_id) DO UPDATE SET role_id = $2, channel_id = $3
+            """,
+            interaction.guild_id,
+            role.id,
+            channel.id,
+        )
+        await interaction.response.send_message(
+            f"Reprimand configured: role {role.mention}, channel {channel.mention}.", ephemeral=True
+        )
+
     @setup.command(name="queue", description="Post the game-queue control panel in a channel.")
     @app_commands.describe(channel="Channel that will host the queue panel and queue cards")
     @app_commands.default_permissions(manage_channels=True)
