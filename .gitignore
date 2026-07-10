@@ -31,6 +31,7 @@ Thumbs.db
 
 # Secrets — never commit these
 .env
+.env.dev
 *.env
 
 .claude

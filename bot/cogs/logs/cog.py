@@ -35,6 +35,14 @@ class LogsCog(commands.Cog):
     def _is_ignored(self, channel_id: int) -> bool:
         return channel_id in self.config.log_ignored_channel_ids
 
+    def _wrong_guild(self, guild: discord.Guild | None) -> bool:
+        """True if the event comes from a guild this bot instance should not log.
+
+        The bot is single-guild (``GUILD_ID``); this prevents events from any other
+        server it happens to share (e.g. a test server) leaking into the log channel.
+        """
+        return guild is None or guild.id != self.config.guild_id
+
     async def _log_to_db(
         self,
         guild_id: int,
@@ -84,7 +92,7 @@ class LogsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message) -> None:
-        if message.author.bot or message.guild is None or self._is_ignored(message.channel.id):
+        if message.author.bot or self._wrong_guild(message.guild) or self._is_ignored(message.channel.id):
             return
         parts = []
         if message.content:
@@ -108,7 +116,7 @@ class LogsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message_edit(self, before: discord.Message, after: discord.Message) -> None:
-        if before.author.bot or before.guild is None or self._is_ignored(before.channel.id):
+        if before.author.bot or self._wrong_guild(before.guild) or self._is_ignored(before.channel.id):
             return
         if before.content == after.content:
             return
@@ -131,7 +139,7 @@ class LogsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message_delete(self, message: discord.Message) -> None:
-        if message.author.bot or message.guild is None or self._is_ignored(message.channel.id):
+        if message.author.bot or self._wrong_guild(message.guild) or self._is_ignored(message.channel.id):
             return
         parts = []
         if message.content:
@@ -155,7 +163,7 @@ class LogsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_bulk_message_delete(self, messages: list[discord.Message]) -> None:
-        if not messages or messages[0].guild is None or self._is_ignored(messages[0].channel.id):
+        if not messages or self._wrong_guild(messages[0].guild) or self._is_ignored(messages[0].channel.id):
             return
         channel = messages[0].channel
         details = f"{channel.mention} — {len(messages)} messages deleted"
@@ -169,6 +177,8 @@ class LogsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member) -> None:
+        if self._wrong_guild(member.guild):
+            return
         age = (discord.utils.utcnow() - member.created_at).days
         details = f"{member.mention} ({member.id}) — account {age} days old"
         await self._send(make_embed(discord.Color.green(), "Member Joined", details))
@@ -182,6 +192,8 @@ class LogsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member) -> None:
+        if self._wrong_guild(member.guild):
+            return
         details = f"{member.mention} ({member.id})"
         await self._send(make_embed(discord.Color.red(), "Member Left", details))
         await self._cache_user(member)
@@ -193,6 +205,8 @@ class LogsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_ban(self, guild: discord.Guild, user: discord.User) -> None:
+        if self._wrong_guild(guild):
+            return
         details = f"{user.mention} ({user.id})"
         await self._send(make_embed(discord.Color.dark_red(), "Member Banned", details))
         await self._cache_user(user)
@@ -205,6 +219,8 @@ class LogsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_unban(self, guild: discord.Guild, user: discord.User) -> None:
+        if self._wrong_guild(guild):
+            return
         details = f"{user.mention} ({user.id})"
         await self._send(make_embed(discord.Color.teal(), "Member Unbanned", details))
         await self._cache_user(user)
@@ -216,6 +232,8 @@ class LogsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_update(self, before: discord.Member, after: discord.Member) -> None:
+        if self._wrong_guild(after.guild):
+            return
         await self._cache_user(after)
         if before.nick != after.nick:
             details = f"{after.mention} — nickname: {before.nick!r} → {after.nick!r}"
@@ -255,6 +273,8 @@ class LogsCog(commands.Cog):
         before: discord.VoiceState,
         after: discord.VoiceState,
     ) -> None:
+        if self._wrong_guild(member.guild):
+            return
         await self._cache_user(member)
         if before.channel is None and after.channel is not None:
             details = f"{member.mention} → {after.channel.mention}"
@@ -305,6 +325,8 @@ class LogsCog(commands.Cog):
     # --- Channels ---
     @commands.Cog.listener()
     async def on_guild_channel_create(self, channel: discord.abc.GuildChannel) -> None:
+        if self._wrong_guild(channel.guild):
+            return
         await self._send(make_embed(discord.Color.blurple(), "Channel Created", f"{channel.mention} ({channel.name})"))
         await self._log_to_db(
             guild_id=channel.guild.id,
@@ -315,6 +337,8 @@ class LogsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_guild_channel_delete(self, channel: discord.abc.GuildChannel) -> None:
+        if self._wrong_guild(channel.guild):
+            return
         await self._send(make_embed(discord.Color.blurple(), "Channel Deleted", f"#{channel.name}"))
         await self._log_to_db(
             guild_id=channel.guild.id,
@@ -324,6 +348,8 @@ class LogsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_guild_channel_update(self, before: discord.abc.GuildChannel, after: discord.abc.GuildChannel) -> None:
+        if self._wrong_guild(after.guild):
+            return
         if before.name != after.name:
             details = f"{after.mention} — #{before.name} → #{after.name}"
             await self._send(make_embed(discord.Color.blurple(), "Channel Renamed", details))
@@ -337,6 +363,8 @@ class LogsCog(commands.Cog):
     # --- Roles ---
     @commands.Cog.listener()
     async def on_guild_role_create(self, role: discord.Role) -> None:
+        if self._wrong_guild(role.guild):
+            return
         await self._send(make_embed(discord.Color.purple(), "Role Created", role.mention))
         await self._log_to_db(
             guild_id=role.guild.id,
@@ -347,6 +375,8 @@ class LogsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_guild_role_delete(self, role: discord.Role) -> None:
+        if self._wrong_guild(role.guild):
+            return
         await self._send(make_embed(discord.Color.purple(), "Role Deleted", f"@{role.name}"))
         await self._log_to_db(
             guild_id=role.guild.id,
@@ -357,6 +387,8 @@ class LogsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_guild_role_update(self, before: discord.Role, after: discord.Role) -> None:
+        if self._wrong_guild(after.guild):
+            return
         if before.name != after.name:
             details = f"{after.mention} — @{before.name} → @{after.name}"
             await self._send(make_embed(discord.Color.purple(), "Role Renamed", details))
@@ -370,6 +402,8 @@ class LogsCog(commands.Cog):
     # --- Invites ---
     @commands.Cog.listener()
     async def on_invite_create(self, invite: discord.Invite) -> None:
+        if self._wrong_guild(invite.guild):
+            return
         inviter = invite.inviter.mention if invite.inviter else "unknown"
         details = f"{invite.url} — by {inviter} — uses: {invite.max_uses or '∞'}"
         await self._send(make_embed(discord.Color.light_grey(), "Invite Created", details))
@@ -384,6 +418,8 @@ class LogsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_invite_delete(self, invite: discord.Invite) -> None:
+        if self._wrong_guild(invite.guild):
+            return
         await self._send(make_embed(discord.Color.light_grey(), "Invite Deleted", invite.url))
         await self._log_to_db(
             guild_id=self.config.guild_id,
@@ -394,6 +430,8 @@ class LogsCog(commands.Cog):
     # --- Threads ---
     @commands.Cog.listener()
     async def on_thread_create(self, thread: discord.Thread) -> None:
+        if self._wrong_guild(thread.guild):
+            return
         details = f"{thread.mention} in {thread.parent.mention if thread.parent else '#unknown'}"
         await self._send(make_embed(discord.Color.teal(), "Thread Created", details))
         await self._log_to_db(
@@ -405,6 +443,8 @@ class LogsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_thread_delete(self, thread: discord.Thread) -> None:
+        if self._wrong_guild(thread.guild):
+            return
         parent = thread.parent.mention if thread.parent else "#unknown"
         await self._send(make_embed(discord.Color.teal(), "Thread Deleted", f"#{thread.name} in {parent}"))
         await self._log_to_db(
@@ -415,6 +455,8 @@ class LogsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_thread_update(self, before: discord.Thread, after: discord.Thread) -> None:
+        if self._wrong_guild(after.guild):
+            return
         if before.archived != after.archived:
             state = "archived" if after.archived else "unarchived"
             await self._send(make_embed(discord.Color.teal(), f"Thread {state.title()}", after.mention))
@@ -428,7 +470,7 @@ class LogsCog(commands.Cog):
     async def on_interaction(self, interaction: discord.Interaction) -> None:
         if interaction.type != discord.InteractionType.application_command:
             return
-        if interaction.guild_id is None:
+        if interaction.guild_id != self.config.guild_id:
             return
         name = interaction.command.qualified_name if interaction.command else "unknown"
         ns = vars(interaction.namespace) if interaction.namespace else {}

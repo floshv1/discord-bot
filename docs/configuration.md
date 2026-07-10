@@ -10,7 +10,7 @@ The bot is configured entirely through environment variables. It will refuse to 
 |---|---|---|
 | `DISCORD_TOKEN` | string | Bot token from the Discord Developer Portal |
 | `DATABASE_URL` | string | PostgreSQL connection string |
-| `GUILD_ID` | integer | Discord server (guild) ID — used to sync slash commands |
+| `GUILD_ID` | integer | Discord server (guild) ID — used to sync slash commands. The bot is **single-guild**: it only acts on this server and ignores events from any other guild it shares (see [cogs.md](cogs.md)). |
 | `LOG_CHANNEL_ID` | integer | Channel ID where all audit log embeds are posted |
 
 ---
@@ -80,29 +80,28 @@ The following privileged intents must be enabled in the Discord Developer Portal
 
 ## Local Development
 
-Create a `.env` file at the project root (already in `.gitignore`):
-
-```dotenv
-DISCORD_TOKEN=your_token
-POSTGRES_PASSWORD=botpass
-DATABASE_URL=postgresql://botuser:botpass@localhost:5432/discord_bot
-GUILD_ID=123456789012345678
-LOG_CHANNEL_ID=987654321098765432
-```
-
-Then run with Docker Compose (starts Postgres automatically):
+For local development against your own code and a **test bot**, use the isolated development
+environment (`compose.dev.yml` + `.env.dev`). It uses a separate token, database, and Docker project
+so it never conflicts with production. See the
+[Development environment](deployment.md#development-environment) section of the deployment guide.
 
 ```bash
-docker compose up --build
+cp .env.dev.example .env.dev   # fill in the TEST bot token, test guild, etc.
+docker compose -f compose.dev.yml --env-file .env.dev up --build
 ```
 
-Or export vars manually and run directly:
+Or, with only the dev database container running
+(`docker compose -f compose.dev.yml --env-file .env.dev up -d db`), run the bot directly on the host
+(the dev DB is exposed on port **5433**):
 
 ```powershell
 # PowerShell
 $env:DISCORD_TOKEN="..."
-$env:DATABASE_URL="postgresql://botuser:botpass@localhost:5432/discord_bot"
+$env:DATABASE_URL="postgresql://botuser:devpass@localhost:5433/discord_bot"
 $env:GUILD_ID="..."
 $env:LOG_CHANNEL_ID="..."
 uv run python main.py
 ```
+
+> Music needs Lavalink, which is only started by the full compose stack — running the bot directly is
+> best for non-music work.
