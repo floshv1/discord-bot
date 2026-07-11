@@ -4,12 +4,15 @@ import discord
 from loguru import logger
 
 from bot.cogs.betting import service
+from bot.cogs.betting.cards import mark_card_dirty
 from bot.cogs.betting.embeds import build_market_embed
 from bot.cogs.currency.leaderboard import mark_dirty
 
+CLOSED_MESSAGE = "❌ Betting has closed on this one — no new stakes. Anything you already staked still stands."
+
 _RESULT_MESSAGES = {
-    "closed": "❌ Betting on this match is no longer open.",
-    "insufficient_funds": "❌ You don't have enough FloshCoins for that stake.",
+    "closed": CLOSED_MESSAGE,
+    # insufficient_funds is handled separately, so the bettor is told their actual balance.
     "invalid_amount": "❌ Stake must be a positive whole number.",
 }
 
@@ -126,8 +129,17 @@ class StakeModal(discord.ui.Modal, title="Place your bet"):
                 ephemeral=True,
             )
             return
+        if result.status == "insufficient_funds":
+            await interaction.response.send_message(
+                f"❌ You only have **{result.new_balance:,}** 🪙 — not enough for a **{amount:,}** 🪙 stake.\n"
+                f"Use `/claim` for your daily coins.",
+                ephemeral=True,
+            )
+            return
         if result.status != "ok":
-            await interaction.response.send_message(_RESULT_MESSAGES[result.status], ephemeral=True)
+            await interaction.response.send_message(
+                _RESULT_MESSAGES.get(result.status, "❌ That bet couldn't be placed."), ephemeral=True
+            )
             return
 
         mark_dirty(interaction.client)  # the stake was just debited
@@ -147,10 +159,9 @@ class StakeModal(discord.ui.Modal, title="Place your bet"):
             f"New balance: **{result.new_balance:,}** 🪙.",
             ephemeral=True,
         )
-        try:
-            await refresh_market_message(interaction.client, self.market_id)
-        except discord.HTTPException as e:
-            logger.warning(f"Failed to refresh market message after bet: {e}")
+        # Batched rather than edited here: twenty people betting at once should cost one
+        # card edit, not twenty. The cog redraws it within a few seconds.
+        mark_card_dirty(interaction.client, self.market_id)
 
 
 class OutcomeButton(discord.ui.Button):
@@ -168,7 +179,7 @@ class OutcomeButton(discord.ui.Button):
     async def callback(self, interaction: discord.Interaction) -> None:
         market = await service.get_market(self.market_id)
         if not market or market["status"] != "open":
-            await interaction.response.send_message("❌ Betting on this match is no longer open.", ephemeral=True)
+            await interaction.response.send_message(CLOSED_MESSAGE, ephemeral=True)
             return
         await interaction.response.send_modal(StakeModal(self.market_id, self.outcome, self.outcome_label))
 

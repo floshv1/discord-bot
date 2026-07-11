@@ -21,6 +21,14 @@ _AUTOPLAY_FILTER = re.compile(
 _FEAT_BARE = re.compile(r"\s+(?:feat\.?|ft\.?|featuring)\s+.+$", re.IGNORECASE)
 _VEVO = re.compile(r"vevo$", re.IGNORECASE)
 _ARTIST_SONG = re.compile(r"^(.+?)\s+[-–]\s+(.+)$")
+# YouTube Music — which is where autoplay recommendations come from — credits tracks to
+# an auto-generated "Artist - Topic" channel.
+_TOPIC = re.compile(r"\s*[-–]\s*topic$", re.IGNORECASE)
+
+# lrclib routinely takes ~6s to answer. The previous 5s budget timed out on essentially
+# every request, so lyrics silently "never worked" — and TimeoutError stringifies to an
+# empty message, which made the debug log look blank rather than damning.
+LYRICS_TIMEOUT = 15
 
 
 def _fmt_ms(ms: int) -> str:
@@ -67,6 +75,7 @@ def is_filtered_autoplay_track(track: object) -> bool:
 
 
 def clean_for_lyrics(title: str, artist: str) -> tuple[str, str]:
+    artist = _TOPIC.sub("", artist).strip()
     clean = _TITLE_NOISE.sub("", title).strip()
     m = _ARTIST_SONG.match(clean)
     if m:
@@ -79,17 +88,30 @@ def clean_for_lyrics(title: str, artist: str) -> tuple[str, str]:
     return clean, artist
 
 
+def pick_lyrics(results) -> str | None:
+    """The first search hit that actually *has* lyrics.
+
+    Taking results[0] blindly meant one instrumental or synced-only entry at the top of
+    the list sank the whole lookup, even when the next hit had the lyrics.
+    """
+    for item in results or []:
+        lyrics = (item.get("plainLyrics") or "").strip()
+        if lyrics:
+            return lyrics
+    return None
+
+
 async def fetch_lyrics(title: str, artist: str) -> str | None:
     import aiohttp
 
     clean, clean_artist = clean_for_lyrics(title, artist)
     logger.debug("fetch_lyrics: raw=({!r}, {!r}) clean=({!r}, {!r})", title, artist, clean, clean_artist)
-    async with aiohttp.ClientSession() as session:
+    timeout = aiohttp.ClientTimeout(total=LYRICS_TIMEOUT)
+    async with aiohttp.ClientSession(timeout=timeout) as session:
         try:
             async with session.get(
                 "https://lrclib.net/api/get",
                 params={"track_name": clean, "artist_name": clean_artist},
-                timeout=aiohttp.ClientTimeout(total=5),
             ) as resp:
                 logger.debug("fetch_lyrics: /api/get status={}", resp.status)
                 if resp.status != 404:
@@ -99,22 +121,19 @@ async def fetch_lyrics(title: str, artist: str) -> str | None:
                     if lyrics:
                         return lyrics
         except Exception as e:
-            logger.debug("fetch_lyrics: /api/get error: {}", e)
+            # A TimeoutError's message is empty, so log the type or this reads as a blank.
+            logger.debug("fetch_lyrics: /api/get failed: {}: {}", type(e).__name__, e)
 
         for query in (f"{clean} {clean_artist}".strip(), clean):
             try:
-                async with session.get(
-                    "https://lrclib.net/api/search",
-                    params={"q": query},
-                    timeout=aiohttp.ClientTimeout(total=5),
-                ) as resp:
+                async with session.get("https://lrclib.net/api/search", params={"q": query}) as resp:
                     logger.debug("fetch_lyrics: /api/search q={!r} status={}", query, resp.status)
                     resp.raise_for_status()
-                    results = await resp.json()
-                    if results:
-                        return (results[0].get("plainLyrics") or "").strip() or None
+                    lyrics = pick_lyrics(await resp.json())
+                    if lyrics:
+                        return lyrics
             except Exception as e:
-                logger.debug("fetch_lyrics: /api/search q={!r} error: {}", query, e)
+                logger.debug("fetch_lyrics: /api/search q={!r} failed: {}: {}", query, type(e).__name__, e)
 
     logger.debug("fetch_lyrics: all attempts exhausted for {!r}", title)
     return None

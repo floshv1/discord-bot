@@ -88,6 +88,8 @@ async def test_cannot_bet_more_than_your_balance():
     result = await _place(conn, amount=100)
 
     assert result.status == "insufficient_funds"
+    # Report what they actually have — "not enough coins" alone leaves them guessing.
+    assert result.new_balance == 50
 
 
 @pytest.mark.asyncio

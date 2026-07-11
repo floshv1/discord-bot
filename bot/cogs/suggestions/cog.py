@@ -69,7 +69,9 @@ class VoteButton(discord.ui.Button):
             interaction.user.id,
         )
 
-        if existing and existing["vote"] == direction:
+        # Clicking the side you already voted for takes the vote back.
+        removed = bool(existing and existing["vote"] == direction)
+        if removed:
             await pool.execute(
                 "DELETE FROM suggestion_votes WHERE suggestion_id = $1 AND user_id = $2",
                 suggestion_id,
@@ -110,7 +112,7 @@ class VoteButton(discord.ui.Button):
         )
         view = SuggestionVoteView(suggestion_id, int(vote_up), int(vote_down))
         await interaction.response.edit_message(embed=embed, view=view)
-        await interaction.followup.send("Vote registered!", ephemeral=True)
+        await interaction.followup.send("Vote removed." if removed else "Vote registered!", ephemeral=True)
 
 
 class SuggestionVoteView(discord.ui.View):

@@ -12,6 +12,9 @@ from bot.db.client import get_pool
 
 PlaceBetResult = Literal["ok", "closed", "insufficient_funds", "invalid_amount", "other_outcome"]
 
+# What it costs to open a community bet. See charge_creation_fee for why a fee and not a cap.
+CREATE_FEE = 100
+
 
 @dataclass
 class BetOutcome:
@@ -95,6 +98,30 @@ def outcomes_for_market(market: Mapping) -> list[tuple[str, str]]:
         outcomes.append(("draw", "Draw"))
     outcomes.append(("away", market["away_name"]))
     return outcomes
+
+
+async def charge_creation_fee(*, guild_id: int, user_id: int) -> tuple[bool, int]:
+    """Debit the fee for opening a community bet. Returns (charged, balance).
+
+    Opening a bet posts a public card, and nothing else stops one person papering the
+    channel with them. A fee is a better brake than a hard cap on how many bets you may
+    have open: on a busy night with a dozen real events, a cap punishes the person doing
+    the work, while a fee just asks them to have skin in the game.
+
+    Burned rather than added to the pool — a bet's pool must be exactly what bettors put
+    in, or the payout maths stops being parimutuel. Not refunded when a bet is cancelled,
+    or create-and-cancel would be a free spam loop.
+    """
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            balance = await currency_service.get_balance_locked(conn, guild_id=guild_id, user_id=user_id)
+            if balance < CREATE_FEE:
+                return False, balance
+            new_balance = await currency_service.adjust(
+                conn, guild_id=guild_id, user_id=user_id, amount=-CREATE_FEE, reason="bet_create_fee"
+            )
+            return True, new_balance
 
 
 async def create_custom_market(
@@ -313,7 +340,8 @@ async def place_bet(*, market_id: int, guild_id: int, user_id: int, outcome: str
 
             balance = await currency_service.get_balance_locked(conn, guild_id=guild_id, user_id=user_id)
             if balance < amount:
-                return BetOutcome("insufficient_funds")
+                # Carry the balance back so the bettor is told what they can actually afford.
+                return BetOutcome("insufficient_funds", new_balance=balance)
 
             new_balance = await currency_service.adjust(
                 conn, guild_id=guild_id, user_id=user_id, amount=-amount, reason="bet"

@@ -13,6 +13,7 @@ from bot.cogs.betting.embeds import build_market_embed
 from bot.cogs.betting.providers import Provider
 from bot.cogs.betting.providers.football_data import FootballDataProvider
 from bot.cogs.betting.providers.pandascore import PandaScoreProvider
+from bot.cogs.betting.service import CREATE_FEE
 from bot.cogs.betting.views import MarketView, announce_result, refresh_market_message
 from bot.cogs.currency.leaderboard import mark_dirty
 
@@ -101,6 +102,16 @@ class BettingCog(commands.Cog):
             self.providers.append(FootballDataProvider(config.football_data_api_key))
         if config.pandascore_api_key:
             self.providers.append(PandaScoreProvider(config.pandascore_api_key))
+        self._dirty_cards: set[int] = set()
+
+    def mark_card_dirty(self, market_id: int) -> None:
+        """Flag a market card as stale. The ticker redraws it on the next tick.
+
+        Same trick as the currency leaderboard: editing the card on every single bet means
+        a popular market takes one Discord edit per bet, which trips the rate limit. Batching
+        collapses a flurry into one edit per card, at the cost of a few seconds of staleness.
+        """
+        self._dirty_cards.add(market_id)
 
     async def cog_load(self) -> None:
         await self._reregister_open_views()
@@ -108,12 +119,30 @@ class BettingCog(commands.Cog):
             self.fixture_poll_ticker.start()
         self.lock_ticker.start()
         self.resolution_ticker.start()
+        self.card_refresh_ticker.start()
 
     async def cog_unload(self) -> None:
         if self.fixture_poll_ticker.is_running():
             self.fixture_poll_ticker.cancel()
         self.lock_ticker.cancel()
         self.resolution_ticker.cancel()
+        self.card_refresh_ticker.cancel()
+
+    @tasks.loop(seconds=5)
+    async def card_refresh_ticker(self) -> None:
+        # Drain first: a bet placed while we're redrawing must dirty the card again, not
+        # get swallowed by the refresh that's already in flight.
+        dirty, self._dirty_cards = self._dirty_cards, set()
+        for market_id in dirty:
+            await refresh_market_message(self.bot, market_id)
+
+    @card_refresh_ticker.before_loop
+    async def before_card_refresh_ticker(self) -> None:
+        await self.bot.wait_until_ready()
+
+    @card_refresh_ticker.error
+    async def card_refresh_ticker_error(self, error: BaseException) -> None:
+        logger.warning(f"card_refresh_ticker error (will retry next tick): {error}")
 
     async def _reregister_open_views(self) -> None:
         guild_id = self.bot.config.guild_id  # type: ignore[attr-defined]
@@ -131,7 +160,7 @@ class BettingCog(commands.Cog):
 
     bet = app_commands.Group(name="bet", description="Open and settle community bets.")
 
-    @bet.command(name="create", description="Open a community bet with two outcomes.")
+    @bet.command(name="create", description=f"Open a community bet with two outcomes (costs {CREATE_FEE} coins).")
     @app_commands.describe(
         question="What is being bet on, e.g. 'Who wins tonight's scrim?'",
         option_a="First outcome, e.g. 'Team Blue'",
@@ -169,6 +198,17 @@ class BettingCog(commands.Cog):
 
         await interaction.response.defer(ephemeral=True)
 
+        # Charge before creating anything, so a failed payment can't leave an orphan card.
+        charged, balance = await service.charge_creation_fee(guild_id=interaction.guild_id, user_id=interaction.user.id)
+        if not charged:
+            await interaction.followup.send(
+                f"❌ Opening a bet costs **{service.CREATE_FEE:,}** 🪙 and you have **{balance:,}** 🪙.\n"
+                f"Use `/claim` for your daily coins.",
+                ephemeral=True,
+            )
+            return
+        mark_dirty(self.bot)  # the fee was just debited
+
         # Post into the betting channel if one is configured, otherwise right here.
         channel_id = await service.get_betting_channel(interaction.guild_id)
         channel = interaction.guild.get_channel(channel_id) if channel_id else None
@@ -189,7 +229,12 @@ class BettingCog(commands.Cog):
         card = await channel.send(embed=build_market_embed(market, []), view=view)
         await service.set_market_message(market_id, channel.id, card.id)
         self.bot.add_view(view)
-        await interaction.followup.send(f"✅ Bet opened in {channel.mention}!", ephemeral=True)
+        await interaction.followup.send(
+            f"✅ Bet opened in {channel.mention}! "
+            f"That cost **{service.CREATE_FEE:,}** 🪙 — you have **{balance:,}** 🪙 left.\n"
+            f"Remember to settle it with `/bet resolve` once you know the answer.",
+            ephemeral=True,
+        )
 
     @bet.command(name="mine", description="See the bets you currently have riding.")
     async def bet_mine(self, interaction: discord.Interaction) -> None:

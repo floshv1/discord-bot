@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 import discord
 from discord import app_commands
 from discord.ext import commands
+from loguru import logger
 
 from bot.cogs.betting import service as betting_service
 from bot.cogs.betting.cog import BettingCog
@@ -24,11 +25,141 @@ from bot.db.client import get_pool
 PARIS_TZ = ZoneInfo("Europe/Paris")
 
 
+async def delete_setup_messages(
+    client: discord.Client,
+    channel_id: int | None,
+    message_ids: list[int | None],
+) -> int:
+    """Delete the messages a previous /setup run posted. Returns how many went away.
+
+    Without this, re-running /setup orphans the old panel: its buttons keep working (the
+    views are persistent by custom_id), while the leaderboard beside it silently stops
+    updating, because the DB now points at the new message. Best-effort — an admin who
+    already cleared the channel by hand must not break setup.
+    """
+    if channel_id is None:
+        return 0
+    channel = client.get_channel(channel_id)
+    if channel is None:
+        return 0
+
+    deleted = 0
+    for message_id in message_ids:
+        if message_id is None:
+            continue
+        try:
+            message = await channel.fetch_message(message_id)
+            await message.delete()
+            deleted += 1
+        except (discord.NotFound, discord.Forbidden):
+            continue
+        except discord.HTTPException as exc:
+            logger.warning(f"Could not delete old setup message {message_id}: {exc}")
+    return deleted
+
+
+async def pin(message: discord.Message) -> None:
+    """Pin a setup message, so the panel stays reachable once the channel scrolls.
+
+    Everything called these "pinned" — the command descriptions, the docs — but nothing
+    ever pinned them. Best-effort: missing Manage Messages, or a channel already at
+    Discord's 50-pin cap, must not fail the whole setup.
+    """
+    try:
+        await message.pin()
+    except discord.HTTPException as exc:
+        logger.warning(f"Could not pin setup message {message.id}: {exc}")
+
+
+def status_line(name: str, command: str, channel_mention: str | None, missing_messages: int) -> str:
+    """One line of /setup status.
+
+    The middle case is the one an admin currently has no way to see: the config row exists,
+    so the feature looks set up, but its message was deleted and it has silently stopped
+    updating ever since.
+    """
+    if channel_mention is None:
+        return f"❌ **{name}** — not set up. Run `{command}`."
+    if missing_messages:
+        return f"⚠️ **{name}** — {channel_mention}, but {missing_messages} message(s) are gone. Re-run `{command}`."
+    return f"✅ **{name}** — {channel_mention}"
+
+
+# name, table, message-id columns, the command that (re)creates it
+FEATURES: list[tuple[str, str, list[str], str]] = [
+    ("Voice leaderboard", "voice_leaderboard", ["weekly_message_id", "alltime_message_id"], "/setup voice"),
+    ("Birthdays", "birthday_config", ["upcoming_message_id", "month_message_id"], "/setup birthday"),
+    ("Currency", "currency_leaderboard", ["message_id", "panel_message_id"], "/setup currency"),
+    ("Queue", "queue_config", ["panel_message_id"], "/setup queue"),
+    ("Suggestions", "suggestion_config", ["message_id"], "/setup suggestions"),
+    ("Betting", "betting_config", [], "/setup betting"),
+    ("Reprimand", "reprimand_config", [], "/setup reprimand"),
+]
+
+
+async def _count_missing(client: discord.Client, channel_id: int, message_ids: list[int | None]) -> int:
+    channel = client.get_channel(channel_id)
+    if channel is None:
+        return len([m for m in message_ids if m is not None])
+
+    missing = 0
+    for message_id in message_ids:
+        if message_id is None:
+            missing += 1
+            continue
+        try:
+            await channel.fetch_message(message_id)
+        except (discord.NotFound, discord.Forbidden):
+            missing += 1
+        except discord.HTTPException:
+            pass  # transient — don't cry wolf
+    return missing
+
+
+async def _clear_previous(client: discord.Client, guild_id: int, table: str, columns: list[str]) -> None:
+    """Look up what the last /setup wrote into ``table`` and delete those messages."""
+    pool = get_pool()
+    row = await pool.fetchrow(
+        f"SELECT channel_id, {', '.join(columns)} FROM {table} WHERE guild_id = $1",  # noqa: S608 - names are literals
+        guild_id,
+    )
+    if row:
+        await delete_setup_messages(client, row["channel_id"], [row[c] for c in columns])
+
+
 class SetupCog(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
     setup = app_commands.Group(name="setup", description="Initialize bot features (moderators).")
+
+    @setup.command(name="status", description="Show which features are configured, and which need attention.")
+    @app_commands.default_permissions(manage_guild=True)
+    async def setup_status(self, interaction: discord.Interaction) -> None:
+        await interaction.response.defer(ephemeral=True)
+        pool = get_pool()
+
+        lines = []
+        for name, table, columns, command in FEATURES:
+            selected = ", ".join(["channel_id", *columns])
+            row = await pool.fetchrow(
+                f"SELECT {selected} FROM {table} WHERE guild_id = $1",  # noqa: S608 - names are literals
+                interaction.guild_id,
+            )
+            if row is None:
+                lines.append(status_line(name, command, None, 0))
+                continue
+            channel = self.bot.get_channel(row["channel_id"])
+            mention = channel.mention if channel else f"`#deleted-channel ({row['channel_id']})`"
+            missing = await _count_missing(self.bot, row["channel_id"], [row[c] for c in columns])
+            lines.append(status_line(name, command, mention, missing))
+
+        embed = discord.Embed(
+            title="🛠️ Setup status",
+            description="\n".join(lines),
+            color=discord.Color.blurple(),
+        )
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
     @setup.command(name="voice", description="Initialize voice leaderboard messages.")
     @app_commands.default_permissions(manage_guild=True)
@@ -45,12 +176,17 @@ class SetupCog(commands.Cog):
             return
 
         await interaction.response.defer(ephemeral=True)
+        await _clear_previous(
+            self.bot, interaction.guild_id, "voice_leaderboard", ["weekly_message_id", "alltime_message_id"]
+        )
         weekly_msg = await channel.send(
             embed=discord.Embed(title="🎙️ Voice — Last 7 Days", description="Loading...", color=discord.Color.blurple())
         )
+        await pin(weekly_msg)
         alltime_msg = await channel.send(
             embed=discord.Embed(title="🏆 Voice — All Time", description="Loading...", color=discord.Color.gold())
         )
+        await pin(alltime_msg)
         pool = get_pool()
         await pool.execute(
             """
@@ -85,11 +221,15 @@ class SetupCog(commands.Cog):
             return
 
         await interaction.response.defer(ephemeral=True)
+        await _clear_previous(
+            self.bot, interaction.guild_id, "birthday_config", ["upcoming_message_id", "month_message_id"]
+        )
         now = datetime.datetime.now(PARIS_TZ)
         month_name = MONTHS_EN[now.month - 1]
         upcoming_msg = await channel.send(
             embed=discord.Embed(title="🎉 Upcoming Birthdays", description="Loading...", color=discord.Color.blue())
         )
+        await pin(upcoming_msg)
         month_msg = await channel.send(
             embed=discord.Embed(
                 title=f"📅 {month_name} Birthdays",
@@ -97,6 +237,7 @@ class SetupCog(commands.Cog):
                 color=discord.Color.purple(),
             )
         )
+        await pin(month_msg)
         pool = get_pool()
         await pool.execute(
             """
@@ -122,6 +263,8 @@ class SetupCog(commands.Cog):
     @app_commands.describe(channel="Channel where suggestions will be collected")
     @app_commands.default_permissions(manage_channels=True)
     async def setup_suggestions(self, interaction: discord.Interaction, channel: discord.TextChannel) -> None:
+        await interaction.response.defer(ephemeral=True)
+        await _clear_previous(self.bot, interaction.guild_id, "suggestion_config", ["message_id"])
         embed = discord.Embed(
             title="💡 Suggestions",
             description=(
@@ -133,6 +276,7 @@ class SetupCog(commands.Cog):
         )
         view = SetupView()
         msg = await channel.send(embed=embed, view=view)
+        await pin(msg)
         pool = get_pool()
         await pool.execute(
             """
@@ -144,7 +288,7 @@ class SetupCog(commands.Cog):
             channel.id,
             msg.id,
         )
-        await interaction.response.send_message(f"Suggestion channel set to {channel.mention}!", ephemeral=True)
+        await interaction.followup.send(f"Suggestion channel set to {channel.mention}!", ephemeral=True)
 
     @setup.command(name="reprimand", description="Configure the Ennemi Public role and goulag channel.")
     @app_commands.describe(role="Role applied to reprimanded members", channel="Channel they're restricted to")
@@ -172,17 +316,24 @@ class SetupCog(commands.Cog):
     @app_commands.default_permissions(manage_guild=True)
     async def setup_currency(self, interaction: discord.Interaction, channel: discord.TextChannel) -> None:
         await interaction.response.defer(ephemeral=True)
+        await _clear_previous(
+            self.bot, interaction.guild_id, "currency_leaderboard", ["message_id", "panel_message_id"]
+        )
 
         # Give every current member their starting balance so the leaderboard isn't empty on day one.
+        # Safe to re-run: backfill_wallets only creates wallets that don't exist yet, so nobody's
+        # balance is reset by a second /setup currency.
         member_ids = [m.id for m in interaction.guild.members if not m.bot]
         funded = await currency_service.backfill_wallets(interaction.guild_id, member_ids)
 
         panel_view = CurrencyPanelView()
         panel_message = await channel.send(embed=build_currency_panel_embed(), view=panel_view)
+        await pin(panel_message)
         self.bot.add_view(panel_view)
         leaderboard_message = await channel.send(
             embed=discord.Embed(title="🪙 FloshCoins Leaderboard", description="Loading...", color=discord.Color.gold())
         )
+        await pin(leaderboard_message)
         pool = get_pool()
         await pool.execute(
             """
@@ -237,9 +388,11 @@ class SetupCog(commands.Cog):
     @app_commands.default_permissions(manage_channels=True)
     async def setup_queue(self, interaction: discord.Interaction, channel: discord.TextChannel) -> None:
         await interaction.response.defer(ephemeral=True)
+        await _clear_previous(self.bot, interaction.guild_id, "queue_config", ["panel_message_id"])
         presets = await queue_service.list_presets(interaction.guild_id)
         view = PanelView(presets)
         msg = await channel.send(embed=build_panel_embed(), view=view)
+        await pin(msg)
         self.bot.add_view(view)
         await queue_service.set_queue_config(interaction.guild_id, channel.id, msg.id)
         await interaction.followup.send(f"Queue panel posted in {channel.mention}!", ephemeral=True)

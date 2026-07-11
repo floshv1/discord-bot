@@ -18,6 +18,7 @@ COGS = [
     "bot.cogs.currency.cog",
     "bot.cogs.betting.cog",
     "bot.cogs.setup.cog",
+    "bot.cogs.help.cog",
 ]
 
 
