@@ -308,6 +308,34 @@ async def lock_due_markets(guild_id: int) -> list[asyncpg.Record]:
     )
 
 
+async def betting_pnl(guild_id: int, limit: int = 100) -> list[asyncpg.Record]:
+    """Realised profit and loss per bettor, best first.
+
+    Only `resolved` markets count. A stake still in play is neither a win nor a loss, and a
+    voided bet was refunded in full — counting either would make the numbers lie.
+
+    `payout` is written on settlement: the full return for a winner, 0 for a loser. So
+    `payout - amount` is exactly what the bet made or cost.
+    """
+    pool = get_pool()
+    return await pool.fetch(
+        """
+        SELECT b.user_id,
+               SUM(COALESCE(b.payout, 0) - b.amount) AS profit,
+               COUNT(*)                              AS bets,
+               COUNT(*) FILTER (WHERE COALESCE(b.payout, 0) > b.amount) AS wins
+        FROM betting_bets b
+        JOIN betting_markets m ON m.id = b.market_id
+        WHERE m.guild_id = $1 AND m.status = 'resolved'
+        GROUP BY b.user_id
+        ORDER BY profit DESC
+        LIMIT $2
+        """,
+        guild_id,
+        limit,
+    )
+
+
 async def claim_resolve_reminders(guild_id: int) -> list[asyncpg.Record]:
     """Community bets whose creator needs nudging to settle them. Claims them as it returns.
 

@@ -8,6 +8,8 @@ from discord import app_commands
 from discord.ext import commands, tasks
 from loguru import logger
 
+from bot.cogs.betting import service as betting_service
+from bot.cogs.betting.embeds import build_pnl_embed
 from bot.cogs.currency import service
 from bot.cogs.currency.embeds import (
     CURRENCY_EMOJI,
@@ -152,6 +154,7 @@ class CurrencyCog(commands.Cog):
             return
         self._leaderboard_dirty = False
         await self._update_leaderboard_message()
+        await self._update_pnl_message()
 
     @leaderboard_ticker.before_loop
     async def before_leaderboard_ticker(self) -> None:
@@ -193,6 +196,37 @@ class CurrencyCog(commands.Cog):
             await msg.edit(embed=embed)
         except discord.HTTPException as e:
             logger.warning(f"Failed to update currency leaderboard: {e}")
+
+    async def _update_pnl_message(self) -> None:
+        """The profit-and-loss board — who is actually *good* at betting, not just rich."""
+        pool = get_pool()
+        guild_id = self.bot.config.guild_id  # type: ignore[attr-defined]
+
+        row = await pool.fetchrow(
+            "SELECT channel_id, pnl_message_id FROM currency_leaderboard WHERE guild_id = $1",
+            guild_id,
+        )
+        if not row or not row["pnl_message_id"]:
+            return  # /setup currency predates this board — re-run it to get one
+
+        rows = await betting_service.betting_pnl(guild_id)
+        names = {}
+        for r in rows:
+            user = self.bot.get_user(r["user_id"])
+            if user:
+                names[r["user_id"]] = user.display_name
+
+        updated = datetime.datetime.now(PARIS_TZ).strftime("%d/%m à %H:%M")
+        embed = build_pnl_embed(rows, names, updated)
+
+        channel = self.bot.get_channel(row["channel_id"])
+        if not channel:
+            return
+        try:
+            msg = await channel.fetch_message(row["pnl_message_id"])
+            await msg.edit(embed=embed)
+        except discord.HTTPException as e:
+            logger.warning(f"Failed to update P&L board: {e}")
 
 
 async def setup(bot: commands.Bot) -> None:
