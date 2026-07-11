@@ -86,9 +86,13 @@ def build_leaderboard_embed(rows: Sequence[Mapping], names: Mapping[int, str], u
     if not rows:
         embed.description = "No wallets yet."
         return embed
-    lines = [
-        f"**#{i}** {names.get(r['user_id'], f'<@{r["user_id"]}>')} — {r['balance']:,} {CURRENCY_EMOJI}"
-        for i, r in enumerate(rows, 1)
-    ]
+    lines = []
+    for i, r in enumerate(rows, 1):
+        name = names.get(r["user_id"], f"<@{r['user_id']}>")
+        staked = r.get("staked", 0) or 0
+        total = r.get("total", r["balance"])
+        # Show the stake, or the ranking looks wrong to anyone comparing it to their /balance.
+        detail = f" *(dont {staked:,} en jeu)*" if staked else ""
+        lines.append(f"**#{i}** {name} — {total:,} {CURRENCY_EMOJI}{detail}")
     embed.description = "\n".join(lines)
     return embed

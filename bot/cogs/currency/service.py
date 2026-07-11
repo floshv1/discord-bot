@@ -320,9 +320,35 @@ async def start_log_cursor_at_latest(guild_id: int) -> None:
 
 
 async def top_balances(guild_id: int, limit: int = 10) -> list[asyncpg.Record]:
+    """The leaderboard: ranked on wallet + coins currently staked in unsettled bets.
+
+    A stake is debited from the wallet the moment it's placed, so ranking on `balance` alone
+    made anyone who actually bet look poorer than someone who never played — the leaderboard
+    rewarded sitting on your hands, on a server built around betting. Those coins aren't
+    gone; they're in the pool, and they come back on a win or a void.
+
+    Only `open`/`locked` markets count. A resolved or voided one has already paid out or
+    refunded into the wallet, so counting it again would double it.
+    """
     pool = get_pool()
     return await pool.fetch(
-        "SELECT user_id, balance FROM currency_wallets WHERE guild_id = $1 ORDER BY balance DESC LIMIT $2",
+        """
+        SELECT w.user_id,
+               w.balance,
+               COALESCE(s.staked, 0) AS staked,
+               w.balance + COALESCE(s.staked, 0) AS total
+        FROM currency_wallets w
+        LEFT JOIN (
+            SELECT b.user_id, SUM(b.amount) AS staked
+            FROM betting_bets b
+            JOIN betting_markets m ON m.id = b.market_id
+            WHERE m.guild_id = $1 AND m.status IN ('open', 'locked')
+            GROUP BY b.user_id
+        ) s ON s.user_id = w.user_id
+        WHERE w.guild_id = $1
+        ORDER BY total DESC, w.balance DESC
+        LIMIT $2
+        """,
         guild_id,
         limit,
     )
