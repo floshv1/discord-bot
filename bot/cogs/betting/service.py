@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import Literal
 
 import asyncpg
@@ -9,7 +10,21 @@ import asyncpg
 from bot.cogs.currency import service as currency_service
 from bot.db.client import get_pool
 
-PlaceBetResult = Literal["ok", "closed", "insufficient_funds", "invalid_amount"]
+PlaceBetResult = Literal["ok", "closed", "insufficient_funds", "invalid_amount", "other_outcome"]
+
+
+@dataclass
+class BetOutcome:
+    """Result of attempting a bet.
+
+    `existing_outcome` is set only for "other_outcome", so the caller can name the side the
+    user is already on. `topped_up` distinguishes adding to a position from opening one.
+    """
+
+    status: PlaceBetResult
+    new_balance: int | None = None
+    existing_outcome: str | None = None
+    topped_up: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -269,23 +284,36 @@ async def get_locked_markets(guild_id: int) -> list[asyncpg.Record]:
 # ---------------------------------------------------------------------------
 
 
-async def place_bet(
-    *, market_id: int, guild_id: int, user_id: int, outcome: str, amount: int
-) -> tuple[PlaceBetResult, int | None]:
-    """Debit the bettor's wallet and record a bet, atomically. Returns (result, new_balance)."""
+async def place_bet(*, market_id: int, guild_id: int, user_id: int, outcome: str, amount: int) -> BetOutcome:
+    """Debit the bettor's wallet and record a bet, atomically.
+
+    One option per person: you may top up the side you already backed, but not back a second
+    one. Hedging both sides of a parimutuel pool only ever loses you money, and it makes the
+    "who's on which side" read of the card meaningless.
+    """
     if amount <= 0:
-        return "invalid_amount", None
+        return BetOutcome("invalid_amount")
 
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
+            # Locking the market row also serializes concurrent bets on it, so a user
+            # double-clicking two different outcomes can't slip past the check below.
             market = await conn.fetchrow("SELECT status FROM betting_markets WHERE id = $1 FOR UPDATE", market_id)
             if not market or market["status"] != "open":
-                return "closed", None
+                return BetOutcome("closed")
+
+            existing = await conn.fetchrow(
+                "SELECT outcome FROM betting_bets WHERE market_id = $1 AND user_id = $2 LIMIT 1",
+                market_id,
+                user_id,
+            )
+            if existing and existing["outcome"] != outcome:
+                return BetOutcome("other_outcome", existing_outcome=existing["outcome"])
 
             balance = await currency_service.get_balance_locked(conn, guild_id=guild_id, user_id=user_id)
             if balance < amount:
-                return "insufficient_funds", None
+                return BetOutcome("insufficient_funds")
 
             new_balance = await currency_service.adjust(
                 conn, guild_id=guild_id, user_id=user_id, amount=-amount, reason="bet"
@@ -297,7 +325,7 @@ async def place_bet(
                 outcome,
                 amount,
             )
-            return "ok", new_balance
+            return BetOutcome("ok", new_balance=new_balance, topped_up=existing is not None)
 
 
 # ---------------------------------------------------------------------------

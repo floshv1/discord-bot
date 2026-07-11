@@ -60,7 +60,7 @@ def build_market_embed(market: Mapping, bets: Sequence[Mapping]) -> discord.Embe
         description = f"{matchup}\n\n{closing_word}: <t:{ts}:R>"
         # Parimutuel odds are indicative: they move as money comes in, and you're paid the
         # odds at settlement, not the odds you saw when you bet. Say so, or it looks like a bug.
-        footer = "Odds shift as bets come in — you're paid the final odds"
+        footer = "One option each · odds shift as bets come in — you're paid the final odds"
     elif status == "locked":
         title = f"🔒 {market['competition'] if not custom else 'Community bet'}"
         color = discord.Color.greyple()

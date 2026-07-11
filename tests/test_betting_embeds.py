@@ -25,7 +25,8 @@ def test_open_market_shows_pool_and_blurple_color():
     embed = build_market_embed(_market(status="open"), [_bet("home", 100), _bet("away", 50)])
     assert embed.color == discord.Color.blurple()
     assert "France" in embed.title or "France" in embed.description
-    assert "Odds shift" in embed.footer.text
+    assert "odds shift" in embed.footer.text.lower()
+    assert "One option each" in embed.footer.text
 
 
 def test_open_market_shows_live_cotes():

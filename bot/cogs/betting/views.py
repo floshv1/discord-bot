@@ -109,25 +109,42 @@ class StakeModal(discord.ui.Modal, title="Place your bet"):
             await interaction.response.send_message("❌ Stake must be a whole number.", ephemeral=True)
             return
 
-        result, new_balance = await service.place_bet(
+        result = await service.place_bet(
             market_id=self.market_id,
             guild_id=interaction.guild_id,
             user_id=interaction.user.id,
             outcome=self.outcome,
             amount=amount,
         )
-        if result != "ok":
-            await interaction.response.send_message(_RESULT_MESSAGES[result], ephemeral=True)
+
+        if result.status == "other_outcome":
+            market = await service.get_market(self.market_id)
+            backed = dict(service.outcomes_for_market(market)).get(result.existing_outcome, "another option")
+            await interaction.response.send_message(
+                f"❌ You're already on **{backed}** for this one — you can only back one option.\n"
+                f"You can add more to **{backed}**, but not switch or bet both sides.",
+                ephemeral=True,
+            )
+            return
+        if result.status != "ok":
+            await interaction.response.send_message(_RESULT_MESSAGES[result.status], ephemeral=True)
             return
 
         mark_dirty(interaction.client)  # the stake was just debited
 
         # The stake is already in the pool, so the current odds are what it would pay today.
-        odds = service.implied_odds(await service.get_bets(self.market_id)).get(self.outcome, 1.0)
+        bets = await service.get_bets(self.market_id)
+        odds = service.implied_odds(bets).get(self.outcome, 1.0)
+        my_stake = sum(b["amount"] for b in bets if b["user_id"] == interaction.user.id)
+
+        verb = "Added to your bet" if result.topped_up else "Bet placed"
+        stake_line = f"✅ {verb}: **{amount:,}** 🪙 on **{self.outcome_label}**" + (
+            f" (now **{my_stake:,}** 🪙 total)." if result.topped_up else "."
+        )
         await interaction.response.send_message(
-            f"✅ Bet placed: **{amount:,}** 🪙 on **{self.outcome_label}**.\n"
-            f"Returns **{int(amount * odds):,}** 🪙 if it wins (`{odds:.2f}x`, at current odds).\n"
-            f"New balance: **{new_balance:,}** 🪙.",
+            f"{stake_line}\n"
+            f"Returns **{int(my_stake * odds):,}** 🪙 if it wins (`{odds:.2f}x`, at current odds).\n"
+            f"New balance: **{result.new_balance:,}** 🪙.",
             ephemeral=True,
         )
         try:
