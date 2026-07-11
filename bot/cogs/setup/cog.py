@@ -90,7 +90,7 @@ def status_line(name: str, command: str, channel_mention: str | None, missing_me
 FEATURES: list[tuple[str, str, list[str], str]] = [
     ("Voice leaderboard", "voice_leaderboard", ["weekly_message_id", "alltime_message_id"], "/setup voice"),
     ("Birthdays", "birthday_config", ["upcoming_message_id", "month_message_id"], "/setup birthday"),
-    ("Currency", "currency_leaderboard", ["message_id", "panel_message_id"], "/setup currency"),
+    ("Currency", "currency_leaderboard", ["message_id", "panel_message_id", "pnl_message_id"], "/setup currency"),
     ("Queue", "queue_config", ["panel_message_id"], "/setup queue"),
     ("Suggestions", "suggestion_config", ["message_id"], "/setup suggestions"),
     ("Betting", "betting_config", [], "/setup betting"),
@@ -327,7 +327,10 @@ class SetupCog(commands.Cog):
     async def setup_currency(self, interaction: discord.Interaction, channel: discord.TextChannel) -> None:
         await interaction.response.defer(ephemeral=True)
         await _clear_previous(
-            self.bot, interaction.guild_id, "currency_leaderboard", ["message_id", "panel_message_id"]
+            self.bot,
+            interaction.guild_id,
+            "currency_leaderboard",
+            ["message_id", "panel_message_id", "pnl_message_id"],
         )
 
         # Give every current member their starting balance so the leaderboard isn't empty on day one.
@@ -344,26 +347,34 @@ class SetupCog(commands.Cog):
             embed=discord.Embed(title="🪙 FloshCoins Leaderboard", description="Loading...", color=discord.Color.gold())
         )
         await pin(leaderboard_message)
+        pnl_message = await channel.send(
+            embed=discord.Embed(title="📈 Bénéfices & pertes", description="Loading...", color=discord.Color.green())
+        )
+        await pin(pnl_message)
         pool = get_pool()
         await pool.execute(
             """
-            INSERT INTO currency_leaderboard (guild_id, channel_id, message_id, panel_message_id)
-            VALUES ($1, $2, $3, $4)
+            INSERT INTO currency_leaderboard (guild_id, channel_id, message_id, panel_message_id, pnl_message_id)
+            VALUES ($1, $2, $3, $4, $5)
             ON CONFLICT (guild_id) DO UPDATE
               SET channel_id = EXCLUDED.channel_id,
                   message_id = EXCLUDED.message_id,
-                  panel_message_id = EXCLUDED.panel_message_id
+                  panel_message_id = EXCLUDED.panel_message_id,
+                  pnl_message_id = EXCLUDED.pnl_message_id
             """,
             interaction.guild_id,
             channel.id,
             leaderboard_message.id,
             panel_message.id,
+            pnl_message.id,
         )
         cog: CurrencyCog | None = self.bot.cogs.get("CurrencyCog")  # type: ignore[assignment]
         if cog:
             await cog._update_leaderboard_message()
+            await cog._update_pnl_message()
         await interaction.followup.send(
-            f"✅ Currency panel + leaderboard posted in {channel.mention}. Funded **{funded}** new member(s).",
+            f"✅ Panneau + classement + bénéfices/pertes postés dans {channel.mention}. "
+            f"**{funded}** nouveau(x) portefeuille(s) créé(s).",
             ephemeral=True,
         )
 

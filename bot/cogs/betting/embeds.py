@@ -7,6 +7,49 @@ import discord
 from bot.cogs.betting.service import implied_odds, outcomes_for_market, pool_shares, pool_totals
 
 BAR_WIDTH = 12
+PNL_SIDE_COUNT = 5  # how many winners, and how many losers, to name
+
+
+def _pnl_line(rank: int, row: Mapping, names: Mapping[int, str]) -> str:
+    name = names.get(row["user_id"], f"<@{row['user_id']}>")
+    # The bet count matters: +900 over 2 bets and +900 over 50 are not the same story.
+    return f"**#{rank}** {name} — **{row['profit']:+,}** 🪙 *({row['wins']}/{row['bets']} paris gagnés)*"
+
+
+def build_pnl_embed(rows: Sequence[Mapping], names: Mapping[int, str], updated: str) -> discord.Embed:
+    """Who is actually winning at betting, and who is bleeding.
+
+    Rows arrive sorted by profit descending. Both ends are shown: a board that only named
+    the winners would tell half the story, and the losing half is the funnier half.
+    """
+    embed = discord.Embed(title="📈 Bénéfices & pertes", color=discord.Color.green())
+    embed.set_footer(text=f"Paris réglés uniquement · mis à jour {updated}")
+
+    if not rows:
+        embed.description = "*Aucun pari réglé pour l'instant.*"
+        return embed
+
+    winners = [r for r in rows if r["profit"] > 0][:PNL_SIDE_COUNT]
+    losers = [r for r in rows if r["profit"] < 0]
+    # rows are best-first, so the worst are at the very end — and worst-first reads better.
+    losers = list(reversed(losers))[:PNL_SIDE_COUNT]
+
+    if winners:
+        embed.add_field(
+            name="🔥 Dans le vert",
+            value="\n".join(_pnl_line(i, r, names) for i, r in enumerate(winners, 1)),
+            inline=False,
+        )
+    if losers:
+        embed.add_field(
+            name="💀 Dans le rouge",
+            value="\n".join(_pnl_line(i, r, names) for i, r in enumerate(losers, 1)),
+            inline=False,
+        )
+    if not winners and not losers:
+        embed.description = "*Tout le monde est à l'équilibre.*"
+    return embed
+
 
 OUTCOME_EMOJI = {"home": "🏠", "draw": "🤝", "away": "🛫"}
 CUSTOM_OUTCOME_EMOJI = {"home": "🅰️", "away": "🅱️"}
