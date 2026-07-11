@@ -1,19 +1,13 @@
 import os
 
-# Silenced in the log *channel* by default — still written to the audit_logs table.
-# These are the event types that would otherwise drown the channel: mirroring every
-# message roughly doubles the guild's message volume, and a squad on push-to-talk
-# emits hundreds of mute/unmute embeds an hour.
-DEFAULT_MUTED_LOG_EVENTS = frozenset(
-    {
-        "message_sent",
-        "slash_command",
-        "voice_muted",
-        "voice_unmuted",
-        "voice_deafened",
-        "voice_undeafened",
-    }
-)
+# Event types kept OUT of the log channel. Empty by default: the log channel mirrors
+# every event, which is what this server wants.
+#
+# Set LOG_MUTED_EVENTS to trim it back if the channel ever gets too loud — the usual
+# suspects are `message_sent` (one embed per message in the guild), `slash_command`, and
+# the voice mute/deafen toggles (a squad on push-to-talk emits hundreds an hour). Muting
+# only silences the *channel*; `_log_to_db` still records everything either way.
+DEFAULT_MUTED_LOG_EVENTS: frozenset[str] = frozenset()
 
 
 class ConfigError(Exception):

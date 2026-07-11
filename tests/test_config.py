@@ -10,13 +10,14 @@ def _required_env(monkeypatch):
     monkeypatch.setenv("LOG_CHANNEL_ID", "987654321")
 
 
-def test_muted_log_events_default_to_the_noisy_types(monkeypatch):
+def test_nothing_is_muted_by_default(monkeypatch):
+    # The log channel mirrors every event unless the admin explicitly trims it back.
     _required_env(monkeypatch)
     monkeypatch.delenv("LOG_MUTED_EVENTS", raising=False)
 
     cfg = Config()
     assert cfg.log_muted_events == set(DEFAULT_MUTED_LOG_EVENTS)
-    assert "message_sent" in cfg.log_muted_events
+    assert cfg.log_muted_events == set()
 
 
 def test_muted_log_events_can_be_overridden(monkeypatch):
