@@ -4,7 +4,7 @@ import discord
 from loguru import logger
 
 from bot.cogs.announce.embeds import BODY_LIMIT, TITLE_LIMIT, build_announcement_embed
-from bot.cogs.announce.service import allowed_mentions_for
+from bot.cogs.announce.service import allowed_mentions_for, ping_content
 
 
 class AnnouncementModal(discord.ui.Modal, title="Nouvelle annonce"):
@@ -40,7 +40,8 @@ class AnnouncementModal(discord.ui.Modal, title="Nouvelle annonce"):
             author_name=interaction.user.display_name,
         )
         view = PreviewView(self.channel, self.ping, embed)
-        ping_line = f"Ping : {self.ping.mention}" if self.ping else "Aucun ping."
+        # Shows the exact string that will go out — so the preview can't disagree with the post.
+        ping_line = f"Ping : `{ping_content(self.ping)}`" if self.ping else "Aucun ping."
         await interaction.response.send_message(
             f"**Aperçu** — voici ce qui sera publié dans {self.channel.mention}.\n{ping_line}",
             embed=embed,
@@ -67,7 +68,7 @@ class PreviewView(discord.ui.View):
     async def publish(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
         try:
             await self.channel.send(
-                content=self.ping.mention if self.ping else None,
+                content=ping_content(self.ping),
                 embed=self.embed,
                 allowed_mentions=allowed_mentions_for(self.ping),
             )

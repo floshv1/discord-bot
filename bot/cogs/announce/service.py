@@ -5,6 +5,20 @@ import discord
 from bot.db.client import get_pool
 
 
+def ping_content(ping: discord.Role | None) -> str | None:
+    """The message content that actually notifies people — or None to notify nobody.
+
+    ``Role.mention`` returns ``<@&{id}>`` for *every* role, including @everyone. Discord
+    does not notify anyone for that form: pinging everyone requires the literal string.
+    Using ``.mention`` here would have looked correct and silently pinged no one.
+    """
+    if ping is None:
+        return None
+    if ping.is_default():
+        return "@everyone"
+    return ping.mention
+
+
 def allowed_mentions_for(ping: discord.Role | None) -> discord.AllowedMentions:
     """Exactly who this announcement is permitted to notify — and nobody else.
 
