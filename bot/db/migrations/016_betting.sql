@@ -1,3 +1,8 @@
+CREATE TABLE IF NOT EXISTS betting_config (
+    guild_id BIGINT PRIMARY KEY,
+    channel_id BIGINT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS betting_markets (
     id BIGSERIAL PRIMARY KEY,
     guild_id BIGINT NOT NULL,

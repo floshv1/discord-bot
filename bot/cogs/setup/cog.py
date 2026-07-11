@@ -7,8 +7,13 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+from bot.cogs.betting import service as betting_service
+from bot.cogs.betting.cog import BettingCog
 from bot.cogs.birthday.cog import MONTHS_EN, BirthdayCog
+from bot.cogs.currency import service as currency_service
 from bot.cogs.currency.cog import CurrencyCog
+from bot.cogs.currency.embeds import build_panel_embed as build_currency_panel_embed
+from bot.cogs.currency.views import CurrencyPanelView
 from bot.cogs.queue import service as queue_service
 from bot.cogs.queue.embeds import build_panel_embed
 from bot.cogs.queue.views import PanelView
@@ -162,41 +167,73 @@ class SetupCog(commands.Cog):
             f"Reprimand configured: role {role.mention}, channel {channel.mention}.", ephemeral=True
         )
 
-    @setup.command(name="currency", description="Initialize the currency leaderboard message.")
+    @setup.command(name="currency", description="Post the FloshCoins panel + leaderboard, and fund every member.")
+    @app_commands.describe(channel="Channel that will host the panel and pinned leaderboard")
     @app_commands.default_permissions(manage_guild=True)
-    async def setup_currency(self, interaction: discord.Interaction) -> None:
-        config = self.bot.config  # type: ignore[attr-defined]
-        if not config.currency_leaderboard_channel_id:
-            await interaction.response.send_message(
-                "❌ `CURRENCY_LEADERBOARD_CHANNEL_ID` is not configured.", ephemeral=True
-            )
-            return
-        channel = interaction.guild.get_channel(config.currency_leaderboard_channel_id)
-        if not channel:
-            await interaction.response.send_message("❌ Channel not found.", ephemeral=True)
-            return
-
+    async def setup_currency(self, interaction: discord.Interaction, channel: discord.TextChannel) -> None:
         await interaction.response.defer(ephemeral=True)
-        message = await channel.send(
+
+        # Give every current member their starting balance so the leaderboard isn't empty on day one.
+        member_ids = [m.id for m in interaction.guild.members if not m.bot]
+        funded = await currency_service.backfill_wallets(interaction.guild_id, member_ids)
+
+        panel_view = CurrencyPanelView()
+        panel_message = await channel.send(embed=build_currency_panel_embed(), view=panel_view)
+        self.bot.add_view(panel_view)
+        leaderboard_message = await channel.send(
             embed=discord.Embed(title="🪙 FloshCoins Leaderboard", description="Loading...", color=discord.Color.gold())
         )
         pool = get_pool()
         await pool.execute(
             """
-            INSERT INTO currency_leaderboard (guild_id, channel_id, message_id)
-            VALUES ($1, $2, $3)
+            INSERT INTO currency_leaderboard (guild_id, channel_id, message_id, panel_message_id)
+            VALUES ($1, $2, $3, $4)
             ON CONFLICT (guild_id) DO UPDATE
               SET channel_id = EXCLUDED.channel_id,
-                  message_id = EXCLUDED.message_id
+                  message_id = EXCLUDED.message_id,
+                  panel_message_id = EXCLUDED.panel_message_id
             """,
             interaction.guild_id,
             channel.id,
-            message.id,
+            leaderboard_message.id,
+            panel_message.id,
         )
         cog: CurrencyCog | None = self.bot.cogs.get("CurrencyCog")  # type: ignore[assignment]
         if cog:
             await cog._update_leaderboard_message()
-        await interaction.followup.send("✅ Currency leaderboard initialized.", ephemeral=True)
+        await interaction.followup.send(
+            f"✅ Currency panel + leaderboard posted in {channel.mention}. Funded **{funded}** new member(s).",
+            ephemeral=True,
+        )
+
+    @setup.command(name="betting", description="Set the channel where match betting cards are posted.")
+    @app_commands.describe(channel="Channel that will host the match betting cards")
+    @app_commands.default_permissions(manage_guild=True)
+    async def setup_betting(self, interaction: discord.Interaction, channel: discord.TextChannel) -> None:
+        cog: BettingCog | None = self.bot.cogs.get("BettingCog")  # type: ignore[assignment]
+        if cog and not cog.providers:
+            await interaction.response.send_message(
+                "❌ No betting provider is configured — set `FOOTBALL_DATA_API_KEY` and/or "
+                "`PANDASCORE_API_KEY`, then restart the bot.",
+                ephemeral=True,
+            )
+            return
+
+        await interaction.response.defer(ephemeral=True)
+        await betting_service.set_betting_channel(interaction.guild_id, channel.id)
+        created = await cog.poll_fixtures_now() if cog else 0
+        if created:
+            detail = f"Posted **{created}** upcoming match(es)."
+        else:
+            # Distinguish "working, nothing scheduled" from "broken" — otherwise they look identical.
+            detail = (
+                "No upcoming matches found in the next 7 days — the providers have nothing scheduled "
+                "right now. New fixtures will be posted automatically as they appear."
+            )
+        await interaction.followup.send(
+            f"✅ Betting channel set to {channel.mention}. {detail}",
+            ephemeral=True,
+        )
 
     @setup.command(name="queue", description="Post the game-queue control panel in a channel.")
     @app_commands.describe(channel="Channel that will host the queue panel and queue cards")

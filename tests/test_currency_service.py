@@ -93,6 +93,58 @@ async def test_claim_cooldown_remaining_returns_seconds():
 
 
 @pytest.mark.asyncio
+async def test_grant_refuses_to_push_balance_negative():
+    conn = AsyncMock()
+    conn.fetchrow.return_value = {"balance": 100}
+    pool = _mock_pool_with_conn(conn)
+
+    with patch("bot.cogs.currency.service.get_pool", return_value=pool):
+        result = await service.grant(guild_id=1, user_id=2, amount=-500, reason="admin_grant")
+
+    assert result is None
+    # No balance UPDATE / ledger row should have been written.
+    assert not any("UPDATE currency_wallets SET balance" in str(c) for c in conn.execute.call_args_list)
+
+
+@pytest.mark.asyncio
+async def test_grant_allows_debit_down_to_zero():
+    conn = AsyncMock()
+    conn.fetchrow.return_value = {"balance": 100}
+    pool = _mock_pool_with_conn(conn)
+
+    with patch("bot.cogs.currency.service.get_pool", return_value=pool):
+        result = await service.grant(guild_id=1, user_id=2, amount=-100, reason="admin_grant")
+
+    assert result == 0
+
+
+@pytest.mark.asyncio
+async def test_backfill_wallets_returns_count_created():
+    pool = MagicMock()
+    pool.fetch = AsyncMock(return_value=[{"user_id": 1}, {"user_id": 2}])
+
+    with patch("bot.cogs.currency.service.get_pool", return_value=pool):
+        created = await service.backfill_wallets(guild_id=9, user_ids=[1, 2, 3])
+
+    # Only two rows came back (user 3 already had a wallet), so only two were created.
+    assert created == 2
+    assert pool.fetch.call_args[0][1] == [1, 2, 3]
+    assert pool.fetch.call_args[0][3] == service.STARTING_BALANCE
+
+
+@pytest.mark.asyncio
+async def test_backfill_wallets_no_members_is_a_noop():
+    pool = MagicMock()
+    pool.fetch = AsyncMock()
+
+    with patch("bot.cogs.currency.service.get_pool", return_value=pool):
+        created = await service.backfill_wallets(guild_id=9, user_ids=[])
+
+    assert created == 0
+    pool.fetch.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_top_balances_queries_by_guild():
     pool = MagicMock()
     pool.fetch = AsyncMock(return_value=[{"user_id": 1, "balance": 500}])

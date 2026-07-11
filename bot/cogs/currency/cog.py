@@ -9,20 +9,11 @@ from discord.ext import commands, tasks
 from loguru import logger
 
 from bot.cogs.currency import service
+from bot.cogs.currency.embeds import CURRENCY_EMOJI, CURRENCY_NAME, build_leaderboard_embed
+from bot.cogs.currency.views import CurrencyPanelView, _fmt_duration
 from bot.db.client import get_pool
 
 PARIS_TZ = ZoneInfo("Europe/Paris")
-CURRENCY_NAME = "FloshCoins"
-CURRENCY_EMOJI = "🪙"
-
-
-def _fmt_duration(seconds: float) -> str:
-    seconds = max(0, int(seconds))
-    h, rem = divmod(seconds, 3600)
-    m = rem // 60
-    if h > 0:
-        return f"{h}h {m:02d}m"
-    return f"{m}m"
 
 
 class CurrencyCog(commands.Cog):
@@ -30,6 +21,7 @@ class CurrencyCog(commands.Cog):
         self.bot = bot
 
     async def cog_load(self) -> None:
+        self.bot.add_view(CurrencyPanelView())
         self.leaderboard_ticker.start()
 
     async def cog_unload(self) -> None:
@@ -71,6 +63,11 @@ class CurrencyCog(commands.Cog):
             await interaction.response.send_message("❌ Amount must be non-zero.", ephemeral=True)
             return
         new_balance = await service.grant(interaction.guild_id, user.id, amount, "admin_grant")
+        if new_balance is None:
+            await interaction.response.send_message(
+                f"❌ That would take {user.mention} below zero. Check their balance first.", ephemeral=True
+            )
+            return
         await interaction.response.send_message(
             f"✅ Adjusted {user.mention} by **{amount:+,}**. New balance: **{new_balance:,}**.",
             ephemeral=True,
@@ -89,12 +86,8 @@ class CurrencyCog(commands.Cog):
         logger.warning(f"leaderboard_ticker error (will retry next tick): {error}")
 
     async def _update_leaderboard_message(self) -> None:
-        config = self.bot.config  # type: ignore[attr-defined]
-        if not config.currency_leaderboard_channel_id:
-            return
-
         pool = get_pool()
-        guild_id = config.guild_id
+        guild_id = self.bot.config.guild_id  # type: ignore[attr-defined]
 
         row = await pool.fetchrow(
             "SELECT channel_id, message_id FROM currency_leaderboard WHERE guild_id = $1",
@@ -104,19 +97,14 @@ class CurrencyCog(commands.Cog):
             return
 
         rows = await service.top_balances(guild_id)
+        names = {}
+        for r in rows:
+            user = self.bot.get_user(r["user_id"])
+            if user:
+                names[r["user_id"]] = user.display_name
 
-        now = datetime.datetime.now(PARIS_TZ)
-        embed = discord.Embed(title=f"{CURRENCY_EMOJI} {CURRENCY_NAME} Leaderboard", color=discord.Color.gold())
-        embed.set_footer(text=f"Updated {now.strftime('%d/%m at %H:%M')}")
-        if not rows:
-            embed.description = "No wallets yet."
-        else:
-            lines = []
-            for i, r in enumerate(rows, 1):
-                user = self.bot.get_user(r["user_id"])
-                name = user.display_name if user else f"<@{r['user_id']}>"
-                lines.append(f"**#{i}** {name} — {r['balance']:,} {CURRENCY_EMOJI}")
-            embed.description = "\n".join(lines)
+        updated = datetime.datetime.now(PARIS_TZ).strftime("%d/%m at %H:%M")
+        embed = build_leaderboard_embed(rows, names, updated)
 
         guild = self.bot.get_guild(guild_id)
         if not guild:

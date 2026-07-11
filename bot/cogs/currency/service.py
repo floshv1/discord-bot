@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import asyncpg
 
 from bot.db.client import get_pool
@@ -85,11 +87,18 @@ async def adjust(
     return new_balance
 
 
-async def grant(guild_id: int, user_id: int, amount: int, reason: str) -> int:
-    """Standalone entry point for adjustments outside an existing transaction."""
+async def grant(guild_id: int, user_id: int, amount: int, reason: str, *, allow_negative: bool = False) -> int | None:
+    """Standalone entry point for adjustments outside an existing transaction.
+
+    Returns the new balance, or None if the change would push the wallet below zero
+    (which a careless `/currency give @user -99999` would otherwise do).
+    """
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
+            balance = await get_balance_locked(conn, guild_id=guild_id, user_id=user_id)
+            if not allow_negative and balance + amount < 0:
+                return None
             return await adjust(conn, guild_id=guild_id, user_id=user_id, amount=amount, reason=reason)
 
 
@@ -138,6 +147,28 @@ async def claim_cooldown_remaining(guild_id: int, user_id: int) -> float | None:
     )
     remaining = row["remaining"]
     return remaining if remaining and remaining > 0 else None
+
+
+async def backfill_wallets(guild_id: int, user_ids: Sequence[int]) -> int:
+    """Give every listed member a starting wallet. Members who already have one are left untouched.
+
+    Returns the number of wallets actually created.
+    """
+    if not user_ids:
+        return 0
+    pool = get_pool()
+    rows = await pool.fetch(
+        """
+        INSERT INTO currency_wallets (user_id, guild_id, balance)
+        SELECT unnest($1::BIGINT[]), $2, $3
+        ON CONFLICT (user_id) DO NOTHING
+        RETURNING user_id
+        """,
+        list(user_ids),
+        guild_id,
+        STARTING_BALANCE,
+    )
+    return len(rows)
 
 
 async def top_balances(guild_id: int, limit: int = 10) -> list[asyncpg.Record]:

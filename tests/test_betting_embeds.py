@@ -65,3 +65,39 @@ def test_lol_market_omits_draw_outcome():
     embed = build_market_embed(market, [_bet("home", 100)])
     pool_field = embed.fields[0].value
     assert "Draw" not in pool_field
+
+
+def _custom_market(status="open", winner=None):
+    return {
+        "sport": "custom",
+        "competition": "Who wins tonight's scrim?",
+        "home_name": "Team Blue",
+        "away_name": "Team Red",
+        "start_time": datetime.datetime(2026, 7, 15, 18, 0, tzinfo=datetime.UTC),
+        "status": status,
+        "winner": winner,
+        "creator_user_id": 4242,
+    }
+
+
+def test_custom_market_shows_question_and_user_options():
+    embed = build_market_embed(_custom_market(), [_bet("home", 100)])
+    assert "Who wins tonight's scrim?" in embed.description
+    pool_field = embed.fields[0].value
+    assert "Team Blue" in pool_field
+    assert "Team Red" in pool_field
+    assert "Draw" not in pool_field
+
+
+def test_custom_market_credits_its_creator():
+    embed = build_market_embed(_custom_market(), [])
+    assert any("4242" in f.value for f in embed.fields)
+
+
+def test_custom_market_resolved_names_winning_option():
+    embed = build_market_embed(
+        _custom_market(status="resolved", winner="away"),
+        [_bet("home", 100), _bet("away", 100)],
+    )
+    assert "Team Red" in embed.title
+    assert embed.color == discord.Color.green()

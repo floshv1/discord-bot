@@ -7,52 +7,65 @@ import discord
 from bot.cogs.betting.service import outcomes_for_market, pool_totals
 
 OUTCOME_EMOJI = {"home": "🏠", "draw": "🤝", "away": "🛫"}
+CUSTOM_OUTCOME_EMOJI = {"home": "🅰️", "away": "🅱️"}
+SPORT_EMOJI = {"football": "⚽", "lol": "🎮", "custom": "🎲"}
 
 
-def _sport_emoji(sport: str) -> str:
-    return "⚽" if sport == "football" else "🎮"
+def _is_custom(market: Mapping) -> bool:
+    return market["sport"] == "custom"
 
 
 def build_market_embed(market: Mapping, bets: Sequence[Mapping]) -> discord.Embed:
     status = market["status"]
+    custom = _is_custom(market)
     totals = pool_totals(bets)
     total_pool = sum(t["total"] for t in totals.values())
     ts = int(market["start_time"].timestamp())
+    emoji = CUSTOM_OUTCOME_EMOJI if custom else OUTCOME_EMOJI
 
     lines = []
     for key, label in outcomes_for_market(market):
         entry = totals.get(key, {"total": 0, "count": 0})
-        lines.append(f"{OUTCOME_EMOJI[key]} **{label}** — {entry['total']:,} 🪙 ({entry['count']} bets)")
+        lines.append(f"{emoji[key]} **{label}** — {entry['total']:,} 🪙 ({entry['count']} bets)")
+
+    if custom:
+        # For a custom bet the competition column holds the question being bet on.
+        matchup = market["competition"]
+        closing_word, closed_word, void_word = "Closes", "Betting closed — awaiting result", "Bet cancelled"
+    else:
+        matchup = f"**{market['home_name']}** vs **{market['away_name']}**"
+        closing_word, closed_word, void_word = "Kickoff", "Betting closed — match in progress", "Match voided"
 
     if status == "open":
-        title = f"{_sport_emoji(market['sport'])} {market['competition']}"
+        title = f"{SPORT_EMOJI[market['sport']]} {market['competition'] if not custom else 'Community bet'}"
         color = discord.Color.blurple()
-        description = f"**{market['home_name']}** vs **{market['away_name']}**\n\nKickoff: <t:{ts}:R>"
-        footer = "Betting closes at kickoff"
+        description = f"{matchup}\n\n{closing_word}: <t:{ts}:R>"
+        footer = f"Betting closes {'at kickoff' if not custom else 'soon'}"
     elif status == "locked":
-        title = f"🔒 {market['competition']}"
+        title = f"🔒 {market['competition'] if not custom else 'Community bet'}"
         color = discord.Color.greyple()
-        description = f"**{market['home_name']}** vs **{market['away_name']}**"
-        footer = "Betting closed — match in progress"
+        description = matchup
+        footer = closed_word
     elif status == "resolved":
         winner = market["winner"]
         winner_label = dict(outcomes_for_market(market)).get(winner, winner)
-        title = f"✅ {market['competition']} — {winner_label} won"
+        title = f"✅ {'Community bet' if custom else market['competition']} — {winner_label} won"
         color = discord.Color.green()
-        description = f"**{market['home_name']}** vs **{market['away_name']}**"
+        description = matchup
         winning_pool = totals.get(winner, {"total": 0})["total"]
         if winning_pool > 0:
-            multiplier = total_pool / winning_pool
-            footer = f"Payout: {multiplier:.2f}x stake"
+            footer = f"Payout: {total_pool / winning_pool:.2f}x stake"
         else:
             footer = "Nobody bet on the winning outcome — no payouts"
     else:  # void
-        title = f"⚠️ {market['competition']} — Match voided"
+        title = f"⚠️ {'Community bet' if custom else market['competition']} — {void_word}"
         color = discord.Color.red()
-        description = f"**{market['home_name']}** vs **{market['away_name']}**"
-        footer = "Match postponed or cancelled — all bets refunded"
+        description = matchup
+        footer = "All bets refunded"
 
     embed = discord.Embed(title=title, description=description, color=color)
     embed.add_field(name="Pool", value="\n".join(lines), inline=False)
+    if custom and market.get("creator_user_id"):
+        embed.add_field(name="Opened by", value=f"<@{market['creator_user_id']}>", inline=False)
     embed.set_footer(text=f"{footer} · Total pool: {total_pool:,} 🪙")
     return embed

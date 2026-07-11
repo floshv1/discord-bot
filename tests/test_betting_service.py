@@ -73,3 +73,11 @@ def test_outcomes_for_market_excludes_draw_for_lol():
         ("home", "G2"),
         ("away", "Fnatic"),
     ]
+
+
+def test_outcomes_for_custom_market_uses_user_labels():
+    market = {"sport": "custom", "home_name": "Team Blue", "away_name": "Team Red"}
+    assert outcomes_for_market(market) == [
+        ("home", "Team Blue"),
+        ("away", "Team Red"),
+    ]

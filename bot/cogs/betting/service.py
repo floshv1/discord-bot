@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import uuid
 from collections.abc import Mapping, Sequence
 from typing import Literal
 
@@ -42,12 +43,88 @@ def pool_totals(bets: Sequence[Mapping]) -> dict[str, dict[str, int]]:
 
 
 def outcomes_for_market(market: Mapping) -> list[tuple[str, str]]:
-    """The bettable (outcome_key, label) pairs for a market — omits Draw for sports with no draws."""
+    """The bettable (outcome_key, label) pairs for a market — only football can be drawn."""
     outcomes = [("home", market["home_name"])]
     if market["sport"] == "football":
         outcomes.append(("draw", "Draw"))
     outcomes.append(("away", market["away_name"]))
     return outcomes
+
+
+async def create_custom_market(
+    *,
+    guild_id: int,
+    creator_user_id: int,
+    title: str,
+    option_a: str,
+    option_b: str,
+    closes_at,
+) -> int:
+    """Open a user-created binary market. Its two options are stored as home_name/away_name.
+
+    Custom markets have no provider, so the resolution ticker skips them — the creator
+    (or a mod) settles them by hand with /bet resolve.
+    """
+    pool = get_pool()
+    row = await pool.fetchrow(
+        """
+        INSERT INTO betting_markets
+            (guild_id, provider, external_id, sport, competition,
+             home_name, away_name, start_time, creator_user_id)
+        VALUES ($1, 'custom', $2, 'custom', $3, $4, $5, $6, $7)
+        RETURNING id
+        """,
+        guild_id,
+        str(uuid.uuid4()),
+        title,
+        option_a,
+        option_b,
+        closes_at,
+        creator_user_id,
+    )
+    return row["id"]
+
+
+async def list_settleable_markets(guild_id: int) -> list[asyncpg.Record]:
+    """Every market still awaiting a result.
+
+    Includes provider markets, not just custom ones: if an API never reports a final
+    result the market would otherwise stay locked forever with everyone's stakes trapped,
+    so a mod needs to be able to settle or cancel it by hand.
+    """
+    pool = get_pool()
+    return await pool.fetch(
+        """
+        SELECT * FROM betting_markets
+        WHERE guild_id = $1 AND status IN ('open', 'locked')
+        ORDER BY start_time
+        """,
+        guild_id,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Guild config
+# ---------------------------------------------------------------------------
+
+
+async def set_betting_channel(guild_id: int, channel_id: int) -> None:
+    pool = get_pool()
+    await pool.execute(
+        """
+        INSERT INTO betting_config (guild_id, channel_id)
+        VALUES ($1, $2)
+        ON CONFLICT (guild_id) DO UPDATE SET channel_id = EXCLUDED.channel_id
+        """,
+        guild_id,
+        channel_id,
+    )
+
+
+async def get_betting_channel(guild_id: int) -> int | None:
+    pool = get_pool()
+    row = await pool.fetchrow("SELECT channel_id FROM betting_config WHERE guild_id = $1", guild_id)
+    return row["channel_id"] if row else None
 
 
 # ---------------------------------------------------------------------------
@@ -106,6 +183,22 @@ async def get_market(market_id: int) -> asyncpg.Record | None:
 async def get_bets(market_id: int) -> list[asyncpg.Record]:
     pool = get_pool()
     return await pool.fetch("SELECT * FROM betting_bets WHERE market_id = $1 ORDER BY created_at", market_id)
+
+
+async def get_active_bets_for_user(guild_id: int, user_id: int) -> list[asyncpg.Record]:
+    """A user's stakes on markets that haven't been settled yet."""
+    pool = get_pool()
+    return await pool.fetch(
+        """
+        SELECT b.amount, b.outcome, m.sport, m.competition, m.home_name, m.away_name, m.start_time, m.status
+        FROM betting_bets b
+        JOIN betting_markets m ON m.id = b.market_id
+        WHERE m.guild_id = $1 AND b.user_id = $2 AND m.status IN ('open', 'locked')
+        ORDER BY m.start_time
+        """,
+        guild_id,
+        user_id,
+    )
 
 
 async def get_open_markets(guild_id: int) -> list[asyncpg.Record]:
