@@ -27,7 +27,8 @@ async def test_adjust_credits_balance_and_records_transaction():
     update_call = conn.execute.call_args_list[1]
     assert update_call[0][1] == 600
     insert_txn_call = conn.execute.call_args_list[2]
-    assert insert_txn_call[0][1:] == (2, 1, 100, "test")
+    # balance_after is recorded too, so a wrong balance can be *located* in the ledger.
+    assert insert_txn_call[0][1:] == (2, 1, 100, "test", 600)
 
 
 @pytest.mark.asyncio
@@ -134,16 +135,22 @@ async def test_grant_allows_debit_down_to_zero():
 
 @pytest.mark.asyncio
 async def test_backfill_wallets_returns_count_created():
-    pool = MagicMock()
-    pool.fetch = AsyncMock(return_value=[{"user_id": 1}, {"user_id": 2}])
+    conn = AsyncMock()
+    conn.fetch.return_value = [{"user_id": 1}, {"user_id": 2}]
 
-    with patch("bot.cogs.currency.service.get_pool", return_value=pool):
+    with patch("bot.cogs.currency.service.get_pool", return_value=_mock_pool_with_conn(conn)):
         created = await service.backfill_wallets(guild_id=9, user_ids=[1, 2, 3])
 
     # Only two rows came back (user 3 already had a wallet), so only two were created.
     assert created == 2
-    assert pool.fetch.call_args[0][1] == [1, 2, 3]
-    assert pool.fetch.call_args[0][3] == service.STARTING_BALANCE
+    assert conn.fetch.call_args[0][1] == [1, 2, 3]
+    assert conn.fetch.call_args[0][3] == service.STARTING_BALANCE
+
+    # And each created wallet gets its opening balance written into the ledger, or the
+    # ledger could never rebuild a balance.
+    openings = [c for c in conn.execute.call_args_list if "currency_transactions" in str(c)]
+    assert len(openings) == 2
+    assert all(c[0][4] == "initial" for c in openings)
 
 
 @pytest.mark.asyncio

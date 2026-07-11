@@ -9,7 +9,13 @@ from discord.ext import commands, tasks
 from loguru import logger
 
 from bot.cogs.currency import service
-from bot.cogs.currency.embeds import CURRENCY_EMOJI, CURRENCY_NAME, build_leaderboard_embed
+from bot.cogs.currency.embeds import (
+    CURRENCY_EMOJI,
+    CURRENCY_NAME,
+    build_history_embed,
+    build_leaderboard_embed,
+    build_transactions_log_embed,
+)
 from bot.cogs.currency.views import CurrencyPanelView, _fmt_duration
 from bot.db.client import get_pool
 
@@ -23,10 +29,42 @@ class CurrencyCog(commands.Cog):
 
     async def cog_load(self) -> None:
         self.bot.add_view(CurrencyPanelView())
+        # Start the mirror at the end of the ledger, or the first boot after this ships would
+        # dump every transaction ever made into the log channel.
+        await service.start_log_cursor_at_latest(self.bot.config.guild_id)  # type: ignore[attr-defined]
         self.leaderboard_ticker.start()
+        self.transaction_log_ticker.start()
 
     async def cog_unload(self) -> None:
         self.leaderboard_ticker.cancel()
+        self.transaction_log_ticker.cancel()
+
+    @tasks.loop(seconds=20)
+    async def transaction_log_ticker(self) -> None:
+        """Mirror new ledger rows into the audit-log channel.
+
+        Reads the ledger rather than being called from the ten-odd places that move coins:
+        a transaction cannot be missed by someone forgetting to add a call.
+        """
+        config = self.bot.config  # type: ignore[attr-defined]
+        channel = self.bot.get_channel(config.log_channel_id)
+        if channel is None:
+            return
+        rows = await service.drain_new_transactions(config.guild_id)
+        if not rows:
+            return
+        await channel.send(
+            embed=build_transactions_log_embed(rows),
+            allowed_mentions=discord.AllowedMentions.none(),  # the log must not ping anyone
+        )
+
+    @transaction_log_ticker.before_loop
+    async def before_transaction_log_ticker(self) -> None:
+        await self.bot.wait_until_ready()
+
+    @transaction_log_ticker.error
+    async def transaction_log_ticker_error(self, error: BaseException) -> None:
+        logger.warning(f"transaction_log_ticker error (will retry next tick): {error}")
 
     def mark_leaderboard_dirty(self) -> None:
         """Ask for a leaderboard redraw on the next tick (see currency/leaderboard.py)."""
@@ -62,6 +100,31 @@ class CurrencyCog(commands.Cog):
             f"New balance: **{new_balance:,}**.",
             ephemeral=True,
         )
+
+    @currency.command(name="history", description=f"Voir l'historique des {CURRENCY_NAME} d'un membre.")
+    @app_commands.describe(user="Membre dont on veut l'historique")
+    @app_commands.default_permissions(manage_guild=True)
+    async def currency_history(self, interaction: discord.Interaction, user: discord.Member) -> None:
+        await interaction.response.defer(ephemeral=True)
+        wallet, _ = await service.get_or_create_wallet(interaction.guild_id, user.id)
+        rows = await service.get_history(interaction.guild_id, user.id)
+
+        embed = build_history_embed(user.display_name, rows, wallet["balance"])
+
+        # The ledger should add up to the wallet. If it doesn't, say so rather than quietly
+        # showing a total that disagrees with itself — that mismatch IS the incident.
+        total = await service.ledger_total(interaction.guild_id, user.id)
+        if total != wallet["balance"]:
+            embed.add_field(
+                name="⚠️ Incohérence",
+                value=(
+                    f"Le solde (**{wallet['balance']:,}**) ne correspond pas à la somme du "
+                    f"journal (**{total:,}**) — écart de **{wallet['balance'] - total:+,}**."
+                ),
+                inline=False,
+            )
+
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
     @currency.command(name="give", description=f"Grant or remove {CURRENCY_NAME} for a member.")
     @app_commands.describe(user="Member to adjust", amount="Amount to add (negative to remove)")
