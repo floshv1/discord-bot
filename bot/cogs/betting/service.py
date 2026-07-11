@@ -33,13 +33,44 @@ def settle_parimutuel(bets: Sequence[Mapping], winner: str) -> dict[int, int]:
 
 
 def pool_totals(bets: Sequence[Mapping]) -> dict[str, dict[str, int]]:
-    """Aggregate bets by outcome: {outcome: {"total": int, "count": int}}."""
+    """Aggregate bets by outcome: {outcome: {"total", "count", "backers"}}.
+
+    `count` is the number of bets; `backers` the number of distinct people. They differ when
+    someone tops up an existing position, and it's `backers` that people actually care about
+    ("12 people are on France"), the way Twitch counts predictors.
+    """
     totals: dict[str, dict[str, int]] = {}
+    users: dict[str, set] = {}
     for b in bets:
-        entry = totals.setdefault(b["outcome"], {"total": 0, "count": 0})
+        entry = totals.setdefault(b["outcome"], {"total": 0, "count": 0, "backers": 0})
         entry["total"] += b["amount"]
         entry["count"] += 1
+        if "user_id" in b:
+            users.setdefault(b["outcome"], set()).add(b["user_id"])
+    for outcome, entry in totals.items():
+        entry["backers"] = len(users.get(outcome, ())) or entry["count"]
     return totals
+
+
+def pool_shares(bets: Sequence[Mapping]) -> dict[str, float]:
+    """Each outcome's share of the total pool, 0.0-1.0 — the Twitch-style percentage split."""
+    totals = pool_totals(bets)
+    total_pool = sum(t["total"] for t in totals.values())
+    if not total_pool:
+        return {}
+    return {outcome: t["total"] / total_pool for outcome, t in totals.items()}
+
+
+def implied_odds(bets: Sequence[Mapping]) -> dict[str, float]:
+    """Current payout multiplier per outcome — the parimutuel 'cote'.
+
+    An outcome paying 2.5x means a 100 stake returns 250 if it wins. It falls straight out
+    of the pools (total / outcome), and is exactly what settle_parimutuel would pay today.
+    Outcomes with no money on them are omitted: their odds are undefined, not infinite.
+    """
+    totals = pool_totals(bets)
+    total_pool = sum(t["total"] for t in totals.values())
+    return {outcome: total_pool / t["total"] for outcome, t in totals.items() if t["total"] > 0}
 
 
 def outcomes_for_market(market: Mapping) -> list[tuple[str, str]]:
@@ -186,11 +217,19 @@ async def get_bets(market_id: int) -> list[asyncpg.Record]:
 
 
 async def get_active_bets_for_user(guild_id: int, user_id: int) -> list[asyncpg.Record]:
-    """A user's stakes on markets that haven't been settled yet."""
+    """A user's stakes on unsettled markets, with the pools needed to price them.
+
+    total_pool/outcome_pool come back per row so the caller can show what each bet would
+    return at today's odds (stake * total_pool / outcome_pool).
+    """
     pool = get_pool()
     return await pool.fetch(
         """
-        SELECT b.amount, b.outcome, m.sport, m.competition, m.home_name, m.away_name, m.start_time, m.status
+        SELECT b.amount, b.outcome, m.sport, m.competition, m.home_name, m.away_name,
+               m.start_time, m.status,
+               (SELECT SUM(amount) FROM betting_bets WHERE market_id = m.id) AS total_pool,
+               (SELECT SUM(amount) FROM betting_bets
+                 WHERE market_id = m.id AND outcome = b.outcome) AS outcome_pool
         FROM betting_bets b
         JOIN betting_markets m ON m.id = b.market_id
         WHERE m.guild_id = $1 AND b.user_id = $2 AND m.status IN ('open', 'locked')

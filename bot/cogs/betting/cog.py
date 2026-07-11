@@ -199,18 +199,29 @@ class BettingCog(commands.Cog):
             return
 
         staked = sum(r["amount"] for r in rows)
+        potential = 0
         lines = []
         for r in rows:
             label = dict(service.outcomes_for_market(r))[r["outcome"]]
             lock = "🔒" if r["status"] == "locked" else "🟢"
-            lines.append(f"{lock} **{_market_label(r)}** — {r['amount']:,} 🪙 on **{label}**")
+            odds = (r["total_pool"] or 0) / (r["outcome_pool"] or 1)
+            returns = int(r["amount"] * odds)
+            potential += returns
+            lines.append(
+                f"{lock} **{_market_label(r)}**\n"
+                f"⤷ {r['amount']:,} 🪙 on **{label}** · `{odds:.2f}x` → **{returns:,}** 🪙 if it wins"
+            )
 
         embed = discord.Embed(
             title="🎲 Your open bets",
             description="\n".join(lines),
             color=discord.Color.blurple(),
         )
-        embed.set_footer(text=f"{staked:,} 🪙 staked across {len(rows)} bet(s) · 🔒 = betting closed")
+        embed.set_footer(
+            text=(
+                f"{staked:,} 🪙 staked · {potential:,} 🪙 if everything wins · odds move until settlement · 🔒 = closed"
+            )
+        )
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @bet.command(name="resolve", description="Declare the winning outcome of a community bet and pay out.")

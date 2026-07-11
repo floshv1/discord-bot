@@ -121,8 +121,13 @@ class StakeModal(discord.ui.Modal, title="Place your bet"):
             return
 
         mark_dirty(interaction.client)  # the stake was just debited
+
+        # The stake is already in the pool, so the current odds are what it would pay today.
+        odds = service.implied_odds(await service.get_bets(self.market_id)).get(self.outcome, 1.0)
         await interaction.response.send_message(
-            f"✅ Bet placed: **{amount:,}** 🪙 on **{self.outcome_label}**. New balance: **{new_balance:,}**.",
+            f"✅ Bet placed: **{amount:,}** 🪙 on **{self.outcome_label}**.\n"
+            f"Returns **{int(amount * odds):,}** 🪙 if it wins (`{odds:.2f}x`, at current odds).\n"
+            f"New balance: **{new_balance:,}** 🪙.",
             ephemeral=True,
         )
         try:
