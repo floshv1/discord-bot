@@ -297,11 +297,21 @@ class BettingCog(commands.Cog):
             return
 
         await interaction.response.defer(ephemeral=True)
+        # Whether the fee comes back depends on whether anyone else joined — work that out
+        # before voiding, while the bets are still there to look at.
+        bets = await service.get_bets(market["id"])
+        fee_refunded = market["provider"] == "custom" and any(b["user_id"] != market["creator_user_id"] for b in bets)
+
         await service.void_market(market["id"])
         mark_dirty(self.bot)
         await refresh_market_message(self.bot, market["id"])
         await announce_result(self.bot, market["id"])
-        await interaction.followup.send("✅ Bet cancelled — all stakes refunded.", ephemeral=True)
+        note = (
+            f" Your **{CREATE_FEE:,}** 🪙 opening fee came back too."
+            if fee_refunded
+            else f" The **{CREATE_FEE:,}** 🪙 opening fee is not refunded, since nobody else bet on it."
+        )
+        await interaction.followup.send(f"✅ Bet cancelled — all stakes refunded.{note}", ephemeral=True)
 
     async def _settleable_or_error(self, interaction: discord.Interaction, bet: str):
         """Resolve the autocomplete value to a market the caller is allowed to settle."""

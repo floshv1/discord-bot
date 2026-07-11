@@ -59,8 +59,8 @@ This is already wired up correctly in `compose.yml`.
 
 | Variable | Type | Description |
 |---|---|---|
-| `VOICE_LEADERBOARD_CHANNEL_ID` | integer | Channel where the two pinned voice leaderboard embeds are posted. Run `/voice setup` after setting this. |
-| `BIRTHDAY_CHANNEL_ID` | integer | Channel where the two pinned birthday embeds live (upcoming + this month). Run `/birthday setup` after setting this. |
+| `VOICE_LEADERBOARD_CHANNEL_ID` | integer | Channel where the two pinned voice leaderboard embeds are posted. Run `/setup voice` after setting this. |
+| `BIRTHDAY_CHANNEL_ID` | integer | Channel where the two pinned birthday embeds live (upcoming + this month). Run `/setup birthday` after setting this. |
 | `BIRTHDAY_ANNOUNCE_CHANNEL_ID` | integer | Channel where birthday wishes are posted at midnight Paris time |
 | `LOG_IGNORED_CHANNEL_IDS` | string | Comma-separated list of channel IDs excluded from audit logs (e.g. `123,456,789`) |
 

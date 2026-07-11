@@ -170,3 +170,31 @@ async def test_top_balances_queries_by_guild():
     pool.fetch.assert_called_once()
     assert pool.fetch.call_args[0][1] == 1
     assert pool.fetch.call_args[0][2] == 5
+
+
+@pytest.mark.asyncio
+async def test_get_or_create_wallet_reports_a_freshly_created_wallet():
+    conn = AsyncMock()
+    conn.fetchval.return_value = 7  # the INSERT returned a row -> it created one
+    conn.fetchrow.return_value = {"balance": 1000}
+
+    with patch("bot.cogs.currency.service.get_pool", return_value=_mock_pool_with_conn(conn)):
+        wallet, created = await service.get_or_create_wallet(guild_id=1, user_id=7)
+
+    assert created is True
+    assert wallet["balance"] == 1000
+
+
+@pytest.mark.asyncio
+async def test_get_or_create_wallet_reports_an_existing_wallet():
+    # ON CONFLICT DO NOTHING returns no row -> the wallet already existed, so the
+    # leaderboard has nothing new to show and must not be redrawn.
+    conn = AsyncMock()
+    conn.fetchval.return_value = None
+    conn.fetchrow.return_value = {"balance": 250}
+
+    with patch("bot.cogs.currency.service.get_pool", return_value=_mock_pool_with_conn(conn)):
+        wallet, created = await service.get_or_create_wallet(guild_id=1, user_id=7)
+
+    assert created is False
+    assert wallet["balance"] == 250

@@ -123,7 +123,7 @@ Tracks time spent in voice channels per user and maintains two auto-updating pin
 
 | Command | Permission | Description |
 |---|---|---|
-| `/voice setup` | Manage Guild | Posts the two pinned leaderboard messages to `VOICE_LEADERBOARD_CHANNEL_ID` and records their IDs in the DB. Run once after setting the env var. Re-running updates the stored message IDs. |
+| `/setup voice` | Manage Guild | Posts the two pinned leaderboard messages to `VOICE_LEADERBOARD_CHANNEL_ID` and records their IDs in the DB. Run once after setting the env var. Re-running updates the stored message IDs. |
 
 ### Leaderboard format
 
@@ -215,13 +215,13 @@ GitHub-issue-style suggestion system. A fixed channel message with two buttons l
 
 ### Setup
 
-Run `/suggest setup <channel>` to post the entry-point message. This is idempotent — running it again moves the setup to a new channel.
+Run `/setup suggestions <channel>` to post the entry-point message. This is idempotent — running it again moves the setup to a new channel.
 
 ### Commands
 
 | Command | Permission | Description |
 |---|---|---|
-| `/suggest setup <channel>` | Manage Channels | Posts the fixed entry-point message with New Feature and Improvement buttons |
+| `/setup suggestions <channel>` | Manage Channels | Posts the fixed entry-point message with New Feature and Improvement buttons |
 | `/suggest status <number> <status>` | Kick Members | Updates a suggestion's status and edits the embed in place |
 
 ### Embed states
@@ -248,7 +248,7 @@ Members register their birthday once. Two pinned embeds update daily and the bot
 ### Setup
 
 1. Set `BIRTHDAY_CHANNEL_ID` (where the two pinned embeds live) and `BIRTHDAY_ANNOUNCE_CHANNEL_ID` (where birthday wishes are posted) in your env
-2. Run `/birthday setup` in any channel — the bot posts both embeds to `BIRTHDAY_CHANNEL_ID` and records their IDs in the DB
+2. Run `/setup birthday` in any channel — the bot posts both embeds to `BIRTHDAY_CHANNEL_ID` and records their IDs in the DB
 
 ### Commands
 
@@ -257,8 +257,7 @@ Members register their birthday once. Two pinned embeds update daily and the bot
 | `/birthday set <day> <month> <year>` | — | Registers or updates your birthday. Immediately refreshes both pinned embeds. |
 | `/birthday delete` | — | Removes your birthday from the DB and refreshes both embeds |
 | `/birthday list` | — | Ephemeral embed showing all upcoming birthdays sorted by next occurrence |
-| `/birthday month` | — | Ephemeral embed showing birthdays in the current calendar month |
-| `/birthday setup` | Manage Guild | Posts the two pinned embeds to `BIRTHDAY_CHANNEL_ID` and stores their message IDs. Safe to re-run — replaces existing stored IDs. |
+| `/setup birthday` | Manage Guild | Posts the two pinned embeds to `BIRTHDAY_CHANNEL_ID` and stores their message IDs. Safe to re-run — replaces existing stored IDs. |
 
 ### Pinned embeds
 

@@ -38,8 +38,9 @@ class CurrencyCog(commands.Cog):
     @app_commands.describe(user="Whose balance to check (defaults to you)")
     async def balance(self, interaction: discord.Interaction, user: discord.Member | None = None) -> None:
         target = user or interaction.user
-        wallet = await service.get_or_create_wallet(interaction.guild_id, target.id)
-        self.mark_leaderboard_dirty()  # may have just lazily created a wallet
+        wallet, created = await service.get_or_create_wallet(interaction.guild_id, target.id)
+        if created:
+            self.mark_leaderboard_dirty()  # a new wallet belongs on the leaderboard
         await interaction.response.send_message(
             f"{CURRENCY_EMOJI} **{target.display_name}** has **{wallet['balance']:,}** {CURRENCY_NAME}.",
             ephemeral=True,

@@ -46,6 +46,35 @@ def _next_occurrence(day: int, month: int, today: date) -> date:
     return _in_year(today.year + 1, month, day)
 
 
+async def claim_wishes_day(guild_id: int, today: date) -> bool:
+    """Claim today's birthday announcement. True for exactly one caller, once per day.
+
+    The wishes used to fire only inside the exact 00:00 minute, so a bot that was down or
+    slow across midnight skipped the day entirely — and one that restarted *during* that
+    minute could wish twice. Claiming the day in a single atomic statement makes the send
+    idempotent, and lets a bot that comes up late still catch the day up.
+
+    The very first claim for a guild only *seeds* the row and returns False: a bot being
+    installed (or this table being migrated in) at 3pm should not immediately blast wishes
+    at the channel. Announcements start from the next midnight.
+    """
+    pool = get_pool()
+    row = await pool.fetchrow(
+        """
+        INSERT INTO birthday_announcements (guild_id, last_wishes_on)
+        VALUES ($1, $2)
+        ON CONFLICT (guild_id) DO UPDATE SET last_wishes_on = EXCLUDED.last_wishes_on
+          WHERE birthday_announcements.last_wishes_on < EXCLUDED.last_wishes_on
+        RETURNING (xmax = 0) AS inserted
+        """,
+        guild_id,
+        today,
+    )
+    if row is None:
+        return False  # already announced today
+    return not row["inserted"]  # a fresh row is a seed, not a day we owe wishes for
+
+
 def _days_label(delta: int) -> str:
     if delta == 0:
         return "today 🎂"
@@ -65,16 +94,25 @@ class BirthdayCog(commands.Cog):
     @tasks.loop(minutes=1)
     async def birthday_ticker(self) -> None:
         now = datetime.datetime.now(PARIS_TZ)
-        if now.hour == 0 and now.minute == 0:
-            await self._update_upcoming_embed()
-            await self._update_month_embed()
-            await self._send_birthday_wishes(now)
+        guild_id = self.bot.config.guild_id  # type: ignore[attr-defined]
+        # Whoever claims the day sends the wishes. Normally that's the 00:00 tick; if the
+        # bot was down at midnight, it's the first tick after it comes back, so the day
+        # isn't lost. Either way it happens once.
+        if not await claim_wishes_day(guild_id, now.date()):
+            return
+        await self._update_upcoming_embed()
+        await self._update_month_embed()
+        await self._send_birthday_wishes(now)
 
     @birthday_ticker.before_loop
     async def before_birthday_ticker(self) -> None:
         await self.bot.wait_until_ready()
         await self._update_upcoming_embed()
         await self._update_month_embed()
+
+    @birthday_ticker.error
+    async def birthday_ticker_error(self, error: BaseException) -> None:
+        logger.warning(f"birthday_ticker error (will retry next tick): {error}")
 
     async def _update_upcoming_embed(self) -> None:
         config = self.bot.config  # type: ignore[attr-defined]
@@ -253,8 +291,9 @@ class BirthdayCog(commands.Cog):
     async def birthday_delete(self, interaction: discord.Interaction) -> None:
         pool = get_pool()
         result = await pool.execute(
-            "DELETE FROM birthdays WHERE user_id = $1",
+            "DELETE FROM birthdays WHERE user_id = $1 AND guild_id = $2",
             interaction.user.id,
+            interaction.guild_id,
         )
         if result == "DELETE 0":
             await interaction.response.send_message("You have no birthday registered.", ephemeral=True)

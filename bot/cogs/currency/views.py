@@ -52,8 +52,9 @@ class BalanceButton(discord.ui.Button):
         )
 
     async def callback(self, interaction: discord.Interaction) -> None:
-        wallet = await service.get_or_create_wallet(interaction.guild_id, interaction.user.id)
-        mark_dirty(interaction.client)  # may have just lazily created a wallet
+        wallet, created = await service.get_or_create_wallet(interaction.guild_id, interaction.user.id)
+        if created:
+            mark_dirty(interaction.client)  # a new wallet belongs on the leaderboard
         await interaction.response.send_message(
             f"{CURRENCY_EMOJI} You have **{wallet['balance']:,}** {CURRENCY_NAME}.",
             ephemeral=True,

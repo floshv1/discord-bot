@@ -13,28 +13,36 @@ CLAIM_AMOUNT = 100
 CLAIM_TZ = "Europe/Paris"
 
 
-async def get_or_create_wallet(guild_id: int, user_id: int) -> asyncpg.Record:
+async def get_or_create_wallet(guild_id: int, user_id: int) -> tuple[asyncpg.Record, bool]:
+    """The member's wallet, plus whether this call is what created it.
+
+    Callers use the flag to decide whether the leaderboard actually needs redrawing:
+    merely *looking* at a balance changes nothing, and redrawing on every /balance meant
+    someone repeatedly checking their coins kept re-editing the leaderboard message.
+    """
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
-            await conn.execute(
+            created = await conn.fetchval(
                 """
                 INSERT INTO currency_wallets (user_id, guild_id, balance)
                 VALUES ($1, $2, $3)
                 ON CONFLICT (user_id) DO NOTHING
+                RETURNING user_id
                 """,
                 user_id,
                 guild_id,
                 STARTING_BALANCE,
             )
-            return await conn.fetchrow(
+            wallet = await conn.fetchrow(
                 "SELECT * FROM currency_wallets WHERE user_id = $1",
                 user_id,
             )
+            return wallet, created is not None
 
 
 async def get_balance(guild_id: int, user_id: int) -> int:
-    wallet = await get_or_create_wallet(guild_id, user_id)
+    wallet, _ = await get_or_create_wallet(guild_id, user_id)
     return wallet["balance"]
 
 
@@ -144,7 +152,7 @@ async def claim(guild_id: int, user_id: int) -> int | None:
 
 async def claim_cooldown_remaining(guild_id: int, user_id: int) -> float | None:
     """Seconds until midnight (Paris), when the next claim unlocks. None if claimable now."""
-    wallet = await get_or_create_wallet(guild_id, user_id)
+    wallet, _ = await get_or_create_wallet(guild_id, user_id)
     if wallet["last_claim_at"] is None:
         return None
     pool = get_pool()

@@ -384,11 +384,30 @@ async def void_market(market_id: int) -> None:
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
-            market = await conn.fetchrow("SELECT guild_id FROM betting_markets WHERE id = $1 FOR UPDATE", market_id)
+            market = await conn.fetchrow(
+                "SELECT guild_id, provider, creator_user_id FROM betting_markets WHERE id = $1 FOR UPDATE",
+                market_id,
+            )
             bets = await conn.fetch("SELECT * FROM betting_bets WHERE market_id = $1", market_id)
             for bet in bets:
                 await conn.execute("UPDATE betting_bets SET payout = $1 WHERE id = $2", bet["amount"], bet["id"])
                 await currency_service.adjust(
                     conn, guild_id=market["guild_id"], user_id=bet["user_id"], amount=bet["amount"], reason="refund"
                 )
+
+            # Give the creation fee back, but only for a bet other people actually joined.
+            # Cancelling a bet nobody touched is the very case the fee exists to deter, and
+            # refunding it there would make create-and-cancel a free spam loop — including
+            # the creator staking on their own bet to fake participation.
+            creator = market["creator_user_id"]
+            if market["provider"] == "custom" and creator is not None:
+                if any(bet["user_id"] != creator for bet in bets):
+                    await currency_service.adjust(
+                        conn,
+                        guild_id=market["guild_id"],
+                        user_id=creator,
+                        amount=CREATE_FEE,
+                        reason="bet_create_fee_refund",
+                    )
+
             await conn.execute("UPDATE betting_markets SET status = 'void' WHERE id = $1", market_id)
