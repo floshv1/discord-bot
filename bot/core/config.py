@@ -1,5 +1,20 @@
 import os
 
+# Silenced in the log *channel* by default — still written to the audit_logs table.
+# These are the event types that would otherwise drown the channel: mirroring every
+# message roughly doubles the guild's message volume, and a squad on push-to-talk
+# emits hundreds of mute/unmute embeds an hour.
+DEFAULT_MUTED_LOG_EVENTS = frozenset(
+    {
+        "message_sent",
+        "slash_command",
+        "voice_muted",
+        "voice_unmuted",
+        "voice_deafened",
+        "voice_undeafened",
+    }
+)
+
 
 class ConfigError(Exception):
     pass
@@ -12,6 +27,7 @@ class Config:
         self.guild_id: int = self._require_int("GUILD_ID")
         self.log_channel_id: int = self._require_int("LOG_CHANNEL_ID")
         self.log_ignored_channel_ids: set[int] = self._optional_int_set("LOG_IGNORED_CHANNEL_IDS")
+        self.log_muted_events: set[str] = self._optional_str_set("LOG_MUTED_EVENTS", DEFAULT_MUTED_LOG_EVENTS)
         self.voice_leaderboard_channel_id: int | None = self._optional_int("VOICE_LEADERBOARD_CHANNEL_ID")
         self.birthday_channel_id: int | None = self._optional_int("BIRTHDAY_CHANNEL_ID")
         self.birthday_announce_channel_id: int | None = self._optional_int("BIRTHDAY_ANNOUNCE_CHANNEL_ID")
@@ -49,6 +65,14 @@ class Config:
                 except ValueError:
                     raise ConfigError(f"Environment variable '{key}' must be comma-separated integers, got: '{part}'")
         return result
+
+    @staticmethod
+    def _optional_str_set(key: str, default: frozenset[str]) -> set[str]:
+        """Unset falls back to ``default``; set-but-empty means an explicit empty set."""
+        raw = os.environ.get(key)
+        if raw is None:
+            return set(default)
+        return {part.strip().lower() for part in raw.split(",") if part.strip()}
 
     @staticmethod
     def _optional_int(key: str) -> int | None:

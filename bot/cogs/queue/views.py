@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import discord
-from loguru import logger
 
 from bot.cogs.queue import service
 from bot.cogs.queue.embeds import build_queue_embed
@@ -164,11 +163,8 @@ class CloseButton(discord.ui.Button):
         if not queue or queue["status"] not in ("open", "filled"):
             await interaction.response.send_message("This queue is no longer active.", ephemeral=True)
             return
-        can_close = await service.is_member(queue_id, interaction.user.id) or (
-            interaction.user.guild_permissions.manage_messages
-        )
-        if not can_close:
-            await interaction.response.send_message("Only someone in the queue can close it.", ephemeral=True)
+        if not service.can_close_queue(queue, interaction.user.id, interaction.user.guild_permissions.manage_messages):
+            await interaction.response.send_message("Only the host can close this queue.", ephemeral=True)
             return
         await service.close_queue(queue_id)
         queue, members = await service.fetch_queue_state(queue_id)
@@ -392,7 +388,9 @@ class OtherGameModal(discord.ui.Modal, title="New game queue"):
                 return
 
         name = str(self.game_input).strip().lower()
-        preset = await service.upsert_preset(interaction.guild_id, name, count)
+        # Ad-hoc: this queue is real, but the game doesn't earn a permanent panel button.
+        # Only a mod running /queue add can do that.
+        preset = await service.upsert_preset(interaction.guild_id, name, count, on_panel=False)
         await interaction.response.send_message("✅ Queue created — see the channel 👇", ephemeral=True)
         await _create_and_post_queue(
             interaction,
@@ -401,12 +399,6 @@ class OtherGameModal(discord.ui.Modal, title="New game queue"):
             player_count=count,
             start_time=start_time,
         )
-        cog = interaction.client.get_cog("QueueCog")
-        if cog:
-            try:
-                await cog.refresh_panel()
-            except Exception as exc:  # pragma: no cover - best-effort panel refresh
-                logger.warning(f"Failed to refresh queue panel: {exc}")
 
 
 class SubscriptionSelect(discord.ui.Select):

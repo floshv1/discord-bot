@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import calendar
 import datetime
 from datetime import date
 from zoneinfo import ZoneInfo
@@ -28,14 +29,21 @@ MONTHS_EN = [
 ]
 
 
+def _in_year(year: int, month: int, day: int) -> date:
+    """The birthday as it falls in ``year``, clamped to the last day of the month.
+
+    Feb 29 lands on Feb 28 in a non-leap year: a birthday that shifts by a day beats
+    one that disappears for three years.
+    """
+    last_day = calendar.monthrange(year, month)[1]
+    return date(year, month, min(day, last_day))
+
+
 def _next_occurrence(day: int, month: int, today: date) -> date:
-    try:
-        d = date(today.year, month, day)
-        if d < today:
-            d = date(today.year + 1, month, day)
-        return d
-    except ValueError:
-        return date(today.year + 1, month, day)
+    this_year = _in_year(today.year, month, day)
+    if this_year >= today:
+        return this_year
+    return _in_year(today.year + 1, month, day)
 
 
 def _days_label(delta: int) -> str:

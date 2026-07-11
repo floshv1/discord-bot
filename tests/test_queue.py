@@ -1,10 +1,13 @@
 import datetime
+from unittest.mock import AsyncMock, MagicMock, patch
 from zoneinfo import ZoneInfo
 
 import discord
+import pytest
 
+from bot.cogs.queue import service
 from bot.cogs.queue.embeds import build_queue_embed
-from bot.cogs.queue.service import parse_start_time
+from bot.cogs.queue.service import can_close_queue, parse_start_time
 
 PARIS_TZ = ZoneInfo("Europe/Paris")
 
@@ -90,3 +93,55 @@ def test_parse_start_time_rolls_to_tomorrow_when_past():
 def test_parse_start_time_invalid():
     assert parse_start_time("not-a-time") is None
     assert parse_start_time("25:00") is None
+
+
+# --- who may close a queue -------------------------------------------------
+
+
+def test_host_can_close_their_own_queue():
+    assert can_close_queue(_queue(creator_user_id=42), user_id=42, is_mod=False) is True
+
+
+def test_mod_can_close_anyones_queue():
+    assert can_close_queue(_queue(creator_user_id=42), user_id=99, is_mod=True) is True
+
+
+def test_joiner_cannot_close_someone_elses_queue():
+    # A drive-by joiner must not be able to kill the host's lobby.
+    assert can_close_queue(_queue(creator_user_id=42), user_id=99, is_mod=False) is False
+
+
+# --- ad-hoc presets must not pollute the shared panel ----------------------
+
+
+@pytest.mark.asyncio
+async def test_list_presets_only_returns_panel_presets():
+    pool = MagicMock()
+    pool.fetch = AsyncMock(return_value=[])
+    with patch("bot.cogs.queue.service.get_pool", return_value=pool):
+        await service.list_presets(guild_id=1)
+
+    sql = pool.fetch.call_args[0][0]
+    assert "on_panel" in sql, "the panel must not list ad-hoc, member-created presets"
+
+
+@pytest.mark.asyncio
+async def test_upsert_preset_defaults_to_on_panel():
+    pool = MagicMock()
+    pool.execute = AsyncMock()
+    pool.fetchrow = AsyncMock(return_value={"id": 1, "name": "lol", "player_count": 5})
+    with patch("bot.cogs.queue.service.get_pool", return_value=pool):
+        await service.upsert_preset(guild_id=1, name="lol", player_count=5)
+
+    assert pool.execute.call_args[0][4] is True
+
+
+@pytest.mark.asyncio
+async def test_upsert_preset_can_create_an_ad_hoc_preset():
+    pool = MagicMock()
+    pool.execute = AsyncMock()
+    pool.fetchrow = AsyncMock(return_value={"id": 1, "name": "valorant", "player_count": 5})
+    with patch("bot.cogs.queue.service.get_pool", return_value=pool):
+        await service.upsert_preset(guild_id=1, name="valorant", player_count=5, on_panel=False)
+
+    assert pool.execute.call_args[0][4] is False

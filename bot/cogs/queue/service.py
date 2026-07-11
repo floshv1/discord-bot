@@ -29,9 +29,10 @@ def parse_start_time(time_str: str) -> datetime.datetime | None:
 
 
 async def list_presets(guild_id: int):
+    """The presets that get a button on the shared panel. Ad-hoc ones are excluded."""
     pool = get_pool()
     return await pool.fetch(
-        "SELECT id, name, player_count FROM game_presets WHERE guild_id = $1 ORDER BY name",
+        "SELECT id, name, player_count FROM game_presets WHERE guild_id = $1 AND on_panel ORDER BY name",
         guild_id,
     )
 
@@ -44,24 +45,40 @@ async def get_preset(preset_id: int):
     )
 
 
-async def upsert_preset(guild_id: int, name: str, player_count: int):
-    """Insert the preset if missing, otherwise return the existing row unchanged."""
+async def upsert_preset(guild_id: int, name: str, player_count: int, on_panel: bool = True):
+    """Insert the preset if missing, otherwise return the existing row unchanged.
+
+    ``on_panel=False`` makes it ad-hoc: usable for a one-off queue, but no button on the
+    shared panel. Promotion is one-way — a mod running /queue add on an existing ad-hoc
+    preset gives it a button, but a member's ad-hoc queue never takes one away.
+    """
     pool = get_pool()
     await pool.execute(
         """
-        INSERT INTO game_presets (guild_id, name, player_count)
-        VALUES ($1, $2, $3)
-        ON CONFLICT (guild_id, name) DO NOTHING
+        INSERT INTO game_presets (guild_id, name, player_count, on_panel)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (guild_id, name) DO UPDATE
+          SET on_panel = game_presets.on_panel OR EXCLUDED.on_panel
         """,
         guild_id,
         name,
         player_count,
+        on_panel,
     )
     return await pool.fetchrow(
         "SELECT id, name, player_count FROM game_presets WHERE guild_id = $1 AND name = $2",
         guild_id,
         name,
     )
+
+
+def can_close_queue(queue, user_id: int, is_mod: bool) -> bool:
+    """Only the host (or a mod) may close a queue.
+
+    This used to allow anyone who had *joined*, which let a drive-by joiner kill someone
+    else's lobby. Matches the host-only gate already on the start-time button.
+    """
+    return is_mod or queue["creator_user_id"] == user_id
 
 
 # ---------------------------------------------------------------------------

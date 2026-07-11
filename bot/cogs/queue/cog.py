@@ -167,6 +167,12 @@ class QueueCog(commands.Cog):
             mentions = " ".join(f"<@{m['user_id']}>" for m in members)
             await channel.send(f"⏰ **{row['game_name'].upper()}** starts in ~10 minutes! {mentions}")
 
+    @queue_ticker.error
+    async def queue_ticker_error(self, error: BaseException) -> None:
+        # Without this, one exception permanently kills the loop and auto-close, idle
+        # expiry and start reminders all stop silently until the next restart.
+        logger.warning(f"queue_ticker error (will retry next tick): {error}")
+
     @queue_ticker.before_loop
     async def before_ticker(self) -> None:
         await self.bot.wait_until_ready()
@@ -180,17 +186,9 @@ class QueueCog(commands.Cog):
         if player_count < 2 or player_count > 100:
             await interaction.response.send_message("Player count must be between 2 and 100.", ephemeral=True)
             return
-        pool = get_pool()
-        try:
-            await pool.execute(
-                "INSERT INTO game_presets (guild_id, name, player_count) VALUES ($1, $2, $3)",
-                interaction.guild_id,
-                game.lower(),
-                player_count,
-            )
-        except Exception:
-            await interaction.response.send_message(f"A preset for **{game}** already exists.", ephemeral=True)
-            return
+        # on_panel=True also promotes an existing ad-hoc preset (one a member created via
+        # the panel's "Other" button) into a permanent panel button.
+        await service.upsert_preset(interaction.guild_id, game.lower(), player_count, on_panel=True)
         await self.refresh_panel()
         await interaction.response.send_message(f"Added preset **{game}** ({player_count} players).", ephemeral=True)
 

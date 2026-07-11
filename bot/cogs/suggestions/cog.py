@@ -162,7 +162,7 @@ class SuggestionModal(discord.ui.Modal, title="Submit a Suggestion"):
         )
         if not config_row:
             await interaction.response.send_message(
-                "Suggestion system not configured. Ask an admin to run `/suggest setup`.",
+                "Suggestion system not configured. Ask an admin to run `/setup suggestions`.",
                 ephemeral=True,
             )
             return
@@ -198,7 +198,7 @@ class SuggestionModal(discord.ui.Modal, title="Submit a Suggestion"):
         channel = interaction.guild.get_channel(config_row["channel_id"])
         if channel is None:
             await interaction.response.send_message(
-                "The suggestion channel no longer exists. Ask an admin to run `/suggest setup` again.",
+                "The suggestion channel no longer exists. Ask an admin to run `/setup suggestions` again.",
                 ephemeral=True,
             )
             return

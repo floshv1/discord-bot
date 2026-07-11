@@ -3,6 +3,7 @@ from discord.ext import commands
 from loguru import logger
 
 from bot.core.config import Config
+from bot.core.errors import handle_app_command_error
 from bot.db.client import create_pool, run_migrations
 from bot.db.models import load_all_migrations
 
@@ -34,6 +35,10 @@ class DiscordBot(commands.Bot):
         super().__init__(command_prefix=[], intents=intents)
 
     async def setup_hook(self) -> None:
+        # Without this, any unhandled exception in a command leaves the member staring at
+        # "The application did not respond" (or a spinner that never resolves).
+        self.tree.on_error = handle_app_command_error
+
         pool = await create_pool(self.config.database_url)
         await run_migrations(pool, load_all_migrations())
 
