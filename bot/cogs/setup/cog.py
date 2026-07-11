@@ -221,18 +221,12 @@ class SetupCog(commands.Cog):
 
         await interaction.response.defer(ephemeral=True)
         await betting_service.set_betting_channel(interaction.guild_id, channel.id)
-        created = await cog.poll_fixtures_now() if cog else {}
+        stats = await cog.poll_fixtures_now() if cog else {}
 
-        # Report per provider: "football_data: 5, pandascore: 0" makes it obvious at a glance
-        # which feed is working, instead of a single number that hides a dead provider.
-        lines = [f"• `{name}` — **{count}** match(es)" for name, count in created.items()]
-        total = sum(created.values())
+        # Report per provider so a dead feed is obvious, and so "already posted" doesn't
+        # read as "broken" — both would otherwise show up as zero new markets.
+        lines = [f"• `{name}` — {stat.summary()}" for name, stat in stats.items()]
         detail = "\n".join(lines) if lines else "_No providers configured._"
-        if not total:
-            detail += (
-                "\n\nNothing posted. Either the providers have no fixtures in the next 7 days, "
-                "or a key/plan is rejecting us — check the bot logs for a `fixtures request failed` warning."
-            )
         await interaction.followup.send(
             f"✅ Betting channel set to {channel.mention}.\n\n{detail}",
             ephemeral=True,

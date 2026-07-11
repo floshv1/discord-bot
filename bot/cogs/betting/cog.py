@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime
+from dataclasses import dataclass
 
 import discord
 from discord import app_commands
@@ -19,6 +20,33 @@ FIXTURE_LOOKAHEAD_DAYS = 7
 MAX_CUSTOM_BET_HOURS = 24 * 14  # two weeks
 MAX_OPTION_LEN = 30  # fits Discord's 45-char modal title once "Bet on " is prepended
 MAX_QUESTION_LEN = 100  # fits the autocomplete choice-name limit
+
+
+@dataclass
+class PollStats:
+    """Outcome of polling one provider. `existing` matters: it's how we tell 'already posted'
+    apart from 'the feed is broken', which otherwise both show up as zero new markets."""
+
+    created: int = 0
+    existing: int = 0
+    restored: int = 0
+    failed: bool = False
+
+    def summary(self) -> str:
+        if self.failed:
+            return "⚠️ request failed — see logs"
+        bits = []
+        if self.created:
+            bits.append(f"**{self.created}** new match(es) posted")
+        if self.restored:
+            bits.append(f"**{self.restored}** re-posted (card was missing)")
+        if bits:
+            if self.existing:
+                bits.append(f"{self.existing} already up")
+            return ", ".join(bits)
+        if self.existing:
+            return f"up to date (**{self.existing}** already posted)"
+        return "no upcoming fixtures found"
 
 
 def _market_label(market) -> str:
@@ -245,39 +273,78 @@ class BettingCog(commands.Cog):
     # Fixture polling — create new markets from upcoming provider fixtures
     # -----------------------------------------------------------------
 
-    async def poll_fixtures_now(self) -> dict[str, int]:
-        """Post a card for every new fixture from every provider. Returns {provider: markets_created}.
+    async def poll_fixtures_now(self) -> dict[str, PollStats]:
+        """Post a card for every new fixture from every provider. Returns per-provider stats.
 
         Each provider and each fixture is isolated: one failing provider (or one malformed
         fixture) must not stop the others from being posted.
         """
         guild_id = self.bot.config.guild_id  # type: ignore[attr-defined]
-        created = {p.name: 0 for p in self.providers}
+        stats = {p.name: PollStats() for p in self.providers}
 
         guild = self.bot.get_guild(guild_id)
         if not guild:
-            return created
+            return stats
         channel_id = await service.get_betting_channel(guild_id)
         if not channel_id:
-            return created  # /setup betting hasn't been run yet
+            return stats  # /setup betting hasn't been run yet
         channel = guild.get_channel(channel_id)
         if not channel:
-            return created
+            return stats
+
+        # An open market whose card was deleted (or whose channel moved) is unbettable but
+        # still blocks re-creation, since the fixture already exists. Re-post it.
+        for market in await service.get_open_markets(guild_id):
+            stat = stats.setdefault(market["provider"], PollStats())
+            try:
+                if await self._ensure_card(channel, market):
+                    stat.restored += 1
+            except Exception:
+                logger.exception(f"Failed to restore card for market {market['id']}")
 
         for provider in self.providers:
+            stat = stats[provider.name]
             try:
                 fixtures = await provider.list_upcoming(FIXTURE_LOOKAHEAD_DAYS)
             except Exception:
                 logger.exception(f"Provider {provider.name} failed to list fixtures; skipping it this poll")
+                stat.failed = True
                 continue
 
             for fixture in fixtures:
                 try:
                     if await self._post_fixture(channel, provider.name, fixture):
-                        created[provider.name] += 1
+                        stat.created += 1
+                    else:
+                        stat.existing += 1
                 except Exception:
                     logger.exception(f"Failed to post fixture {provider.name}:{fixture.external_id}; skipping it")
-        return created
+        return stats
+
+    async def _ensure_card(self, channel, market) -> bool:
+        """Re-post a market's card if its message is gone. Returns True if it was re-posted.
+
+        Any existing bets are preserved — only the message is recreated, so the pool carries over.
+        """
+        if market["channel_id"] and market["message_id"]:
+            old_channel = self.bot.get_channel(market["channel_id"])
+            if old_channel is not None:
+                try:
+                    await old_channel.fetch_message(market["message_id"])
+                    return False  # card is still there, nothing to do
+                except discord.NotFound:
+                    pass  # deleted — fall through and re-post
+                except discord.HTTPException:
+                    # Transient failure: assume it's still there rather than risk a duplicate.
+                    return False
+
+        bets = await service.get_bets(market["id"])
+        view = MarketView(market["id"], service.outcomes_for_market(market))
+        card = await channel.send(embed=build_market_embed(market, bets), view=view)
+        await service.set_market_message(market["id"], channel.id, card.id)
+        self.bot.add_view(view)
+        logger.info(f"Re-posted missing card for market {market['id']}")
+        return True
 
     async def _post_fixture(self, channel, provider_name: str, fixture) -> bool:
         """Create and post one market. Returns False if it already existed."""

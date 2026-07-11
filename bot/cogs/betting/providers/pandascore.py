@@ -22,32 +22,67 @@ class PandaScoreProvider:
 
     def __init__(self, api_key: str) -> None:
         self._api_key = api_key
+        self._league_ids: list[int] | None = None
 
     def _headers(self) -> dict[str, str]:
         return {"Authorization": f"Bearer {self._api_key}"}
 
-    async def list_upcoming(self, days: int) -> list[FixtureDTO]:
+    async def _get(self, session: aiohttp.ClientSession, path: str, params: dict | None = None):
+        """GET a PandaScore endpoint, returning parsed JSON or None on any failure."""
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    f"{BASE_URL}/lol/matches/upcoming",
-                    headers=self._headers(),
-                    params={"filter[league_name]": ",".join(LEAGUES), "sort": "begin_at", "per_page": 50},
-                    timeout=aiohttp.ClientTimeout(total=10),
-                ) as resp:
-                    if resp.status != 200:
-                        # 401/403 here usually means the API key is wrong or the plan doesn't
-                        # include LoL — worth distinguishing from "no matches scheduled".
-                        body = (await resp.text())[:200]
-                        logger.warning(f"PandaScore fixtures request failed: HTTP {resp.status} — {body}")
-                        return []
-                    matches = await resp.json()
+            async with session.get(
+                f"{BASE_URL}{path}",
+                headers=self._headers(),
+                params=params,
+                timeout=aiohttp.ClientTimeout(total=10),
+            ) as resp:
+                if resp.status != 200:
+                    # 401/403 means a bad key or a plan that doesn't cover LoL; 400 means we
+                    # sent a filter this resource doesn't have. Log the body — it says which.
+                    body = (await resp.text())[:200]
+                    logger.warning(f"PandaScore {path} failed: HTTP {resp.status} — {body}")
+                    return None
+                return await resp.json()
         except (aiohttp.ClientError, TimeoutError) as e:
-            logger.warning(f"PandaScore fixtures request failed: {e}")
+            logger.warning(f"PandaScore {path} failed: {e}")
+            return None
+
+    async def _resolve_league_ids(self, session: aiohttp.ClientSession) -> list[int]:
+        """Look up the numeric ids of the leagues we care about, once, and cache them.
+
+        A match has a `league_id` but no `league_name`, so filtering matches by name is a
+        400. Names only exist on the leagues resource, hence this extra hop.
+        """
+        if self._league_ids is not None:
+            return self._league_ids
+
+        leagues = await self._get(session, "/lol/leagues", {"filter[name]": ",".join(LEAGUES)})
+        if not leagues:
+            logger.warning(f"PandaScore matched none of the configured leagues: {', '.join(LEAGUES)}")
+            self._league_ids = []
             return []
 
+        self._league_ids = [league["id"] for league in leagues]
+        found = ", ".join(f"{league['name']} ({league['id']})" for league in leagues)
+        logger.info(f"PandaScore leagues resolved: {found}")
+        return self._league_ids
+
+    async def list_upcoming(self, days: int) -> list[FixtureDTO]:
+        async with aiohttp.ClientSession() as session:
+            league_ids = await self._resolve_league_ids(session)
+            if not league_ids:
+                return []
+            matches = await self._get(
+                session,
+                "/lol/matches/upcoming",
+                {
+                    "filter[league_id]": ",".join(str(i) for i in league_ids),
+                    "sort": "begin_at",
+                    "per_page": 100,
+                },
+            )
         if not matches:
-            logger.info(f"PandaScore returned no upcoming matches for leagues: {', '.join(LEAGUES)}")
+            return []
 
         cutoff = datetime.datetime.now(datetime.UTC) + datetime.timedelta(days=days)
         fixtures = []
@@ -80,19 +115,9 @@ class PandaScoreProvider:
         return fixtures
 
     async def get_result(self, external_id: str) -> ResultDTO | None:
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    f"{BASE_URL}/lol/matches/{external_id}",
-                    headers=self._headers(),
-                    timeout=aiohttp.ClientTimeout(total=10),
-                ) as resp:
-                    if resp.status != 200:
-                        logger.warning(f"PandaScore result request failed: {resp.status}")
-                        return None
-                    match = await resp.json()
-        except (aiohttp.ClientError, TimeoutError) as e:
-            logger.warning(f"PandaScore result request failed: {e}")
+        async with aiohttp.ClientSession() as session:
+            match = await self._get(session, f"/lol/matches/{external_id}")
+        if not match:
             return None
 
         status = match.get("status")
@@ -101,9 +126,10 @@ class PandaScoreProvider:
             opponents = match.get("opponents") or []
             winner = None
             if winner_id is not None and len(opponents) == 2:
-                if opponents[0]["opponent"]["id"] == winner_id:
+                ids = [((o or {}).get("opponent") or {}).get("id") for o in opponents]
+                if ids[0] == winner_id:
                     winner = "home"
-                elif opponents[1]["opponent"]["id"] == winner_id:
+                elif ids[1] == winner_id:
                     winner = "away"
             return ResultDTO(status="finished", winner=winner)
         if status in _VOID_STATUSES:

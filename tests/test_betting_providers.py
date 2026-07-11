@@ -7,18 +7,25 @@ from bot.cogs.betting.providers.football_data import FootballDataProvider
 from bot.cogs.betting.providers.pandascore import PandaScoreProvider
 
 
-def _mock_session(payload):
-    resp = MagicMock()
-    resp.status = 200
-    resp.json = AsyncMock(return_value=payload)
+def _mock_session(*payloads):
+    """Mock aiohttp.ClientSession, returning each payload in turn for successive GETs."""
+
+    def _resp(payload):
+        resp = MagicMock()
+        resp.status = 200
+        resp.json = AsyncMock(return_value=payload)
+        resp.text = AsyncMock(return_value="")
+        return AsyncMock(__aenter__=AsyncMock(return_value=resp), __aexit__=AsyncMock(return_value=False))
 
     session = MagicMock()
-    session.get = MagicMock(
-        return_value=AsyncMock(__aenter__=AsyncMock(return_value=resp), __aexit__=AsyncMock(return_value=False))
-    )
+    session.get = MagicMock(side_effect=[_resp(p) for p in payloads])
     return MagicMock(
         return_value=AsyncMock(__aenter__=AsyncMock(return_value=session), __aexit__=AsyncMock(return_value=False))
     )
+
+
+# PandaScore matches carry a league_id but no league_name, so the provider resolves ids first.
+_LEAGUES_PAYLOAD = [{"id": 4198, "name": "LEC"}]
 
 
 def _soon() -> str:
@@ -75,7 +82,7 @@ async def test_football_skips_fixture_with_missing_team_object():
 
 @pytest.mark.asyncio
 async def test_pandascore_skips_matches_with_undecided_opponents():
-    payload = [
+    matches = [
         {
             "id": 10,
             "begin_at": _soon(),
@@ -89,8 +96,40 @@ async def test_pandascore_skips_matches_with_undecided_opponents():
             "opponents": [{"opponent": {"name": "G2"}}, {"opponent": {"name": "Fnatic"}}],
         },
     ]
-    with patch("aiohttp.ClientSession", _mock_session(payload)):
+    with patch("aiohttp.ClientSession", _mock_session(_LEAGUES_PAYLOAD, matches)):
         fixtures = await PandaScoreProvider("key").list_upcoming(7)
 
     assert [f.external_id for f in fixtures] == ["11"]
     assert fixtures[0].away_name == "Fnatic"
+
+
+@pytest.mark.asyncio
+async def test_pandascore_filters_matches_by_resolved_league_id():
+    # Filtering matches by league_name is an HTTP 400 — matches only have a league_id.
+    matches = [
+        {
+            "id": 11,
+            "begin_at": _soon(),
+            "league": {"name": "LEC"},
+            "opponents": [{"opponent": {"name": "G2"}}, {"opponent": {"name": "Fnatic"}}],
+        }
+    ]
+    session_factory = _mock_session(_LEAGUES_PAYLOAD, matches)
+    with patch("aiohttp.ClientSession", session_factory):
+        await PandaScoreProvider("key").list_upcoming(7)
+
+    session = session_factory.return_value.__aenter__.return_value
+    leagues_call, matches_call = session.get.call_args_list
+    assert leagues_call[0][0].endswith("/lol/leagues")
+    assert matches_call[0][0].endswith("/lol/matches/upcoming")
+    params = matches_call[1]["params"]
+    assert params["filter[league_id]"] == "4198"
+    assert "filter[league_name]" not in params
+
+
+@pytest.mark.asyncio
+async def test_pandascore_returns_nothing_when_no_leagues_match():
+    with patch("aiohttp.ClientSession", _mock_session([])):
+        fixtures = await PandaScoreProvider("key").list_upcoming(7)
+
+    assert fixtures == []
