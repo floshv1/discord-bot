@@ -8,7 +8,10 @@ from loguru import logger
 from bot.cogs.betting.providers import FixtureDTO, ResultDTO
 
 BASE_URL = "https://api.pandascore.co"
-LEAGUES = ["LEC", "Worlds", "MSI"]
+
+# PandaScore's `filter[...]` is strict equality, so these must be the league's exact name.
+# "Worlds" and "MSI" are the colloquial names and match nothing.
+LEAGUES = ["LEC", "World Championship", "Mid-Season Invitational"]
 
 _VOID_STATUSES = {"canceled", "postponed"}
 
@@ -33,12 +36,18 @@ class PandaScoreProvider:
                     timeout=aiohttp.ClientTimeout(total=10),
                 ) as resp:
                     if resp.status != 200:
-                        logger.warning(f"PandaScore fixtures request failed: {resp.status}")
+                        # 401/403 here usually means the API key is wrong or the plan doesn't
+                        # include LoL — worth distinguishing from "no matches scheduled".
+                        body = (await resp.text())[:200]
+                        logger.warning(f"PandaScore fixtures request failed: HTTP {resp.status} — {body}")
                         return []
                     matches = await resp.json()
         except (aiohttp.ClientError, TimeoutError) as e:
             logger.warning(f"PandaScore fixtures request failed: {e}")
             return []
+
+        if not matches:
+            logger.info(f"PandaScore returned no upcoming matches for leagues: {', '.join(LEAGUES)}")
 
         cutoff = datetime.datetime.now(datetime.UTC) + datetime.timedelta(days=days)
         fixtures = []
@@ -52,8 +61,11 @@ class PandaScoreProvider:
             opponents = match.get("opponents") or []
             if len(opponents) != 2:
                 continue
-            home_name = opponents[0]["opponent"]["name"]
-            away_name = opponents[1]["opponent"]["name"]
+            # Bracket slots are listed before their teams are known — nothing to bet on yet.
+            home_name = ((opponents[0] or {}).get("opponent") or {}).get("name")
+            away_name = ((opponents[1] or {}).get("opponent") or {}).get("name")
+            if not home_name or not away_name:
+                continue
             fixtures.append(
                 FixtureDTO(
                     external_id=str(match["id"]),

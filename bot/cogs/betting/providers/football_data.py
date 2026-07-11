@@ -35,7 +35,9 @@ class FootballDataProvider:
                     timeout=aiohttp.ClientTimeout(total=10),
                 ) as resp:
                     if resp.status != 200:
-                        logger.warning(f"football-data.org fixtures request failed: {resp.status}")
+                        # 403 here usually means the free tier doesn't cover this competition.
+                        body = (await resp.text())[:200]
+                        logger.warning(f"football-data.org fixtures request failed: HTTP {resp.status} — {body}")
                         return []
                     data = await resp.json()
         except (aiohttp.ClientError, TimeoutError) as e:
@@ -48,13 +50,19 @@ class FootballDataProvider:
             start_time = datetime.datetime.fromisoformat(match["utcDate"].replace("Z", "+00:00"))
             if start_time > cutoff:
                 continue
+            # Knockout slots are published before their teams are known, with null team names.
+            # There's nothing to bet on yet — they'll be picked up on a later poll once seeded.
+            home_name = (match.get("homeTeam") or {}).get("name")
+            away_name = (match.get("awayTeam") or {}).get("name")
+            if not home_name or not away_name:
+                continue
             fixtures.append(
                 FixtureDTO(
                     external_id=str(match["id"]),
                     sport=self.sport,
                     competition=match.get("competition", {}).get("name", "World Cup"),
-                    home_name=match["homeTeam"]["name"],
-                    away_name=match["awayTeam"]["name"],
+                    home_name=home_name,
+                    away_name=away_name,
                     start_time=start_time,
                     has_draw=True,
                 )

@@ -80,16 +80,30 @@ async def test_claim_cooldown_remaining_none_when_never_claimed():
 
 
 @pytest.mark.asyncio
-async def test_claim_cooldown_remaining_returns_seconds():
+async def test_claim_cooldown_remaining_counts_down_to_midnight():
     conn = AsyncMock()
     conn.fetchrow.return_value = {"balance": 1000, "last_claim_at": "2026-01-01T00:00:00Z"}
     pool = _mock_pool_with_conn(conn)
-    pool.fetchrow = AsyncMock(return_value={"remaining": 3600.0})
+    pool.fetchrow = AsyncMock(return_value={"claimed_today": True, "until_midnight": 3600.0})
 
     with patch("bot.cogs.currency.service.get_pool", return_value=pool):
         remaining = await service.claim_cooldown_remaining(guild_id=1, user_id=2)
 
     assert remaining == 3600.0
+
+
+@pytest.mark.asyncio
+async def test_claim_cooldown_remaining_none_when_last_claim_was_yesterday():
+    # Claimed at some point, but not today — the calendar day has rolled over, so it's claimable.
+    conn = AsyncMock()
+    conn.fetchrow.return_value = {"balance": 1000, "last_claim_at": "2026-01-01T00:00:00Z"}
+    pool = _mock_pool_with_conn(conn)
+    pool.fetchrow = AsyncMock(return_value={"claimed_today": False, "until_midnight": 3600.0})
+
+    with patch("bot.cogs.currency.service.get_pool", return_value=pool):
+        remaining = await service.claim_cooldown_remaining(guild_id=1, user_id=2)
+
+    assert remaining is None
 
 
 @pytest.mark.asyncio

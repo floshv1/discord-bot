@@ -4,6 +4,7 @@ import discord
 
 from bot.cogs.currency import service
 from bot.cogs.currency.embeds import CURRENCY_EMOJI, CURRENCY_NAME
+from bot.cogs.currency.leaderboard import mark_dirty
 
 
 def _fmt_duration(seconds: float) -> str:
@@ -29,10 +30,11 @@ class ClaimButton(discord.ui.Button):
         if new_balance is None:
             remaining = await service.claim_cooldown_remaining(interaction.guild_id, interaction.user.id)
             await interaction.response.send_message(
-                f"❌ You've already claimed today. Try again in **{_fmt_duration(remaining or 0)}**.",
+                f"❌ You've already claimed today. Resets at midnight — **{_fmt_duration(remaining or 0)}** to go.",
                 ephemeral=True,
             )
             return
+        mark_dirty(interaction.client)
         await interaction.response.send_message(
             f"{CURRENCY_EMOJI} You claimed **{service.CLAIM_AMOUNT}** {CURRENCY_NAME}! "
             f"New balance: **{new_balance:,}**.",
@@ -51,6 +53,7 @@ class BalanceButton(discord.ui.Button):
 
     async def callback(self, interaction: discord.Interaction) -> None:
         wallet = await service.get_or_create_wallet(interaction.guild_id, interaction.user.id)
+        mark_dirty(interaction.client)  # may have just lazily created a wallet
         await interaction.response.send_message(
             f"{CURRENCY_EMOJI} You have **{wallet['balance']:,}** {CURRENCY_NAME}.",
             ephemeral=True,

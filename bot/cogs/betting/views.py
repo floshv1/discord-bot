@@ -5,6 +5,7 @@ from loguru import logger
 
 from bot.cogs.betting import service
 from bot.cogs.betting.embeds import build_market_embed
+from bot.cogs.currency.leaderboard import mark_dirty
 
 _RESULT_MESSAGES = {
     "closed": "❌ Betting on this match is no longer open.",
@@ -119,6 +120,7 @@ class StakeModal(discord.ui.Modal, title="Place your bet"):
             await interaction.response.send_message(_RESULT_MESSAGES[result], ephemeral=True)
             return
 
+        mark_dirty(interaction.client)  # the stake was just debited
         await interaction.response.send_message(
             f"✅ Bet placed: **{amount:,}** 🪙 on **{self.outcome_label}**. New balance: **{new_balance:,}**.",
             ephemeral=True,

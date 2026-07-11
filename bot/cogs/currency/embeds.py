@@ -14,7 +14,7 @@ def build_panel_embed() -> discord.Embed:
         title=f"{CURRENCY_EMOJI} {CURRENCY_NAME}",
         description=(
             f"Everyone starts with **1,000** {CURRENCY_NAME}.\n\n"
-            "**•** Tap 🎁 **Claim daily** for **100** more, once every 24h.\n"
+            "**•** Tap 🎁 **Claim daily** for **100** more — once a day, resets at midnight.\n"
             "**•** Tap 💰 **My balance** to check your wallet.\n"
             "**•** Spend them betting on matches — winners split the losers' pool."
         ),

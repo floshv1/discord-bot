@@ -19,6 +19,7 @@ PARIS_TZ = ZoneInfo("Europe/Paris")
 class CurrencyCog(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
+        self._leaderboard_dirty = False
 
     async def cog_load(self) -> None:
         self.bot.add_view(CurrencyPanelView())
@@ -27,6 +28,10 @@ class CurrencyCog(commands.Cog):
     async def cog_unload(self) -> None:
         self.leaderboard_ticker.cancel()
 
+    def mark_leaderboard_dirty(self) -> None:
+        """Ask for a leaderboard redraw on the next tick (see currency/leaderboard.py)."""
+        self._leaderboard_dirty = True
+
     currency = app_commands.Group(name="currency", description=f"{CURRENCY_NAME} wallet commands.")
 
     @app_commands.command(name="balance", description=f"Check your (or someone else's) {CURRENCY_NAME} balance.")
@@ -34,6 +39,7 @@ class CurrencyCog(commands.Cog):
     async def balance(self, interaction: discord.Interaction, user: discord.Member | None = None) -> None:
         target = user or interaction.user
         wallet = await service.get_or_create_wallet(interaction.guild_id, target.id)
+        self.mark_leaderboard_dirty()  # may have just lazily created a wallet
         await interaction.response.send_message(
             f"{CURRENCY_EMOJI} **{target.display_name}** has **{wallet['balance']:,}** {CURRENCY_NAME}.",
             ephemeral=True,
@@ -46,9 +52,10 @@ class CurrencyCog(commands.Cog):
             remaining = await service.claim_cooldown_remaining(interaction.guild_id, interaction.user.id)
             wait = _fmt_duration(remaining or 0)
             await interaction.response.send_message(
-                f"❌ You've already claimed today. Try again in **{wait}**.", ephemeral=True
+                f"❌ You've already claimed today. Resets at midnight — **{wait}** to go.", ephemeral=True
             )
             return
+        self.mark_leaderboard_dirty()
         await interaction.response.send_message(
             f"{CURRENCY_EMOJI} You claimed **{service.CLAIM_AMOUNT}** {CURRENCY_NAME}! "
             f"New balance: **{new_balance:,}**.",
@@ -68,13 +75,18 @@ class CurrencyCog(commands.Cog):
                 f"❌ That would take {user.mention} below zero. Check their balance first.", ephemeral=True
             )
             return
+        self.mark_leaderboard_dirty()
         await interaction.response.send_message(
             f"✅ Adjusted {user.mention} by **{amount:+,}**. New balance: **{new_balance:,}**.",
             ephemeral=True,
         )
 
-    @tasks.loop(minutes=15)
+    @tasks.loop(seconds=30)
     async def leaderboard_ticker(self) -> None:
+        # Only redraw when a balance actually moved, so the ticker is nearly free when idle.
+        if not self._leaderboard_dirty:
+            return
+        self._leaderboard_dirty = False
         await self._update_leaderboard_message()
 
     @leaderboard_ticker.before_loop

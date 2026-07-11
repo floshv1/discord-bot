@@ -8,7 +8,9 @@ from bot.db.client import get_pool
 
 STARTING_BALANCE = 1000
 CLAIM_AMOUNT = 100
-CLAIM_COOLDOWN_HOURS = 24
+# The daily claim resets on the calendar day in this zone, not 24h after the last claim.
+# Interpolated into SQL rather than passed as a parameter — it's a module constant, never user input.
+CLAIM_TZ = "Europe/Paris"
 
 
 async def get_or_create_wallet(guild_id: int, user_id: int) -> asyncpg.Record:
@@ -103,7 +105,11 @@ async def grant(guild_id: int, user_id: int, amount: int, reason: str, *, allow_
 
 
 async def claim(guild_id: int, user_id: int) -> int | None:
-    """Grant the daily claim if eligible. Returns the new balance, or None if still on cooldown."""
+    """Grant the daily claim if the wallet hasn't claimed yet *today* (Paris calendar day).
+
+    Returns the new balance, or None if already claimed today. Resets at midnight rather
+    than 24h after the last claim, so claiming late doesn't push tomorrow's claim later.
+    """
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
@@ -118,11 +124,15 @@ async def claim(guild_id: int, user_id: int) -> int | None:
                 STARTING_BALANCE,
             )
             row = await conn.fetchrow(
-                """
+                f"""
                 UPDATE currency_wallets
                 SET last_claim_at = NOW()
                 WHERE user_id = $1
-                  AND (last_claim_at IS NULL OR last_claim_at <= NOW() - INTERVAL '24 hours')
+                  AND (
+                    last_claim_at IS NULL
+                    OR (last_claim_at AT TIME ZONE '{CLAIM_TZ}')::date
+                       < (NOW() AT TIME ZONE '{CLAIM_TZ}')::date
+                  )
                 RETURNING user_id
                 """,
                 user_id,
@@ -133,20 +143,27 @@ async def claim(guild_id: int, user_id: int) -> int | None:
 
 
 async def claim_cooldown_remaining(guild_id: int, user_id: int) -> float | None:
-    """Seconds remaining until the next claim is available, or None if claimable now."""
+    """Seconds until midnight (Paris), when the next claim unlocks. None if claimable now."""
     wallet = await get_or_create_wallet(guild_id, user_id)
     if wallet["last_claim_at"] is None:
         return None
     pool = get_pool()
     row = await pool.fetchrow(
-        """
-        SELECT EXTRACT(EPOCH FROM (last_claim_at + INTERVAL '24 hours' - NOW())) AS remaining
+        f"""
+        SELECT
+            (last_claim_at AT TIME ZONE '{CLAIM_TZ}')::date
+                >= (NOW() AT TIME ZONE '{CLAIM_TZ}')::date AS claimed_today,
+            EXTRACT(EPOCH FROM (
+                (date_trunc('day', NOW() AT TIME ZONE '{CLAIM_TZ}') + INTERVAL '1 day')
+                    AT TIME ZONE '{CLAIM_TZ}' - NOW()
+            )) AS until_midnight
         FROM currency_wallets WHERE user_id = $1
         """,
         user_id,
     )
-    remaining = row["remaining"]
-    return remaining if remaining and remaining > 0 else None
+    if not row or not row["claimed_today"]:
+        return None
+    return float(row["until_midnight"])
 
 
 async def backfill_wallets(guild_id: int, user_ids: Sequence[int]) -> int:

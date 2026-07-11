@@ -221,17 +221,20 @@ class SetupCog(commands.Cog):
 
         await interaction.response.defer(ephemeral=True)
         await betting_service.set_betting_channel(interaction.guild_id, channel.id)
-        created = await cog.poll_fixtures_now() if cog else 0
-        if created:
-            detail = f"Posted **{created}** upcoming match(es)."
-        else:
-            # Distinguish "working, nothing scheduled" from "broken" — otherwise they look identical.
-            detail = (
-                "No upcoming matches found in the next 7 days — the providers have nothing scheduled "
-                "right now. New fixtures will be posted automatically as they appear."
+        created = await cog.poll_fixtures_now() if cog else {}
+
+        # Report per provider: "football_data: 5, pandascore: 0" makes it obvious at a glance
+        # which feed is working, instead of a single number that hides a dead provider.
+        lines = [f"• `{name}` — **{count}** match(es)" for name, count in created.items()]
+        total = sum(created.values())
+        detail = "\n".join(lines) if lines else "_No providers configured._"
+        if not total:
+            detail += (
+                "\n\nNothing posted. Either the providers have no fixtures in the next 7 days, "
+                "or a key/plan is rejecting us — check the bot logs for a `fixtures request failed` warning."
             )
         await interaction.followup.send(
-            f"✅ Betting channel set to {channel.mention}. {detail}",
+            f"✅ Betting channel set to {channel.mention}.\n\n{detail}",
             ephemeral=True,
         )
 
