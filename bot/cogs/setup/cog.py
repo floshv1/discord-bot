@@ -8,6 +8,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from bot.cogs.birthday.cog import MONTHS_EN, BirthdayCog
+from bot.cogs.currency.cog import CurrencyCog
 from bot.cogs.queue import service as queue_service
 from bot.cogs.queue.embeds import build_panel_embed
 from bot.cogs.queue.views import PanelView
@@ -160,6 +161,42 @@ class SetupCog(commands.Cog):
         await interaction.response.send_message(
             f"Reprimand configured: role {role.mention}, channel {channel.mention}.", ephemeral=True
         )
+
+    @setup.command(name="currency", description="Initialize the currency leaderboard message.")
+    @app_commands.default_permissions(manage_guild=True)
+    async def setup_currency(self, interaction: discord.Interaction) -> None:
+        config = self.bot.config  # type: ignore[attr-defined]
+        if not config.currency_leaderboard_channel_id:
+            await interaction.response.send_message(
+                "❌ `CURRENCY_LEADERBOARD_CHANNEL_ID` is not configured.", ephemeral=True
+            )
+            return
+        channel = interaction.guild.get_channel(config.currency_leaderboard_channel_id)
+        if not channel:
+            await interaction.response.send_message("❌ Channel not found.", ephemeral=True)
+            return
+
+        await interaction.response.defer(ephemeral=True)
+        message = await channel.send(
+            embed=discord.Embed(title="🪙 FloshCoins Leaderboard", description="Loading...", color=discord.Color.gold())
+        )
+        pool = get_pool()
+        await pool.execute(
+            """
+            INSERT INTO currency_leaderboard (guild_id, channel_id, message_id)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (guild_id) DO UPDATE
+              SET channel_id = EXCLUDED.channel_id,
+                  message_id = EXCLUDED.message_id
+            """,
+            interaction.guild_id,
+            channel.id,
+            message.id,
+        )
+        cog: CurrencyCog | None = self.bot.cogs.get("CurrencyCog")  # type: ignore[assignment]
+        if cog:
+            await cog._update_leaderboard_message()
+        await interaction.followup.send("✅ Currency leaderboard initialized.", ephemeral=True)
 
     @setup.command(name="queue", description="Post the game-queue control panel in a channel.")
     @app_commands.describe(channel="Channel that will host the queue panel and queue cards")

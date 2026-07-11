@@ -17,6 +17,10 @@ class Config:
         self.birthday_announce_channel_id: int | None = self._optional_int("BIRTHDAY_ANNOUNCE_CHANNEL_ID")
         self.lavalink_uri: str = self._optional_str("LAVALINK_URI", "http://lavalink:2333")
         self.lavalink_password: str = self._optional_str("LAVALINK_PASSWORD", "youshallnotpass")
+        self.currency_leaderboard_channel_id: int | None = self._optional_int("CURRENCY_LEADERBOARD_CHANNEL_ID")
+        self.betting_channel_id: int | None = self._optional_int("BETTING_CHANNEL_ID")
+        self.football_data_api_key: str | None = self._optional_str_or_none("FOOTBALL_DATA_API_KEY")
+        self.pandascore_api_key: str | None = self._optional_str_or_none("PANDASCORE_API_KEY")
 
     @staticmethod
     def _require_str(key: str) -> str:
@@ -61,3 +65,7 @@ class Config:
     @staticmethod
     def _optional_str(key: str, default: str) -> str:
         return os.environ.get(key) or default
+
+    @staticmethod
+    def _optional_str_or_none(key: str) -> str | None:
+        return os.environ.get(key) or None
