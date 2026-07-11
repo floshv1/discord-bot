@@ -104,12 +104,10 @@ class VoiceCog(commands.Cog):
 
     async def _update_weekly_message(self) -> None:
         config = self.bot.config  # type: ignore[attr-defined]
-        if not config.voice_leaderboard_channel_id:
-            return
-
         pool = get_pool()
         guild_id = config.guild_id
 
+        # The channel lives in the DB, set by /setup voice — no row means it was never run.
         row = await pool.fetchrow(
             "SELECT channel_id, weekly_message_id FROM voice_leaderboard WHERE guild_id = $1",
             guild_id,
@@ -158,9 +156,6 @@ class VoiceCog(commands.Cog):
 
     async def _update_alltime_message(self) -> None:
         config = self.bot.config  # type: ignore[attr-defined]
-        if not config.voice_leaderboard_channel_id:
-            return
-
         pool = get_pool()
         guild_id = config.guild_id
 

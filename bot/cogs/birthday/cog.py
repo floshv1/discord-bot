@@ -116,12 +116,10 @@ class BirthdayCog(commands.Cog):
 
     async def _update_upcoming_embed(self) -> None:
         config = self.bot.config  # type: ignore[attr-defined]
-        if not config.birthday_channel_id:
-            return
-
         pool = get_pool()
         guild_id = config.guild_id
 
+        # The channel lives in the DB, set by /setup birthday — no row means it wasn't run.
         cfg = await pool.fetchrow(
             "SELECT channel_id, upcoming_message_id FROM birthday_config WHERE guild_id = $1",
             guild_id,
@@ -168,9 +166,6 @@ class BirthdayCog(commands.Cog):
 
     async def _update_month_embed(self) -> None:
         config = self.bot.config  # type: ignore[attr-defined]
-        if not config.birthday_channel_id:
-            return
-
         pool = get_pool()
         guild_id = config.guild_id
 
@@ -223,11 +218,17 @@ class BirthdayCog(commands.Cog):
 
     async def _send_birthday_wishes(self, now: datetime.datetime) -> None:
         config = self.bot.config  # type: ignore[attr-defined]
-        if not config.birthday_announce_channel_id:
-            return
-
         pool = get_pool()
         guild_id = config.guild_id
+
+        cfg = await pool.fetchrow(
+            "SELECT channel_id, announce_channel_id FROM birthday_config WHERE guild_id = $1",
+            guild_id,
+        )
+        if not cfg:
+            return
+        # Falls back to the embeds channel when /setup birthday wasn't given a separate one.
+        announce_channel_id = cfg["announce_channel_id"] or cfg["channel_id"]
 
         rows = await pool.fetch(
             "SELECT user_id, year FROM birthdays WHERE guild_id = $1 AND day = $2 AND month = $3",
@@ -241,7 +242,7 @@ class BirthdayCog(commands.Cog):
         guild = self.bot.get_guild(guild_id)
         if not guild:
             return
-        channel = guild.get_channel(config.birthday_announce_channel_id)
+        channel = guild.get_channel(announce_channel_id)
         if not channel:
             return
 

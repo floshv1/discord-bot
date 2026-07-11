@@ -161,20 +161,10 @@ class SetupCog(commands.Cog):
         )
         await interaction.followup.send(embed=embed, ephemeral=True)
 
-    @setup.command(name="voice", description="Initialize voice leaderboard messages.")
+    @setup.command(name="voice", description="Post the voice leaderboards (weekly + all-time) in a channel.")
+    @app_commands.describe(channel="Channel that will host the two pinned leaderboards")
     @app_commands.default_permissions(manage_guild=True)
-    async def setup_voice(self, interaction: discord.Interaction) -> None:
-        config = self.bot.config  # type: ignore[attr-defined]
-        if not config.voice_leaderboard_channel_id:
-            await interaction.response.send_message(
-                "❌ `VOICE_LEADERBOARD_CHANNEL_ID` is not configured.", ephemeral=True
-            )
-            return
-        channel = interaction.guild.get_channel(config.voice_leaderboard_channel_id)
-        if not channel:
-            await interaction.response.send_message("❌ Channel not found.", ephemeral=True)
-            return
-
+    async def setup_voice(self, interaction: discord.Interaction, channel: discord.TextChannel) -> None:
         await interaction.response.defer(ephemeral=True)
         await _clear_previous(
             self.bot, interaction.guild_id, "voice_leaderboard", ["weekly_message_id", "alltime_message_id"]
@@ -206,20 +196,20 @@ class SetupCog(commands.Cog):
         if cog:
             await cog._update_weekly_message()
             await cog._update_alltime_message()
-        await interaction.followup.send("✅ Voice leaderboard initialized.", ephemeral=True)
+        await interaction.followup.send(f"✅ Voice leaderboards posted in {channel.mention}.", ephemeral=True)
 
-    @setup.command(name="birthday", description="Initialize birthday pinned messages.")
+    @setup.command(name="birthday", description="Post the birthday embeds (upcoming + this month) in a channel.")
+    @app_commands.describe(
+        channel="Channel that will host the two pinned birthday embeds",
+        announce_channel="Where to send the midnight birthday wishes (defaults to the same channel)",
+    )
     @app_commands.default_permissions(manage_guild=True)
-    async def setup_birthday(self, interaction: discord.Interaction) -> None:
-        config = self.bot.config  # type: ignore[attr-defined]
-        if not config.birthday_channel_id:
-            await interaction.response.send_message("❌ `BIRTHDAY_CHANNEL_ID` is not configured.", ephemeral=True)
-            return
-        channel = interaction.guild.get_channel(config.birthday_channel_id)
-        if not channel:
-            await interaction.response.send_message("❌ Channel not found.", ephemeral=True)
-            return
-
+    async def setup_birthday(
+        self,
+        interaction: discord.Interaction,
+        channel: discord.TextChannel,
+        announce_channel: discord.TextChannel | None = None,
+    ) -> None:
         await interaction.response.defer(ephemeral=True)
         await _clear_previous(
             self.bot, interaction.guild_id, "birthday_config", ["upcoming_message_id", "month_message_id"]
@@ -241,23 +231,30 @@ class SetupCog(commands.Cog):
         pool = get_pool()
         await pool.execute(
             """
-            INSERT INTO birthday_config (guild_id, channel_id, upcoming_message_id, month_message_id)
-            VALUES ($1, $2, $3, $4)
+            INSERT INTO birthday_config
+                (guild_id, channel_id, upcoming_message_id, month_message_id, announce_channel_id)
+            VALUES ($1, $2, $3, $4, $5)
             ON CONFLICT (guild_id) DO UPDATE
               SET channel_id = EXCLUDED.channel_id,
                   upcoming_message_id = EXCLUDED.upcoming_message_id,
-                  month_message_id = EXCLUDED.month_message_id
+                  month_message_id = EXCLUDED.month_message_id,
+                  announce_channel_id = EXCLUDED.announce_channel_id
             """,
             interaction.guild_id,
             channel.id,
             upcoming_msg.id,
             month_msg.id,
+            (announce_channel or channel).id,
         )
         cog: BirthdayCog | None = self.bot.cogs.get("BirthdayCog")  # type: ignore[assignment]
         if cog:
             await cog._update_upcoming_embed()
             await cog._update_month_embed()
-        await interaction.followup.send("✅ Birthday messages initialized.", ephemeral=True)
+        await interaction.followup.send(
+            f"✅ Birthday embeds posted in {channel.mention}. "
+            f"Wishes will go to {(announce_channel or channel).mention}.",
+            ephemeral=True,
+        )
 
     @setup.command(name="suggestions", description="Post the suggestion entry-point message in a channel.")
     @app_commands.describe(channel="Channel where suggestions will be collected")
