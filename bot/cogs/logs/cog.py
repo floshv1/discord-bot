@@ -25,15 +25,27 @@ class LogsCog(commands.Cog):
         self.bot = bot
         self.config: Config = bot.config  # type: ignore[attr-defined]
 
-    async def _send(self, embed: discord.Embed) -> None:
+    async def _send(self, event_type: str, embed: discord.Embed) -> None:
+        """Mirror an event into the log channel, unless its type is muted.
+
+        Muting only silences the *channel*. ``_log_to_db`` runs regardless, so the audit
+        trail stays complete — see DEFAULT_MUTED_LOG_EVENTS for why the noisy types are
+        off by default.
+        """
+        if event_type in self.config.log_muted_events:
+            return
         channel = self.bot.get_channel(self.config.log_channel_id)
         if channel is None:
             logger.warning(f"Log channel {self.config.log_channel_id} not found.")
             return
         await channel.send(embed=embed)
 
-    def _is_ignored(self, channel_id: int) -> bool:
-        return channel_id in self.config.log_ignored_channel_ids
+    def _is_ignored(self, channel_id: int | None) -> bool:
+        """An ignored channel is dropped entirely — not logged to the channel *or* the DB.
+
+        Muting is about noise; ignoring is about privacy, so it suppresses both halves.
+        """
+        return channel_id is not None and channel_id in self.config.log_ignored_channel_ids
 
     def _wrong_guild(self, guild: discord.Guild | None) -> bool:
         """True if the event comes from a guild this bot instance should not log.
@@ -101,7 +113,7 @@ class LogsCog(commands.Cog):
             parts.append(", ".join(f"📎 {a.filename}" for a in message.attachments))
         content_str = " + ".join(parts) if parts else "''"
         details = f"{message.channel.mention} — {message.author.mention} — {content_str}"
-        await self._send(make_embed(discord.Color.light_grey(), "Message Sent", details))
+        await self._send("message_sent", make_embed(discord.Color.light_grey(), "Message Sent", details))
         await self._cache_user(message.author)
         await self._log_to_db(
             guild_id=message.guild.id,
@@ -124,7 +136,7 @@ class LogsCog(commands.Cog):
             f"{before.channel.mention} — {before.author.mention} — "
             f"before: {before.content[:100]!r} → after: {after.content[:100]!r}"
         )
-        await self._send(make_embed(discord.Color.yellow(), "Message Edited", details))
+        await self._send("message_edited", make_embed(discord.Color.yellow(), "Message Edited", details))
         await self._cache_user(before.author)
         await self._log_to_db(
             guild_id=before.guild.id,
@@ -148,7 +160,7 @@ class LogsCog(commands.Cog):
             parts.append(", ".join(f"📎 {a.filename}" for a in message.attachments))
         content_str = " + ".join(parts) if parts else "''"
         details = f"{message.channel.mention} — {message.author.mention} — {content_str}"
-        await self._send(make_embed(discord.Color.orange(), "Message Deleted", details))
+        await self._send("message_deleted", make_embed(discord.Color.orange(), "Message Deleted", details))
         await self._cache_user(message.author)
         await self._log_to_db(
             guild_id=message.guild.id,
@@ -167,7 +179,7 @@ class LogsCog(commands.Cog):
             return
         channel = messages[0].channel
         details = f"{channel.mention} — {len(messages)} messages deleted"
-        await self._send(make_embed(discord.Color.orange(), "Bulk Delete", details))
+        await self._send("bulk_message_deleted", make_embed(discord.Color.orange(), "Bulk Delete", details))
         await self._log_to_db(
             guild_id=messages[0].guild.id,
             event_type="bulk_message_deleted",
@@ -181,7 +193,7 @@ class LogsCog(commands.Cog):
             return
         age = (discord.utils.utcnow() - member.created_at).days
         details = f"{member.mention} ({member.id}) — account {age} days old"
-        await self._send(make_embed(discord.Color.green(), "Member Joined", details))
+        await self._send("member_joined", make_embed(discord.Color.green(), "Member Joined", details))
         await self._cache_user(member)
         await self._log_to_db(
             guild_id=member.guild.id,
@@ -195,7 +207,7 @@ class LogsCog(commands.Cog):
         if self._wrong_guild(member.guild):
             return
         details = f"{member.mention} ({member.id})"
-        await self._send(make_embed(discord.Color.red(), "Member Left", details))
+        await self._send("member_left", make_embed(discord.Color.red(), "Member Left", details))
         await self._cache_user(member)
         await self._log_to_db(
             guild_id=member.guild.id,
@@ -208,7 +220,7 @@ class LogsCog(commands.Cog):
         if self._wrong_guild(guild):
             return
         details = f"{user.mention} ({user.id})"
-        await self._send(make_embed(discord.Color.dark_red(), "Member Banned", details))
+        await self._send("member_banned", make_embed(discord.Color.dark_red(), "Member Banned", details))
         await self._cache_user(user)
         await self._log_to_db(
             guild_id=guild.id,
@@ -222,7 +234,7 @@ class LogsCog(commands.Cog):
         if self._wrong_guild(guild):
             return
         details = f"{user.mention} ({user.id})"
-        await self._send(make_embed(discord.Color.teal(), "Member Unbanned", details))
+        await self._send("member_unbanned", make_embed(discord.Color.teal(), "Member Unbanned", details))
         await self._cache_user(user)
         await self._log_to_db(
             guild_id=guild.id,
@@ -237,7 +249,7 @@ class LogsCog(commands.Cog):
         await self._cache_user(after)
         if before.nick != after.nick:
             details = f"{after.mention} — nickname: {before.nick!r} → {after.nick!r}"
-            await self._send(make_embed(discord.Color.purple(), "Nickname Changed", details))
+            await self._send("nickname_changed", make_embed(discord.Color.purple(), "Nickname Changed", details))
             await self._log_to_db(
                 guild_id=after.guild.id,
                 event_type="nickname_changed",
@@ -248,7 +260,9 @@ class LogsCog(commands.Cog):
         added = [r for r in after.roles if r not in before.roles]
         removed = [r for r in before.roles if r not in after.roles]
         for role in added:
-            await self._send(make_embed(discord.Color.purple(), "Role Added", f"{after.mention} — {role.mention}"))
+            await self._send(
+                "role_added", make_embed(discord.Color.purple(), "Role Added", f"{after.mention} — {role.mention}")
+            )
             await self._log_to_db(
                 guild_id=after.guild.id,
                 event_type="role_added",
@@ -257,7 +271,9 @@ class LogsCog(commands.Cog):
                 details={"role_name": role.name},
             )
         for role in removed:
-            await self._send(make_embed(discord.Color.purple(), "Role Removed", f"{after.mention} — {role.mention}"))
+            await self._send(
+                "role_removed", make_embed(discord.Color.purple(), "Role Removed", f"{after.mention} — {role.mention}")
+            )
             await self._log_to_db(
                 guild_id=after.guild.id,
                 event_type="role_removed",
@@ -275,10 +291,14 @@ class LogsCog(commands.Cog):
     ) -> None:
         if self._wrong_guild(member.guild):
             return
+        # An ignored voice channel stays ignored on the way in, out, and while moving.
+        voice_channel_id = (after.channel or before.channel).id if (after.channel or before.channel) else None
+        if self._is_ignored(voice_channel_id):
+            return
         await self._cache_user(member)
         if before.channel is None and after.channel is not None:
             details = f"{member.mention} → {after.channel.mention}"
-            await self._send(make_embed(discord.Color.blue(), "Voice Joined", details))
+            await self._send("voice_joined", make_embed(discord.Color.blue(), "Voice Joined", details))
             await self._log_to_db(
                 guild_id=member.guild.id,
                 event_type="voice_joined",
@@ -287,7 +307,7 @@ class LogsCog(commands.Cog):
             )
         elif before.channel is not None and after.channel is None:
             details = f"{member.mention} ← {before.channel.mention}"
-            await self._send(make_embed(discord.Color.dark_blue(), "Voice Left", details))
+            await self._send("voice_left", make_embed(discord.Color.dark_blue(), "Voice Left", details))
             await self._log_to_db(
                 guild_id=member.guild.id,
                 event_type="voice_left",
@@ -296,7 +316,7 @@ class LogsCog(commands.Cog):
             )
         elif before.channel != after.channel and before.channel and after.channel:
             details = f"{member.mention} — {before.channel.mention} → {after.channel.mention}"
-            await self._send(make_embed(discord.Color.dark_blue(), "Voice Moved", details))
+            await self._send("voice_moved", make_embed(discord.Color.dark_blue(), "Voice Moved", details))
             await self._log_to_db(
                 guild_id=member.guild.id,
                 event_type="voice_moved",
@@ -306,7 +326,10 @@ class LogsCog(commands.Cog):
         elif before.self_mute != after.self_mute:
             state = "muted" if after.self_mute else "unmuted"
             details = f"{member.mention} {state} themselves"
-            await self._send(make_embed(discord.Color.dark_blue(), "Voice State", details))
+            await self._send(
+                "voice_muted" if after.self_mute else "voice_unmuted",
+                make_embed(discord.Color.dark_blue(), "Voice State", details),
+            )
             await self._log_to_db(
                 guild_id=member.guild.id,
                 event_type="voice_muted" if after.self_mute else "voice_unmuted",
@@ -315,7 +338,10 @@ class LogsCog(commands.Cog):
         elif before.self_deaf != after.self_deaf:
             state = "deafened" if after.self_deaf else "undeafened"
             details = f"{member.mention} {state} themselves"
-            await self._send(make_embed(discord.Color.dark_blue(), "Voice State", details))
+            await self._send(
+                "voice_deafened" if after.self_deaf else "voice_undeafened",
+                make_embed(discord.Color.dark_blue(), "Voice State", details),
+            )
             await self._log_to_db(
                 guild_id=member.guild.id,
                 event_type="voice_deafened" if after.self_deaf else "voice_undeafened",
@@ -327,7 +353,10 @@ class LogsCog(commands.Cog):
     async def on_guild_channel_create(self, channel: discord.abc.GuildChannel) -> None:
         if self._wrong_guild(channel.guild):
             return
-        await self._send(make_embed(discord.Color.blurple(), "Channel Created", f"{channel.mention} ({channel.name})"))
+        await self._send(
+            "channel_created",
+            make_embed(discord.Color.blurple(), "Channel Created", f"{channel.mention} ({channel.name})"),
+        )
         await self._log_to_db(
             guild_id=channel.guild.id,
             event_type="channel_created",
@@ -339,7 +368,7 @@ class LogsCog(commands.Cog):
     async def on_guild_channel_delete(self, channel: discord.abc.GuildChannel) -> None:
         if self._wrong_guild(channel.guild):
             return
-        await self._send(make_embed(discord.Color.blurple(), "Channel Deleted", f"#{channel.name}"))
+        await self._send("channel_deleted", make_embed(discord.Color.blurple(), "Channel Deleted", f"#{channel.name}"))
         await self._log_to_db(
             guild_id=channel.guild.id,
             event_type="channel_deleted",
@@ -352,7 +381,7 @@ class LogsCog(commands.Cog):
             return
         if before.name != after.name:
             details = f"{after.mention} — #{before.name} → #{after.name}"
-            await self._send(make_embed(discord.Color.blurple(), "Channel Renamed", details))
+            await self._send("channel_renamed", make_embed(discord.Color.blurple(), "Channel Renamed", details))
             await self._log_to_db(
                 guild_id=after.guild.id,
                 event_type="channel_renamed",
@@ -365,7 +394,7 @@ class LogsCog(commands.Cog):
     async def on_guild_role_create(self, role: discord.Role) -> None:
         if self._wrong_guild(role.guild):
             return
-        await self._send(make_embed(discord.Color.purple(), "Role Created", role.mention))
+        await self._send("role_created", make_embed(discord.Color.purple(), "Role Created", role.mention))
         await self._log_to_db(
             guild_id=role.guild.id,
             event_type="role_created",
@@ -377,7 +406,7 @@ class LogsCog(commands.Cog):
     async def on_guild_role_delete(self, role: discord.Role) -> None:
         if self._wrong_guild(role.guild):
             return
-        await self._send(make_embed(discord.Color.purple(), "Role Deleted", f"@{role.name}"))
+        await self._send("role_deleted", make_embed(discord.Color.purple(), "Role Deleted", f"@{role.name}"))
         await self._log_to_db(
             guild_id=role.guild.id,
             event_type="role_deleted",
@@ -391,7 +420,7 @@ class LogsCog(commands.Cog):
             return
         if before.name != after.name:
             details = f"{after.mention} — @{before.name} → @{after.name}"
-            await self._send(make_embed(discord.Color.purple(), "Role Renamed", details))
+            await self._send("role_renamed", make_embed(discord.Color.purple(), "Role Renamed", details))
             await self._log_to_db(
                 guild_id=after.guild.id,
                 event_type="role_renamed",
@@ -406,7 +435,7 @@ class LogsCog(commands.Cog):
             return
         inviter = invite.inviter.mention if invite.inviter else "unknown"
         details = f"{invite.url} — by {inviter} — uses: {invite.max_uses or '∞'}"
-        await self._send(make_embed(discord.Color.light_grey(), "Invite Created", details))
+        await self._send("invite_created", make_embed(discord.Color.light_grey(), "Invite Created", details))
         if invite.inviter:
             await self._cache_user(invite.inviter)
         await self._log_to_db(
@@ -420,7 +449,7 @@ class LogsCog(commands.Cog):
     async def on_invite_delete(self, invite: discord.Invite) -> None:
         if self._wrong_guild(invite.guild):
             return
-        await self._send(make_embed(discord.Color.light_grey(), "Invite Deleted", invite.url))
+        await self._send("invite_deleted", make_embed(discord.Color.light_grey(), "Invite Deleted", invite.url))
         await self._log_to_db(
             guild_id=self.config.guild_id,
             event_type="invite_deleted",
@@ -433,7 +462,7 @@ class LogsCog(commands.Cog):
         if self._wrong_guild(thread.guild):
             return
         details = f"{thread.mention} in {thread.parent.mention if thread.parent else '#unknown'}"
-        await self._send(make_embed(discord.Color.teal(), "Thread Created", details))
+        await self._send("thread_created", make_embed(discord.Color.teal(), "Thread Created", details))
         await self._log_to_db(
             guild_id=thread.guild.id,
             event_type="thread_created",
@@ -446,7 +475,9 @@ class LogsCog(commands.Cog):
         if self._wrong_guild(thread.guild):
             return
         parent = thread.parent.mention if thread.parent else "#unknown"
-        await self._send(make_embed(discord.Color.teal(), "Thread Deleted", f"#{thread.name} in {parent}"))
+        await self._send(
+            "thread_deleted", make_embed(discord.Color.teal(), "Thread Deleted", f"#{thread.name} in {parent}")
+        )
         await self._log_to_db(
             guild_id=thread.guild.id,
             event_type="thread_deleted",
@@ -459,7 +490,10 @@ class LogsCog(commands.Cog):
             return
         if before.archived != after.archived:
             state = "archived" if after.archived else "unarchived"
-            await self._send(make_embed(discord.Color.teal(), f"Thread {state.title()}", after.mention))
+            await self._send(
+                "thread_archived" if after.archived else "thread_unarchived",
+                make_embed(discord.Color.teal(), f"Thread {state.title()}", after.mention),
+            )
             await self._log_to_db(
                 guild_id=after.guild.id,
                 event_type="thread_archived" if after.archived else "thread_unarchived",
@@ -472,12 +506,14 @@ class LogsCog(commands.Cog):
             return
         if interaction.guild_id != self.config.guild_id:
             return
+        if self._is_ignored(interaction.channel_id):
+            return
         name = interaction.command.qualified_name if interaction.command else "unknown"
         ns = vars(interaction.namespace) if interaction.namespace else {}
         opts = ", ".join(f"{k}={v}" for k, v in ns.items() if v is not None) or "—"
         channel_mention = getattr(interaction.channel, "mention", "unknown")
         details = f"{interaction.user.mention} → `/{name}` in {channel_mention} | {opts}"
-        await self._send(make_embed(discord.Color.og_blurple(), "⌨️ Command", details))
+        await self._send("slash_command", make_embed(discord.Color.og_blurple(), "⌨️ Command", details))
         await self._cache_user(interaction.user)
         await self._log_to_db(
             guild_id=interaction.guild_id,

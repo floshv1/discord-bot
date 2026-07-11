@@ -42,7 +42,7 @@ class VoiceCog(commands.Cog):
 
     @leaderboard_ticker.error
     async def leaderboard_ticker_error(self, error: BaseException) -> None:
-        logger.warning("leaderboard_ticker error (will retry next tick): %s", error)
+        logger.warning(f"leaderboard_ticker error (will retry next tick): {error}")
 
     async def _initial_sync(self) -> None:
         pool = get_pool()
@@ -104,12 +104,10 @@ class VoiceCog(commands.Cog):
 
     async def _update_weekly_message(self) -> None:
         config = self.bot.config  # type: ignore[attr-defined]
-        if not config.voice_leaderboard_channel_id:
-            return
-
         pool = get_pool()
         guild_id = config.guild_id
 
+        # The channel lives in the DB, set by /setup voice — no row means it was never run.
         row = await pool.fetchrow(
             "SELECT channel_id, weekly_message_id FROM voice_leaderboard WHERE guild_id = $1",
             guild_id,
@@ -154,13 +152,10 @@ class VoiceCog(commands.Cog):
             msg = await channel.fetch_message(row["weekly_message_id"])
             await msg.edit(embed=embed)
         except discord.HTTPException as e:
-            logger.warning("Failed to update weekly leaderboard: %s", e)
+            logger.warning(f"Failed to update weekly leaderboard: {e}")
 
     async def _update_alltime_message(self) -> None:
         config = self.bot.config  # type: ignore[attr-defined]
-        if not config.voice_leaderboard_channel_id:
-            return
-
         pool = get_pool()
         guild_id = config.guild_id
 
@@ -207,7 +202,7 @@ class VoiceCog(commands.Cog):
             msg = await channel.fetch_message(row["alltime_message_id"])
             await msg.edit(embed=embed)
         except discord.HTTPException as e:
-            logger.warning("Failed to update all-time leaderboard: %s", e)
+            logger.warning(f"Failed to update all-time leaderboard: {e}")
 
 
 async def setup(bot: commands.Bot) -> None:

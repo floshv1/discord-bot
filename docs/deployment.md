@@ -135,8 +135,10 @@ Pushing `dev` does not trigger CI (CI runs on `main` only), so no image is ever 
    | `GUILD_ID` | Your **test** server ID |
    | `LOG_CHANNEL_ID` | A channel ID in the **test** server |
 
-   Optional: `LOG_IGNORED_CHANNEL_IDS`, `VOICE_LEADERBOARD_CHANNEL_ID`, `BIRTHDAY_CHANNEL_ID`,
-   `BIRTHDAY_ANNOUNCE_CHANNEL_ID`, `LAVALINK_PASSWORD`. `DATABASE_URL` is built inside the compose file.
+   Optional: `LOG_IGNORED_CHANNEL_IDS`, `LOG_MUTED_EVENTS`, `FOOTBALL_DATA_API_KEY`,
+   `PANDASCORE_API_KEY`, `LAVALINK_PASSWORD`. `DATABASE_URL` is built inside the compose file.
+   Feature channels (voice, birthday, currency, betting, queue, suggestions) are set in Discord
+   with `/setup <feature> <channel>`, not in the environment.
 
 4. **Deploy.** Because `compose.dev.yml` declares `build: .`, Komodo builds the bot image from the
    `dev` branch on deploy (no GHCR pull). **Do not enable GHCR auto-redeploy** for this stack — it has

@@ -116,7 +116,7 @@ async def poll_and_execute_commands(pool: asyncpg.Pool, player: MusicPlayer) -> 
                 await player.set_volume(int(payload.get("volume", 100)))
                 await sync_state(pool, player)
             else:
-                logger.warning("Unknown music command: %r (id=%s)", cmd, row["id"])
+                logger.warning("Unknown music command: {!r} (id={})", cmd, row["id"])
         finally:
             await pool.execute(
                 "UPDATE music_commands SET executed_at = NOW() WHERE id = $1",

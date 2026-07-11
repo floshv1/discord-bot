@@ -117,13 +117,13 @@ Tracks time spent in voice channels per user and maintains two auto-updating pin
 
 - On **cog load** (after bot ready): closes any orphaned open sessions left from before a restart, then opens fresh sessions for all members currently in voice channels
 - On **voice state change**: opens a session row on join, closes it on leave; moves (channel switch) close the old session and open a new one; mute/deafen events are ignored
-- **Daily at midnight Paris time**: edits both pinned leaderboard messages in `VOICE_LEADERBOARD_CHANNEL_ID`
+- **Daily at midnight Paris time**: edits both pinned leaderboard messages in the channel set by `/setup voice`
 
 ### Commands
 
 | Command | Permission | Description |
 |---|---|---|
-| `/voice setup` | Manage Guild | Posts the two pinned leaderboard messages to `VOICE_LEADERBOARD_CHANNEL_ID` and records their IDs in the DB. Run once after setting the env var. Re-running updates the stored message IDs. |
+| `/setup voice <channel>` | Manage Guild | Posts the two pinned leaderboard messages in the channel and records the channel + message IDs in the DB. Safe to re-run — deletes the old messages first. |
 
 ### Leaderboard format
 
@@ -141,7 +141,7 @@ Top 10 members by total seconds. Duration shown as `Xh YYm` (or `Zm` if under on
 ### Notes
 
 - Message IDs are stored in the `voice_leaderboard` table; the bot always edits the same messages rather than posting new ones
-- If `VOICE_LEADERBOARD_CHANNEL_ID` is not set the cog still tracks sessions — only the embed updates are skipped
+- Until `/setup voice` is run the cog still tracks sessions — only the embed updates are skipped
 
 ---
 
@@ -167,7 +167,7 @@ Seeded automatically on startup (once per guild): `lol` (5), `overwatch` (5).
 | Button | Action |
 |---|---|
 | 🎮 *\<game>* (one per preset) | Opens an ephemeral size picker: **Duo (2)** / **Full team (preset size)** / **Custom…** |
-| ➕ Other game | Modal to start a queue for any game (name + size + optional time); creates the preset if new |
+| ➕ Other game | Modal to start a queue for any game (name + size + optional time). Creates an *ad-hoc* preset — the queue works, but the game gets no permanent panel button; only `/queue add` does that |
 | 🔔 Subscriptions | Ephemeral multi-select to opt in/out of per-game ping notifications |
 
 ### Queue card buttons
@@ -177,7 +177,7 @@ Seeded automatically on startup (once per guild): `lol` (5), `overwatch` (5).
 | ✅ Join | anyone | Join the queue (overflow goes to a waiting list once full) |
 | 🚫 Can't attend | members | Leave; if you held a main slot, the first waiting player is promoted (FIFO) |
 | ⏰ Set time | host | Set/update the start time (modal) |
-| 🏁 Close | anyone in the queue / Manage Messages | Closes the queue; the card is removed shortly after |
+| 🏁 Close | host / Manage Messages | Closes the queue; the card is removed shortly after |
 
 ### Slash commands
 
@@ -215,13 +215,13 @@ GitHub-issue-style suggestion system. A fixed channel message with two buttons l
 
 ### Setup
 
-Run `/suggest setup <channel>` to post the entry-point message. This is idempotent — running it again moves the setup to a new channel.
+Run `/setup suggestions <channel>` to post the entry-point message. This is idempotent — running it again moves the setup to a new channel.
 
 ### Commands
 
 | Command | Permission | Description |
 |---|---|---|
-| `/suggest setup <channel>` | Manage Channels | Posts the fixed entry-point message with New Feature and Improvement buttons |
+| `/setup suggestions <channel>` | Manage Channels | Posts the fixed entry-point message with New Feature and Improvement buttons |
 | `/suggest status <number> <status>` | Kick Members | Updates a suggestion's status and edits the embed in place |
 
 ### Embed states
@@ -247,8 +247,7 @@ Members register their birthday once. Two pinned embeds update daily and the bot
 
 ### Setup
 
-1. Set `BIRTHDAY_CHANNEL_ID` (where the two pinned embeds live) and `BIRTHDAY_ANNOUNCE_CHANNEL_ID` (where birthday wishes are posted) in your env
-2. Run `/birthday setup` in any channel — the bot posts both embeds to `BIRTHDAY_CHANNEL_ID` and records their IDs in the DB
+Run `/setup birthday <channel> [announce_channel]` — the bot posts both pinned embeds in `<channel>` and records the channel + message IDs in the DB. `announce_channel` is where the midnight wishes go; it defaults to the same channel.
 
 ### Commands
 
@@ -257,8 +256,7 @@ Members register their birthday once. Two pinned embeds update daily and the bot
 | `/birthday set <day> <month> <year>` | — | Registers or updates your birthday. Immediately refreshes both pinned embeds. |
 | `/birthday delete` | — | Removes your birthday from the DB and refreshes both embeds |
 | `/birthday list` | — | Ephemeral embed showing all upcoming birthdays sorted by next occurrence |
-| `/birthday month` | — | Ephemeral embed showing birthdays in the current calendar month |
-| `/birthday setup` | Manage Guild | Posts the two pinned embeds to `BIRTHDAY_CHANNEL_ID` and stores their message IDs. Safe to re-run — replaces existing stored IDs. |
+| `/setup birthday <channel> [announce_channel]` | Manage Guild | Posts the two pinned embeds and stores the channels + message IDs. Safe to re-run — deletes the old messages first. |
 
 ### Pinned embeds
 
@@ -272,13 +270,12 @@ Each field shows: `DD/MM (N ans) • dans X jours` or `aujourd'hui 🎂`.
 ### Automatic behavior
 
 - **On cog load**: both embeds refresh immediately (so they're correct after a bot restart)
-- **Daily at midnight Paris time**: both embeds refresh, then the bot checks for today's birthdays and posts a wish to `BIRTHDAY_ANNOUNCE_CHANNEL_ID`
+- **Daily at midnight Paris time**: both embeds refresh, then the bot checks for today's birthdays and posts a wish to the announce channel. The day is *claimed* in `birthday_announcements`, so a bot that was down over midnight still catches the day up, and a restart can't wish twice.
 
 ### Notes
 
 - Birthdays are stored per `user_id` — a user has at most one entry across all guilds
-- If `BIRTHDAY_CHANNEL_ID` is not set, embed updates are skipped silently; commands still work
-- If `BIRTHDAY_ANNOUNCE_CHANNEL_ID` is not set, midnight wishes are skipped silently
+- Until `/setup birthday` is run, embed updates and midnight wishes are skipped; the commands still work
 
 ---
 
@@ -289,8 +286,8 @@ panel messages and records the message IDs in the DB so they persist across rest
 
 | Command | Permission | Description |
 |---|---|---|
-| `/setup voice` | Manage Guild | Posts the two voice-leaderboard messages to `VOICE_LEADERBOARD_CHANNEL_ID` |
-| `/setup birthday` | Manage Guild | Posts the two birthday messages to `BIRTHDAY_CHANNEL_ID` |
+| `/setup voice <channel>` | Manage Guild | Posts the two voice-leaderboard messages in the channel |
+| `/setup birthday <channel> [announce_channel]` | Manage Guild | Posts the two birthday embeds; wishes go to `announce_channel` (defaults to the same) |
 | `/setup suggestions <channel>` | Manage Channels | Posts the suggestion entry-point message in the channel |
 | `/setup queue <channel>` | Manage Channels | Posts the game-queue control panel in the channel |
 

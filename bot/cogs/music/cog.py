@@ -32,10 +32,17 @@ async def _delete_after(msg: discord.Message, delay: float) -> None:
         pass
 
 
-async def _disable_now_playing(player: MusicPlayer) -> None:
+async def _clear_now_playing(player: MusicPlayer) -> None:
+    """Remove the current Now-Playing card.
+
+    Every caller reaches here because the card has gone stale — the next track is about to
+    be announced, playback stopped, or everyone left. It used to only strip the buttons,
+    which left one dead embed per track behind: a 30-track playlist littered the channel
+    with 30 of them, and their buttons stop working after a restart anyway (no custom_id).
+    """
     if player.now_playing_message:
         try:
-            await player.now_playing_message.edit(view=None)
+            await player.now_playing_message.delete()
         except discord.HTTPException:
             pass
         player.now_playing_message = None
@@ -130,6 +137,11 @@ class MusicCog(commands.Cog):
                 logger.exception("Error in music command poll loop.")
 
     async def cog_load(self) -> None:
+        # Dispatches clicks on any Now-Playing card that outlived the last restart. The
+        # view resolves the live player itself, so a stale card says "nothing is playing
+        # anymore" instead of throwing "This interaction failed".
+        self.bot.add_view(NowPlayingView())
+
         node = wavelink.Node(uri=self.config.lavalink_uri, password=self.config.lavalink_password)
         try:
             await wavelink.Pool.connect(nodes=[node], client=self.bot)
@@ -279,7 +291,7 @@ class MusicCog(commands.Cog):
             await interaction.response.send_message("Join my voice channel first.", ephemeral=True)
             return
         await _cancel_progress_task(player)
-        await _disable_now_playing(player)
+        await _clear_now_playing(player)
         player.queue.clear()
         await interaction.response.send_message("Stopped and disconnected.")
         try:
@@ -373,7 +385,7 @@ class MusicCog(commands.Cog):
             await interaction.response.send_message("Nothing is currently playing.", ephemeral=True)
             return
         await _cancel_progress_task(player)
-        await _disable_now_playing(player)
+        await _clear_now_playing(player)
         embed = _build_now_playing_embed(player.current, player)
         view = NowPlayingView(player)
         await interaction.response.send_message(embed=embed, view=view)
@@ -436,7 +448,7 @@ class MusicCog(commands.Cog):
             return
 
         await _cancel_progress_task(player)
-        await _disable_now_playing(player)
+        await _clear_now_playing(player)
         embed = _build_now_playing_embed(track, player)
         view = NowPlayingView(player)
         try:
@@ -451,7 +463,7 @@ class MusicCog(commands.Cog):
         if not isinstance(player, MusicPlayer):
             return
         await _cancel_progress_task(player)
-        await _disable_now_playing(player)
+        await _clear_now_playing(player)
         if player.text_channel:
             try:
                 await player.text_channel.send("Left the voice channel due to inactivity.")
@@ -476,7 +488,7 @@ class MusicCog(commands.Cog):
             return
         if not any(not m.bot for m in player.channel.members):
             await _cancel_progress_task(player)
-            await _disable_now_playing(player)
+            await _clear_now_playing(player)
             if player.text_channel:
                 try:
                     await player.text_channel.send("Everyone left — disconnecting.")

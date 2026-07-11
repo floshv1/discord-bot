@@ -46,21 +46,37 @@ def build_suggestion_embed(
     return embed
 
 
-class VoteButton(discord.ui.Button):
+class VoteButton(
+    discord.ui.DynamicItem[discord.ui.Button],
+    template=r"suggestion:(?P<direction>vote_up|vote_down):(?P<sid>\d+)",
+):
+    """A vote button that identifies its own suggestion from its custom_id.
+
+    Dynamic so that *one* registration handles every suggestion. The cog used to
+    `add_view` one view per suggestion row at boot — a query over the whole table, a store
+    that grew forever, and still nothing for suggestions created after startup.
+    """
+
     def __init__(self, suggestion_id: int, direction: int, count: int = 0) -> None:
-        emoji = "👍" if direction == 1 else "👎"
-        label = "vote_up" if direction == 1 else "vote_down"
+        self.suggestion_id = suggestion_id
+        self.direction = direction
+        name = "vote_up" if direction == 1 else "vote_down"
         super().__init__(
-            label=str(count),
-            emoji=emoji,
-            style=discord.ButtonStyle.secondary,
-            custom_id=f"suggestion:{label}:{suggestion_id}",
+            discord.ui.Button(
+                label=str(count),
+                emoji="👍" if direction == 1 else "👎",
+                style=discord.ButtonStyle.secondary,
+                custom_id=f"suggestion:{name}:{suggestion_id}",
+            )
         )
 
+    @classmethod
+    async def from_custom_id(cls, interaction, item, match):
+        return cls(int(match["sid"]), 1 if match["direction"] == "vote_up" else -1)
+
     async def callback(self, interaction: discord.Interaction) -> None:
-        parts = self.custom_id.split(":")
-        suggestion_id = int(parts[2])
-        direction = 1 if parts[1] == "vote_up" else -1
+        suggestion_id = self.suggestion_id
+        direction = self.direction
         pool = get_pool()
 
         existing = await pool.fetchrow(
@@ -69,7 +85,9 @@ class VoteButton(discord.ui.Button):
             interaction.user.id,
         )
 
-        if existing and existing["vote"] == direction:
+        # Clicking the side you already voted for takes the vote back.
+        removed = bool(existing and existing["vote"] == direction)
+        if removed:
             await pool.execute(
                 "DELETE FROM suggestion_votes WHERE suggestion_id = $1 AND user_id = $2",
                 suggestion_id,
@@ -110,7 +128,7 @@ class VoteButton(discord.ui.Button):
         )
         view = SuggestionVoteView(suggestion_id, int(vote_up), int(vote_down))
         await interaction.response.edit_message(embed=embed, view=view)
-        await interaction.followup.send("Vote registered!", ephemeral=True)
+        await interaction.followup.send("Vote removed." if removed else "Vote registered!", ephemeral=True)
 
 
 class SuggestionVoteView(discord.ui.View):
@@ -162,7 +180,7 @@ class SuggestionModal(discord.ui.Modal, title="Submit a Suggestion"):
         )
         if not config_row:
             await interaction.response.send_message(
-                "Suggestion system not configured. Ask an admin to run `/suggest setup`.",
+                "Suggestion system not configured. Ask an admin to run `/setup suggestions`.",
                 ephemeral=True,
             )
             return
@@ -198,7 +216,7 @@ class SuggestionModal(discord.ui.Modal, title="Submit a Suggestion"):
         channel = interaction.guild.get_channel(config_row["channel_id"])
         if channel is None:
             await interaction.response.send_message(
-                "The suggestion channel no longer exists. Ask an admin to run `/suggest setup` again.",
+                "The suggestion channel no longer exists. Ask an admin to run `/setup suggestions` again.",
                 ephemeral=True,
             )
             return
@@ -219,15 +237,9 @@ class SuggestionCog(commands.Cog):
         self.config: Config = bot.config  # type: ignore[attr-defined]
 
     async def cog_load(self) -> None:
-        pool = get_pool()
         self.bot.add_view(SetupView())
-
-        rows = await pool.fetch(
-            "SELECT id FROM suggestions WHERE guild_id = $1",
-            self.config.guild_id,
-        )
-        for row in rows:
-            self.bot.add_view(SuggestionVoteView(row["id"]))
+        # One registration covers every suggestion — past, present, and any created later.
+        self.bot.add_dynamic_items(VoteButton)
 
     suggest = discord.app_commands.Group(name="suggest", description="Suggestion system commands.")
 

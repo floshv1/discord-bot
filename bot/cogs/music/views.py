@@ -64,29 +64,51 @@ class LyricsView(discord.ui.View):
 
 
 class NowPlayingView(discord.ui.View):
-    def __init__(self, player: MusicPlayer) -> None:
-        super().__init__(timeout=900)
+    """The controls under the Now-Playing card.
+
+    Persistent (``timeout=None`` + custom_ids), because this sits on a *public* message.
+    It used to time out after 15 minutes, which left buttons that still looked clickable
+    but threw "This interaction failed" — and every button died on restart besides.
+
+    The player is therefore resolved from the guild at click time rather than captured:
+    a card that outlives its player must be able to say so.
+    """
+
+    def __init__(self, player: MusicPlayer | None = None) -> None:
+        super().__init__(timeout=None)
         self.player = player
         self.message: discord.Message | None = None
 
         # Row 0 — playback controls
-        self._prev_track_btn = discord.ui.Button(label="⏮ Prev", style=discord.ButtonStyle.secondary, row=0)
+        self._prev_track_btn = discord.ui.Button(
+            label="⏮ Prev", style=discord.ButtonStyle.secondary, row=0, custom_id="music:prev"
+        )
         self._prev_track_btn.callback = self._play_previous
 
-        self._pause_btn = discord.ui.Button(label="", style=discord.ButtonStyle.secondary, row=0)
+        self._pause_btn = discord.ui.Button(
+            label="⏸ Pause", style=discord.ButtonStyle.secondary, row=0, custom_id="music:pause"
+        )
         self._pause_btn.callback = self._toggle_pause
 
-        self._skip_btn = discord.ui.Button(label="⏭ Skip", style=discord.ButtonStyle.secondary, row=0)
+        self._skip_btn = discord.ui.Button(
+            label="⏭ Skip", style=discord.ButtonStyle.secondary, row=0, custom_id="music:skip"
+        )
         self._skip_btn.callback = self._skip
 
-        self._autoplay_btn = discord.ui.Button(label="", style=discord.ButtonStyle.secondary, row=0)
+        self._autoplay_btn = discord.ui.Button(
+            label="🔀 Autoplay: Off", style=discord.ButtonStyle.secondary, row=0, custom_id="music:autoplay"
+        )
         self._autoplay_btn.callback = self._toggle_autoplay
 
         # Row 1 — utilities
-        self._lyrics_btn = discord.ui.Button(label="🎵 Lyrics", style=discord.ButtonStyle.secondary, row=1)
+        self._lyrics_btn = discord.ui.Button(
+            label="🎵 Lyrics", style=discord.ButtonStyle.secondary, row=1, custom_id="music:lyrics"
+        )
         self._lyrics_btn.callback = self._show_lyrics
 
-        self._queue_btn = discord.ui.Button(label="📋 Queue", style=discord.ButtonStyle.secondary, row=1)
+        self._queue_btn = discord.ui.Button(
+            label="📋 Queue", style=discord.ButtonStyle.secondary, row=1, custom_id="music:queue"
+        )
         self._queue_btn.callback = self._show_queue
 
         self.add_item(self._prev_track_btn)
@@ -95,9 +117,29 @@ class NowPlayingView(discord.ui.View):
         self.add_item(self._autoplay_btn)
         self.add_item(self._lyrics_btn)
         self.add_item(self._queue_btn)
-        self._sync()
+        if self.player:
+            self._sync()
+
+    def _resolve(self, interaction: discord.Interaction) -> MusicPlayer | None:
+        """The live player for this guild — the one captured at post time may be long gone."""
+        player = self.player or getattr(interaction.guild, "voice_client", None)
+        return player if isinstance(player, MusicPlayer) else None
+
+    async def _active_player(self, interaction: discord.Interaction) -> MusicPlayer | None:
+        """Resolve the player and check the presser is in the call. Explains itself on failure."""
+        player = self._resolve(interaction)
+        if player is None:
+            await interaction.response.send_message("Nothing is playing anymore.", ephemeral=True)
+            return None
+        voice = getattr(interaction.user, "voice", None)
+        if not voice or voice.channel != player.channel:
+            await interaction.response.send_message("Join my voice channel first.", ephemeral=True)
+            return None
+        return player
 
     def _sync(self) -> None:
+        if not self.player:
+            return
         paused = self.player.paused
         self._pause_btn.label = "▶ Resume" if paused else "⏸ Pause"
         self._pause_btn.style = discord.ButtonStyle.primary if paused else discord.ButtonStyle.secondary
@@ -109,46 +151,46 @@ class NowPlayingView(discord.ui.View):
         self._prev_track_btn.disabled = len(self.player.recent_tracks) < 2
 
     async def _play_previous(self, interaction: discord.Interaction) -> None:
-        if not interaction.user.voice or interaction.user.voice.channel != self.player.channel:
-            await interaction.response.send_message("Join my voice channel first.", ephemeral=True)
+        player = await self._active_player(interaction)
+        if not player:
             return
-        recent = list(self.player.recent_tracks)
+        recent = list(player.recent_tracks)
         if len(recent) < 2:
             await interaction.response.send_message("No previous track available.", ephemeral=True)
             return
-        prev_track = recent[-2]
-        self.player.queue.put_at(0, prev_track)
+        player.queue.put_at(0, recent[-2])
         await interaction.response.defer()
-        await self.player.stop(force=True)
+        await player.stop(force=True)
 
     async def _toggle_pause(self, interaction: discord.Interaction) -> None:
-        if not interaction.user.voice or interaction.user.voice.channel != self.player.channel:
-            await interaction.response.send_message("Join my voice channel first.", ephemeral=True)
+        player = await self._active_player(interaction)
+        if not player:
             return
-        await self.player.pause(not self.player.paused)
+        await player.pause(not player.paused)
+        self.player = player
         self._sync()
         await interaction.response.edit_message(view=self)
 
     async def _skip(self, interaction: discord.Interaction) -> None:
-        if not interaction.user.voice or interaction.user.voice.channel != self.player.channel:
-            await interaction.response.send_message("Join my voice channel first.", ephemeral=True)
+        player = await self._active_player(interaction)
+        if not player:
             return
         await interaction.response.defer()
-        await self.player.stop(force=True)
+        await player.stop(force=True)
 
     async def _toggle_autoplay(self, interaction: discord.Interaction) -> None:
-        if not interaction.user.voice or interaction.user.voice.channel != self.player.channel:
-            await interaction.response.send_message("Join my voice channel first.", ephemeral=True)
+        player = await self._active_player(interaction)
+        if not player:
             return
-        self.player.autoplay_enabled = not self.player.autoplay_enabled
-        self.player.autoplay = (
-            wavelink.AutoPlayMode.enabled if self.player.autoplay_enabled else wavelink.AutoPlayMode.partial
-        )
+        player.autoplay_enabled = not player.autoplay_enabled
+        player.autoplay = wavelink.AutoPlayMode.enabled if player.autoplay_enabled else wavelink.AutoPlayMode.partial
+        self.player = player
         self._sync()
         await interaction.response.edit_message(view=self)
 
     async def _show_lyrics(self, interaction: discord.Interaction) -> None:
-        track = self.player.current
+        player = self._resolve(interaction)
+        track = player.current if player else None
         if not track:
             await interaction.response.send_message("Nothing is playing.", ephemeral=True)
             return
@@ -162,19 +204,13 @@ class NowPlayingView(discord.ui.View):
         view.message = msg
 
     async def _show_queue(self, interaction: discord.Interaction) -> None:
-        view = QueueView(self.player)
+        player = self._resolve(interaction)
+        if not player:
+            await interaction.response.send_message("Nothing is playing anymore.", ephemeral=True)
+            return
+        view = QueueView(player)
         await interaction.response.send_message(embed=view.build_embed(), view=view, ephemeral=True)
         view.message = await interaction.original_response()
-
-    async def on_timeout(self) -> None:
-        if not self.message or self.player.now_playing_message != self.message:
-            return
-        for item in self.children:
-            item.disabled = True  # type: ignore[attr-defined]
-        try:
-            await self.message.edit(view=self)
-        except discord.HTTPException:
-            pass
 
 
 class QueueView(discord.ui.View):

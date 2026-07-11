@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import calendar
 import datetime
 from datetime import date
 from zoneinfo import ZoneInfo
@@ -28,14 +29,50 @@ MONTHS_EN = [
 ]
 
 
+def _in_year(year: int, month: int, day: int) -> date:
+    """The birthday as it falls in ``year``, clamped to the last day of the month.
+
+    Feb 29 lands on Feb 28 in a non-leap year: a birthday that shifts by a day beats
+    one that disappears for three years.
+    """
+    last_day = calendar.monthrange(year, month)[1]
+    return date(year, month, min(day, last_day))
+
+
 def _next_occurrence(day: int, month: int, today: date) -> date:
-    try:
-        d = date(today.year, month, day)
-        if d < today:
-            d = date(today.year + 1, month, day)
-        return d
-    except ValueError:
-        return date(today.year + 1, month, day)
+    this_year = _in_year(today.year, month, day)
+    if this_year >= today:
+        return this_year
+    return _in_year(today.year + 1, month, day)
+
+
+async def claim_wishes_day(guild_id: int, today: date) -> bool:
+    """Claim today's birthday announcement. True for exactly one caller, once per day.
+
+    The wishes used to fire only inside the exact 00:00 minute, so a bot that was down or
+    slow across midnight skipped the day entirely — and one that restarted *during* that
+    minute could wish twice. Claiming the day in a single atomic statement makes the send
+    idempotent, and lets a bot that comes up late still catch the day up.
+
+    The very first claim for a guild only *seeds* the row and returns False: a bot being
+    installed (or this table being migrated in) at 3pm should not immediately blast wishes
+    at the channel. Announcements start from the next midnight.
+    """
+    pool = get_pool()
+    row = await pool.fetchrow(
+        """
+        INSERT INTO birthday_announcements (guild_id, last_wishes_on)
+        VALUES ($1, $2)
+        ON CONFLICT (guild_id) DO UPDATE SET last_wishes_on = EXCLUDED.last_wishes_on
+          WHERE birthday_announcements.last_wishes_on < EXCLUDED.last_wishes_on
+        RETURNING (xmax = 0) AS inserted
+        """,
+        guild_id,
+        today,
+    )
+    if row is None:
+        return False  # already announced today
+    return not row["inserted"]  # a fresh row is a seed, not a day we owe wishes for
 
 
 def _days_label(delta: int) -> str:
@@ -57,10 +94,15 @@ class BirthdayCog(commands.Cog):
     @tasks.loop(minutes=1)
     async def birthday_ticker(self) -> None:
         now = datetime.datetime.now(PARIS_TZ)
-        if now.hour == 0 and now.minute == 0:
-            await self._update_upcoming_embed()
-            await self._update_month_embed()
-            await self._send_birthday_wishes(now)
+        guild_id = self.bot.config.guild_id  # type: ignore[attr-defined]
+        # Whoever claims the day sends the wishes. Normally that's the 00:00 tick; if the
+        # bot was down at midnight, it's the first tick after it comes back, so the day
+        # isn't lost. Either way it happens once.
+        if not await claim_wishes_day(guild_id, now.date()):
+            return
+        await self._update_upcoming_embed()
+        await self._update_month_embed()
+        await self._send_birthday_wishes(now)
 
     @birthday_ticker.before_loop
     async def before_birthday_ticker(self) -> None:
@@ -68,14 +110,16 @@ class BirthdayCog(commands.Cog):
         await self._update_upcoming_embed()
         await self._update_month_embed()
 
+    @birthday_ticker.error
+    async def birthday_ticker_error(self, error: BaseException) -> None:
+        logger.warning(f"birthday_ticker error (will retry next tick): {error}")
+
     async def _update_upcoming_embed(self) -> None:
         config = self.bot.config  # type: ignore[attr-defined]
-        if not config.birthday_channel_id:
-            return
-
         pool = get_pool()
         guild_id = config.guild_id
 
+        # The channel lives in the DB, set by /setup birthday — no row means it wasn't run.
         cfg = await pool.fetchrow(
             "SELECT channel_id, upcoming_message_id FROM birthday_config WHERE guild_id = $1",
             guild_id,
@@ -122,9 +166,6 @@ class BirthdayCog(commands.Cog):
 
     async def _update_month_embed(self) -> None:
         config = self.bot.config  # type: ignore[attr-defined]
-        if not config.birthday_channel_id:
-            return
-
         pool = get_pool()
         guild_id = config.guild_id
 
@@ -177,11 +218,17 @@ class BirthdayCog(commands.Cog):
 
     async def _send_birthday_wishes(self, now: datetime.datetime) -> None:
         config = self.bot.config  # type: ignore[attr-defined]
-        if not config.birthday_announce_channel_id:
-            return
-
         pool = get_pool()
         guild_id = config.guild_id
+
+        cfg = await pool.fetchrow(
+            "SELECT channel_id, announce_channel_id FROM birthday_config WHERE guild_id = $1",
+            guild_id,
+        )
+        if not cfg:
+            return
+        # Falls back to the embeds channel when /setup birthday wasn't given a separate one.
+        announce_channel_id = cfg["announce_channel_id"] or cfg["channel_id"]
 
         rows = await pool.fetch(
             "SELECT user_id, year FROM birthdays WHERE guild_id = $1 AND day = $2 AND month = $3",
@@ -195,7 +242,7 @@ class BirthdayCog(commands.Cog):
         guild = self.bot.get_guild(guild_id)
         if not guild:
             return
-        channel = guild.get_channel(config.birthday_announce_channel_id)
+        channel = guild.get_channel(announce_channel_id)
         if not channel:
             return
 
@@ -245,8 +292,9 @@ class BirthdayCog(commands.Cog):
     async def birthday_delete(self, interaction: discord.Interaction) -> None:
         pool = get_pool()
         result = await pool.execute(
-            "DELETE FROM birthdays WHERE user_id = $1",
+            "DELETE FROM birthdays WHERE user_id = $1 AND guild_id = $2",
             interaction.user.id,
+            interaction.guild_id,
         )
         if result == "DELETE 0":
             await interaction.response.send_message("You have no birthday registered.", ephemeral=True)
