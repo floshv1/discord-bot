@@ -8,6 +8,7 @@ from discord import app_commands
 from discord.ext import commands
 from loguru import logger
 
+from bot.cogs.announce import service as announce_service
 from bot.cogs.betting import service as betting_service
 from bot.cogs.betting.cog import BettingCog
 from bot.cogs.birthday.cog import MONTHS_EN, BirthdayCog
@@ -93,6 +94,7 @@ FEATURES: list[tuple[str, str, list[str], str]] = [
     ("Queue", "queue_config", ["panel_message_id"], "/setup queue"),
     ("Suggestions", "suggestion_config", ["message_id"], "/setup suggestions"),
     ("Betting", "betting_config", [], "/setup betting"),
+    ("Announcements", "announce_config", [], "/setup announce"),
     ("Reprimand", "reprimand_config", [], "/setup reprimand"),
 ]
 
@@ -253,6 +255,17 @@ class SetupCog(commands.Cog):
         await interaction.followup.send(
             f"✅ Birthday embeds posted in {channel.mention}. "
             f"Wishes will go to {(announce_channel or channel).mention}.",
+            ephemeral=True,
+        )
+
+    @setup.command(name="announce", description="Choisir le salon où /announce publie les annonces.")
+    @app_commands.describe(channel="Salon qui recevra les annonces")
+    @app_commands.default_permissions(manage_guild=True)
+    async def setup_announce(self, interaction: discord.Interaction, channel: discord.TextChannel) -> None:
+        # No message is posted here, so there is nothing to clear or pin — just the channel.
+        await announce_service.set_announce_channel(interaction.guild_id, channel.id)
+        await interaction.response.send_message(
+            f"✅ Les annonces seront publiées dans {channel.mention}. Utilise `/announce` pour en écrire une.",
             ephemeral=True,
         )
 

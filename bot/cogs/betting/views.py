@@ -94,6 +94,41 @@ async def announce_result(client: discord.Client, market_id: int) -> None:
         logger.warning(f"Failed to announce result for market {market_id}: {e}")
 
 
+async def remind_creator_to_settle(client: discord.Client, market) -> None:
+    """Nudge the creator of a locked community bet, under their own card.
+
+    Only when money is actually stuck: a bet nobody staked on harms nobody, and nagging
+    about it would just be noise.
+    """
+    bets = await service.get_bets(market["id"])
+    if not bets:
+        return
+
+    channel = client.get_channel(market["channel_id"]) if market["channel_id"] else None
+    if channel is None:
+        return
+
+    staked = sum(b["amount"] for b in bets)
+    backers = len({b["user_id"] for b in bets})
+    text = (
+        f"⏰ <@{market['creator_user_id']}> — ton pari **{market['competition']}** est fermé "
+        f"mais pas encore clôturé.\n"
+        f"**{staked:,}** 🪙 de **{backers}** personne(s) sont bloqués tant que tu ne l'as pas fait.\n"
+        f"Utilise `/bet resolve` pour désigner le gagnant, ou `/bet cancel` pour tout rembourser."
+    )
+
+    try:
+        if market["message_id"]:
+            card = await channel.fetch_message(market["message_id"])
+            await channel.send(text, reference=card)
+        else:
+            await channel.send(text)
+    except discord.NotFound:
+        await channel.send(text)
+    except discord.HTTPException as e:
+        logger.warning(f"Failed to remind creator of market {market['id']}: {e}")
+
+
 class StakeModal(discord.ui.Modal, title="Place your bet"):
     stake_input = discord.ui.TextInput(label="Stake (FloshCoins)", placeholder="100", required=True, max_length=10)
 

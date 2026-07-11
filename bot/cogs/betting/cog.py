@@ -14,7 +14,12 @@ from bot.cogs.betting.providers import Provider
 from bot.cogs.betting.providers.football_data import FootballDataProvider
 from bot.cogs.betting.providers.pandascore import PandaScoreProvider
 from bot.cogs.betting.service import CREATE_FEE
-from bot.cogs.betting.views import MarketView, announce_result, refresh_market_message
+from bot.cogs.betting.views import (
+    MarketView,
+    announce_result,
+    refresh_market_message,
+    remind_creator_to_settle,
+)
 from bot.cogs.currency.leaderboard import mark_dirty
 
 FIXTURE_LOOKAHEAD_DAYS = 7
@@ -482,6 +487,14 @@ class BettingCog(commands.Cog):
                 await self._settle_from_provider(provider, market)
             except Exception:
                 logger.exception(f"Failed to settle market {market['id']}; will retry next tick")
+
+        # Nobody settles a community bet but its creator, so chase them — the stakes on it
+        # stay frozen until they do. The claim is atomic, so this can't double-ping.
+        for market in await service.claim_resolve_reminders(guild_id):
+            try:
+                await remind_creator_to_settle(self.bot, market)
+            except Exception:
+                logger.exception(f"Failed to remind creator of market {market['id']}")
 
     async def _settle_from_provider(self, provider: Provider, market) -> None:
         result = await provider.get_result(market["external_id"])
