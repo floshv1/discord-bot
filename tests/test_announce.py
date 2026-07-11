@@ -1,13 +1,32 @@
 from unittest.mock import MagicMock
 
 from bot.cogs.announce.embeds import build_announcement_embed
-from bot.cogs.announce.service import allowed_mentions_for
+from bot.cogs.announce.service import allowed_mentions_for, ping_content
 
 
 def _role(is_default: bool = False):
     role = MagicMock()
     role.is_default.return_value = is_default
+    role.mention = "<@&123>"
     return role
+
+
+# --- what actually goes in the message content ------------------------------
+
+
+def test_no_ping_puts_nothing_in_the_content():
+    assert ping_content(None) is None
+
+
+def test_a_normal_role_is_mentioned_the_usual_way():
+    assert ping_content(_role()) == "<@&123>"
+
+
+def test_everyone_must_be_the_literal_string():
+    # discord.py's Role.mention returns `<@&{id}>` for EVERY role, @everyone included.
+    # Discord does not notify anyone for that form — pinging everyone requires the literal
+    # text. Using .mention here would have silently pinged nobody.
+    assert ping_content(_role(is_default=True)) == "@everyone"
 
 
 # --- the security-relevant one: who can this announcement ping? -------------
