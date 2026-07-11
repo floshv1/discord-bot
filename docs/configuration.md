@@ -59,7 +59,7 @@ This is already wired up correctly in `compose.yml`.
 
 | Variable | Type | Description |
 |---|---|---|
-| `LOG_MUTED_EVENTS` | string | Comma-separated event types kept out of the log *channel* (still written to the DB). Unset uses a sane default that mutes the flooding ones (`message_sent`, `slash_command`, voice mute/deafen). Set to empty to mirror every event. |
+| `LOG_MUTED_EVENTS` | string | Comma-separated event types kept out of the log *channel* (still written to the DB). **Empty by default — the channel mirrors every event.** Set it if the channel gets too loud; the noisiest types are `message_sent`, `slash_command`, `voice_muted`, `voice_unmuted`, `voice_deafened`, `voice_undeafened`. |
 
 > **Feature channels are not env vars.** Voice, birthday, currency, betting, queue and suggestions
 > all take their channel as a `/setup <feature> <channel>` argument and store it in the DB, so you can

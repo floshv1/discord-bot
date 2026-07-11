@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -14,6 +15,12 @@ PlaceBetResult = Literal["ok", "closed", "insufficient_funds", "invalid_amount",
 
 # What it costs to open a community bet. See charge_creation_fee for why a fee and not a cap.
 CREATE_FEE = 100
+
+# How long after a community bet locks before its creator is reminded to settle it, and how
+# often the nudge repeats until they do. One ignorable ping isn't enough when other people's
+# coins are stuck behind it.
+RESOLVE_REMINDER_AFTER = datetime.timedelta(hours=2)
+RESOLVE_REMINDER_REPEAT = datetime.timedelta(hours=24)
 
 
 @dataclass
@@ -298,6 +305,35 @@ async def lock_due_markets(guild_id: int) -> list[asyncpg.Record]:
         RETURNING *
         """,
         guild_id,
+    )
+
+
+async def claim_resolve_reminders(guild_id: int) -> list[asyncpg.Record]:
+    """Community bets whose creator needs nudging to settle them. Claims them as it returns.
+
+    A community bet has no provider, so nothing settles it automatically: it sits at
+    'locked' until the creator runs /bet resolve. If they forget, every stake on it is
+    trapped there permanently and the bot never mentions it.
+
+    The claim and the send cannot be two steps, or a slow tick would ping the creator
+    twice. Stamping `resolve_reminded_at` inside the same UPDATE also makes the reminder
+    repeat on a slow cadence instead of firing every few minutes.
+    """
+    pool = get_pool()
+    return await pool.fetch(
+        """
+        UPDATE betting_markets
+        SET resolve_reminded_at = NOW()
+        WHERE guild_id = $1
+          AND status = 'locked'
+          AND provider = 'custom'
+          AND start_time < NOW() - $2::interval
+          AND (resolve_reminded_at IS NULL OR resolve_reminded_at < NOW() - $3::interval)
+        RETURNING *
+        """,
+        guild_id,
+        RESOLVE_REMINDER_AFTER,
+        RESOLVE_REMINDER_REPEAT,
     )
 
 

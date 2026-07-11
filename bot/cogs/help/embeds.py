@@ -51,6 +51,7 @@ ALWAYS = [
 
 MODERATION = [
     "`/setup status` — see which features are configured, and which need attention",
+    "`/announce` — publish a formatted announcement (opens a multi-line editor)",
     "`/kick` `/ban` `/unban` `/timeout` `/warn` `/history` — moderation, all logged",
     "`/clear` — bulk-delete messages",
     "`/bet resolve` / `/bet cancel` — settle *any* stuck market, not just your own",

@@ -17,6 +17,7 @@ COGS = [
     "bot.cogs.music.cog",
     "bot.cogs.currency.cog",
     "bot.cogs.betting.cog",
+    "bot.cogs.announce.cog",
     "bot.cogs.setup.cog",
     "bot.cogs.help.cog",
 ]
