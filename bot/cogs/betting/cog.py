@@ -18,7 +18,7 @@ from bot.cogs.betting.views import (
     MarketView,
     announce_result,
     refresh_market_message,
-    remind_creator_to_settle,
+    remind_to_settle,
 )
 from bot.cogs.currency.leaderboard import mark_dirty
 
@@ -120,11 +120,25 @@ class BettingCog(commands.Cog):
 
     async def cog_load(self) -> None:
         await self._reregister_open_views()
+        await self._seed_unseeded_markets()
         if self.providers:
             self.fixture_poll_ticker.start()
         self.lock_ticker.start()
         self.resolution_ticker.start()
         self.card_refresh_ticker.start()
+
+    async def _seed_unseeded_markets(self) -> None:
+        """Give the markets already on the board a house line too.
+
+        Otherwise the cards posted before this shipped would keep showing the degenerate odds
+        that started all this, for up to a week, sitting next to freshly seeded ones. Only
+        `open` markets are touched — seed_market refuses a locked one, whose bettors were
+        promised the pool they could see.
+        """
+        guild_id = self.bot.config.guild_id  # type: ignore[attr-defined]
+        for market in await service.get_open_markets(guild_id):
+            if await service.seed_market(market["id"]):
+                self.mark_card_dirty(market["id"])
 
     async def cog_unload(self) -> None:
         if self.fixture_poll_ticker.is_running():
@@ -229,9 +243,11 @@ class BettingCog(commands.Cog):
             closes_at=closes_at,
         )
 
+        await service.seed_market(market_id)
         market = await service.get_market(market_id)
+        bets = await service.get_bets(market_id)
         view = MarketView(market_id, service.outcomes_for_market(market))
-        card = await channel.send(embed=build_market_embed(market, []), view=view)
+        card = await channel.send(embed=build_market_embed(market, bets), view=view)
         await service.set_market_message(market_id, channel.id, card.id)
         self.bot.add_view(view)
         await interaction.followup.send(
@@ -432,9 +448,13 @@ class BettingCog(commands.Cog):
         if market_id is None:
             return False
 
+        # Seed before the card is drawn, so it opens on a real line rather than flashing
+        # "—" until the next refresh.
+        await service.seed_market(market_id)
         market = await service.get_market(market_id)
+        bets = await service.get_bets(market_id)
         view = MarketView(market_id, service.outcomes_for_market(market))
-        card = await channel.send(embed=build_market_embed(market, []), view=view)
+        card = await channel.send(embed=build_market_embed(market, bets), view=view)
         await service.set_market_message(market_id, channel.id, card.id)
         self.bot.add_view(view)
         return True
@@ -488,13 +508,31 @@ class BettingCog(commands.Cog):
             except Exception:
                 logger.exception(f"Failed to settle market {market['id']}; will retry next tick")
 
-        # Nobody settles a community bet but its creator, so chase them — the stakes on it
-        # stay frozen until they do. The claim is atomic, so this can't double-ping.
-        for market in await service.claim_resolve_reminders(guild_id):
+        # A locked market that nothing settles freezes everyone's stakes in silence — a
+        # community bet whose creator forgot, or a real match whose provider never reported a
+        # usable result. Chase both. The claim is atomic, so this can't double-ping.
+        for market in await service.claim_settle_reminders(guild_id):
             try:
-                await remind_creator_to_settle(self.bot, market)
+                await remind_to_settle(self.bot, market)
             except Exception:
-                logger.exception(f"Failed to remind creator of market {market['id']}")
+                logger.exception(f"Failed to send settle reminder for market {market['id']}")
+
+        # Last resort: nobody came. Give the coins back rather than hold them forever.
+        for market in await service.get_stuck_markets(guild_id):
+            try:
+                await self._void_stuck(market)
+            except Exception:
+                logger.exception(f"Failed to auto-void stuck market {market['id']}")
+
+    async def _void_stuck(self, market) -> None:
+        logger.warning(
+            f"Market {market['id']} ({_market_label(market)}) has been locked since "
+            f"{market['start_time']} with no result — auto-refunding every stake"
+        )
+        await service.void_market(market["id"])
+        mark_dirty(self.bot)
+        await refresh_market_message(self.bot, market["id"])
+        await announce_result(self.bot, market["id"])
 
     async def _settle_from_provider(self, provider: Provider, market) -> None:
         result = await provider.get_result(market["external_id"])

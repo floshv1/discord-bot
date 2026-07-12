@@ -50,12 +50,13 @@ async def announce_result(client: discord.Client, market_id: int) -> None:
     """Post a result summary under the market card, so bettors actually learn how they did.
 
     Without this the card is silently edited in place, far up the channel, and nobody notices.
-    Skipped entirely when nobody bet, to avoid spamming the channel with empty results.
+    Skipped entirely when no *member* bet: the house is staked on every market ever opened, so
+    counting it would announce the bank beating itself under every fixture nobody played.
     """
     market = await service.get_market(market_id)
     if not market or not market["channel_id"] or not market["message_id"]:
         return
-    bets = await service.get_bets(market_id)
+    bets = service.player_bets(await service.get_bets(market_id))
     if not bets:
         return
 
@@ -94,13 +95,17 @@ async def announce_result(client: discord.Client, market_id: int) -> None:
         logger.warning(f"Failed to announce result for market {market_id}: {e}")
 
 
-async def remind_creator_to_settle(client: discord.Client, market) -> None:
-    """Nudge the creator of a locked community bet, under their own card.
+async def remind_to_settle(client: discord.Client, market) -> None:
+    """Nudge whoever can settle a stuck market, under its own card.
 
-    Only when money is actually stuck: a bet nobody staked on harms nobody, and nagging
-    about it would just be noise.
+    A community bet is the creator's to close. A provider match has no creator — if the API
+    never reported a usable result it will sit locked forever, so the channel is told and any
+    mod can settle it. Either way the point is that frozen coins must never be *silent*.
+
+    Only when members' money is actually stuck: the house's seed doesn't count (it is on every
+    market ever opened), and nagging about a bet nobody staked on would just be noise.
     """
-    bets = await service.get_bets(market["id"])
+    bets = service.player_bets(await service.get_bets(market["id"]))
     if not bets:
         return
 
@@ -110,12 +115,24 @@ async def remind_creator_to_settle(client: discord.Client, market) -> None:
 
     staked = sum(b["amount"] for b in bets)
     backers = len({b["user_id"] for b in bets})
-    text = (
-        f"⏰ <@{market['creator_user_id']}> — ton pari **{market['competition']}** est fermé "
-        f"mais pas encore clôturé.\n"
-        f"**{staked:,}** 🪙 de **{backers}** personne(s) sont bloqués tant que tu ne l'as pas fait.\n"
-        f"Utilise `/bet resolve` pour désigner le gagnant, ou `/bet cancel` pour tout rembourser."
-    )
+    stuck = f"**{staked:,}** 🪙 de **{backers}** personne(s) sont bloqués."
+
+    if market["provider"] == "custom":
+        text = (
+            f"⏰ <@{market['creator_user_id']}> — ton pari **{market['competition']}** est fermé "
+            f"mais pas encore clôturé.\n"
+            f"{stuck}\n"
+            f"Utilise `/bet resolve` pour désigner le gagnant, ou `/bet cancel` pour tout rembourser."
+        )
+    else:
+        days = service.STUCK_VOID_AFTER.days
+        text = (
+            f"⏰ **{market['home_name']} vs {market['away_name']}** est fermé, "
+            f"mais le résultat n'est jamais arrivé.\n"
+            f"{stuck}\n"
+            f"Un modérateur peut le régler avec `/bet resolve`, ou `/bet cancel` pour rembourser. "
+            f"Remboursement automatique {days} jours après le coup d'envoi."
+        )
 
     try:
         if market["message_id"]:
@@ -126,7 +143,7 @@ async def remind_creator_to_settle(client: discord.Client, market) -> None:
     except discord.NotFound:
         await channel.send(text)
     except discord.HTTPException as e:
-        logger.warning(f"Failed to remind creator of market {market['id']}: {e}")
+        logger.warning(f"Failed to send settle reminder for market {market['id']}: {e}")
 
 
 class StakeModal(discord.ui.Modal, title="Place your bet"):

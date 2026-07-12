@@ -114,6 +114,37 @@ class PandaScoreProvider:
             )
         return fixtures
 
+    def _side_of(self, match: dict, team_id: int | None) -> str | None:
+        """Map a PandaScore team id onto the market's home/away sides."""
+        opponents = match.get("opponents") or []
+        if team_id is None or len(opponents) != 2:
+            return None
+        ids = [((o or {}).get("opponent") or {}).get("id") for o in opponents]
+        if ids[0] == team_id:
+            return "home"
+        if ids[1] == team_id:
+            return "away"
+        return None
+
+    def _winner_from_scores(self, match: dict) -> str | None:
+        """Work out the winner from the scoreline when `winner_id` is missing.
+
+        PandaScore does not always fill `winner_id` on a finished match, and when it doesn't
+        we used to report "finished, winner unknown" forever: the resolution ticker would
+        retry every 5 minutes, settle nothing, and say nothing, leaving real stakes frozen.
+        The scoreline is right there in the same payload and answers the question.
+
+        A draw is not a real LoL result, so equal scores mean the data is incomplete rather
+        than tied — return None and let the caller keep waiting.
+        """
+        results = match.get("results") or []
+        if len(results) != 2:
+            return None
+        best, other = sorted(results, key=lambda r: r.get("score") or 0, reverse=True)
+        if (best.get("score") or 0) == (other.get("score") or 0):
+            return None
+        return self._side_of(match, best.get("team_id"))
+
     async def get_result(self, external_id: str) -> ResultDTO | None:
         async with aiohttp.ClientSession() as session:
             match = await self._get(session, f"/lol/matches/{external_id}")
@@ -122,15 +153,16 @@ class PandaScoreProvider:
 
         status = match.get("status")
         if status == "finished":
-            winner_id = match.get("winner_id")
-            opponents = match.get("opponents") or []
-            winner = None
-            if winner_id is not None and len(opponents) == 2:
-                ids = [((o or {}).get("opponent") or {}).get("id") for o in opponents]
-                if ids[0] == winner_id:
-                    winner = "home"
-                elif ids[1] == winner_id:
-                    winner = "away"
+            winner = self._side_of(match, match.get("winner_id")) or self._winner_from_scores(match)
+            if winner is None:
+                # Never settle on a guess — but say enough that the next one is diagnosable,
+                # because the failure is otherwise completely silent. The market keeps being
+                # retried, gets chased by the settle reminder, and is refunded after a week.
+                logger.warning(
+                    f"PandaScore match {external_id} finished but the winner is unmappable: "
+                    f"winner_id={match.get('winner_id')} results={match.get('results')} "
+                    f"opponents={[((o or {}).get('opponent') or {}).get('id') for o in match.get('opponents') or []]}"
+                )
             return ResultDTO(status="finished", winner=winner)
         if status in _VOID_STATUSES:
             return ResultDTO(status="postponed" if status == "postponed" else "cancelled", winner=None)

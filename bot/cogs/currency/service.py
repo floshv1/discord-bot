@@ -12,6 +12,12 @@ CLAIM_AMOUNT = 100
 # Interpolated into SQL rather than passed as a parameter — it's a module constant, never user input.
 CLAIM_TZ = "Europe/Paris"
 
+# The house. It holds a real wallet and stakes real coins on both sides of every market, so
+# that a lone bettor has someone to win *from* — see bot/cogs/betting/service.py:seed_market.
+# 0 is not a valid Discord snowflake, so it can never collide with a member.
+HOUSE_USER_ID = 0
+HOUSE_ENDOWMENT = 50_000
+
 
 async def get_or_create_wallet(guild_id: int, user_id: int) -> tuple[asyncpg.Record, bool]:
     """The member's wallet, plus whether this call is what created it.
@@ -61,6 +67,41 @@ async def _record_opening_balance(conn, *, guild_id: int, user_id: int) -> None:
         "initial",
         STARTING_BALANCE,
     )
+
+
+async def ensure_house_wallet(guild_id: int) -> None:
+    """Open the house's wallet with its float, once, on first boot.
+
+    Deliberately not routed through get_or_create_wallet: the house does not start on a
+    member's 1000 🪙, and its float is the only coin creation outside the daily claim. Like
+    a member's opening balance it is written as a ledger row, so the house reconciles too —
+    it is a wallet the server can audit, not a magic source of coins.
+    """
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            created = await conn.fetchval(
+                """
+                INSERT INTO currency_wallets (user_id, guild_id, balance)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (user_id) DO NOTHING
+                RETURNING user_id
+                """,
+                HOUSE_USER_ID,
+                guild_id,
+                HOUSE_ENDOWMENT,
+            )
+            if created is None:
+                return
+            await conn.execute(
+                """
+                INSERT INTO currency_transactions (user_id, guild_id, amount, reason, balance_after)
+                VALUES ($1, $2, $3, 'house_endowment', $3)
+                """,
+                HOUSE_USER_ID,
+                guild_id,
+                HOUSE_ENDOWMENT,
+            )
 
 
 async def get_balance(guild_id: int, user_id: int) -> int:
@@ -329,6 +370,9 @@ async def top_balances(guild_id: int, limit: int = 10) -> list[asyncpg.Record]:
 
     Only `open`/`locked` markets count. A resolved or voided one has already paid out or
     refunded into the wallet, so counting it again would double it.
+
+    The house is excluded: it holds the float and is staked on every open market, so it would
+    sit permanently at the top of a board that is meant to rank the members against each other.
     """
     pool = get_pool()
     return await pool.fetch(
@@ -345,10 +389,11 @@ async def top_balances(guild_id: int, limit: int = 10) -> list[asyncpg.Record]:
             WHERE m.guild_id = $1 AND m.status IN ('open', 'locked')
             GROUP BY b.user_id
         ) s ON s.user_id = w.user_id
-        WHERE w.guild_id = $1
+        WHERE w.guild_id = $1 AND w.user_id <> $3
         ORDER BY total DESC, w.balance DESC
         LIMIT $2
         """,
         guild_id,
         limit,
+        HOUSE_USER_ID,
     )

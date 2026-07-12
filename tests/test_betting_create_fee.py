@@ -3,6 +3,16 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from bot.cogs.betting import service
+from bot.cogs.currency.service import HOUSE_USER_ID
+
+
+def _ledger(conn):
+    """Every row adjust() wrote, as (user_id, amount, reason) — the ledger is the source of truth."""
+    return [
+        (c.args[1], c.args[3], c.args[4])
+        for c in conn.execute.call_args_list
+        if c.args and "currency_transactions" in str(c.args[0])
+    ]
 
 
 def _mock_pool(conn):
@@ -27,12 +37,27 @@ async def test_opening_a_bet_costs_coins():
     conn.fetchrow.side_effect = [
         {"balance": 500},  # balance check
         {"balance": 500},  # adjust() re-reads the locked row
+        {"balance": 9000},  # adjust() on the house, which the fee is paid to
     ]
 
     charged, balance = await _charge(conn)
 
     assert charged is True
     assert balance == 500 - service.CREATE_FEE
+
+
+@pytest.mark.asyncio
+async def test_the_fee_is_paid_to_the_house_not_burned():
+    # It is what funds the seed on the next market. Burning it would make the house a pure
+    # faucet that drains until it is broke.
+    conn = AsyncMock()
+    conn.fetchrow.side_effect = [{"balance": 500}, {"balance": 500}, {"balance": 9000}]
+
+    await _charge(conn)
+
+    assert (HOUSE_USER_ID, service.CREATE_FEE, "bet_create_fee") in _ledger(conn)
+    # And the member paid exactly it — the fee moved, it was not conjured.
+    assert (2, -service.CREATE_FEE, "bet_create_fee") in _ledger(conn)
 
 
 @pytest.mark.asyncio
@@ -55,6 +80,7 @@ async def test_exactly_affording_the_fee_is_allowed():
     conn.fetchrow.side_effect = [
         {"balance": service.CREATE_FEE},
         {"balance": service.CREATE_FEE},
+        {"balance": 9000},  # the house being paid the fee
     ]
 
     charged, balance = await _charge(conn)
@@ -84,12 +110,36 @@ async def test_cancelling_a_bet_others_joined_refunds_the_creation_fee():
         {"guild_id": 1, "provider": "custom", "creator_user_id": CREATOR},
         {"balance": 500},  # adjust() for the refunded stake
         {"balance": 600},  # adjust() for the refunded fee
+        {"balance": 9000},  # adjust() taking it back off the house
     ]
     conn.fetch.return_value = [{"id": 1, "user_id": OTHER, "amount": 50, "outcome": "home"}]
 
     await _void(conn)
 
     assert _fee_refunds(conn), "the creation fee should come back when the bet was genuine"
+    # Out of the house's pocket, since that is where it went — not minted out of nowhere.
+    assert (HOUSE_USER_ID, -service.CREATE_FEE, "bet_create_fee_refund") in _ledger(conn)
+
+
+@pytest.mark.asyncio
+async def test_the_house_seed_does_not_earn_the_creator_their_fee_back():
+    # The house is staked on every bet ever opened. If its seed counted as "somebody else
+    # joined", the refund would be unconditional and create-and-cancel would be free again —
+    # which is the exact loop the fee exists to close.
+    conn = AsyncMock()
+    conn.fetchrow.side_effect = [
+        {"guild_id": 1, "provider": "custom", "creator_user_id": CREATOR},
+        {"balance": 500},
+        {"balance": 500},
+    ]
+    conn.fetch.return_value = [
+        {"id": 1, "user_id": HOUSE_USER_ID, "amount": 250, "outcome": "home"},
+        {"id": 2, "user_id": HOUSE_USER_ID, "amount": 250, "outcome": "away"},
+    ]
+
+    await _void(conn)
+
+    assert not _fee_refunds(conn)
 
 
 @pytest.mark.asyncio

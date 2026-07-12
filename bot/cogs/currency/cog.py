@@ -31,9 +31,13 @@ class CurrencyCog(commands.Cog):
 
     async def cog_load(self) -> None:
         self.bot.add_view(CurrencyPanelView())
+        guild_id = self.bot.config.guild_id  # type: ignore[attr-defined]
+        # The betting cog stakes the house on every market it opens, so its wallet has to
+        # exist before any market does.
+        await service.ensure_house_wallet(guild_id)
         # Start the mirror at the end of the ledger, or the first boot after this ships would
         # dump every transaction ever made into the log channel.
-        await service.start_log_cursor_at_latest(self.bot.config.guild_id)  # type: ignore[attr-defined]
+        await service.start_log_cursor_at_latest(guild_id)
         self.leaderboard_ticker.start()
         self.transaction_log_ticker.start()
 
