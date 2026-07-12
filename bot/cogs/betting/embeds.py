@@ -4,7 +4,14 @@ from collections.abc import Mapping, Sequence
 
 import discord
 
-from bot.cogs.betting.service import implied_odds, outcomes_for_market, pool_shares, pool_totals
+from bot.cogs.betting.service import (
+    house_stakes,
+    implied_odds,
+    outcomes_for_market,
+    player_bets,
+    pool_shares,
+    pool_totals,
+)
 
 BAR_WIDTH = 12
 PNL_SIDE_COUNT = 5  # how many winners, and how many losers, to name
@@ -69,17 +76,26 @@ def _bar(share: float) -> str:
 def build_market_embed(market: Mapping, bets: Sequence[Mapping]) -> discord.Embed:
     status = market["status"]
     custom = _is_custom(market)
-    totals = pool_totals(bets)
-    total_pool = sum(t["total"] for t in totals.values())
     ts = int(market["start_time"].timestamp())
     emoji = CUSTOM_OUTCOME_EMOJI if custom else OUTCOME_EMOJI
 
+    # Two views of the same market, and the difference matters. The *cote* is priced off every
+    # coin in the pool, house included, because that is what settlement actually pays out. The
+    # bars, the coin counts and the 👤 show only what members staked — a bar that was half full
+    # because the bank is on that side would tell the reader nothing about the room.
     odds = implied_odds(bets)
-    shares = pool_shares(bets)
+    mine = player_bets(bets)
+    totals = pool_totals(mine)
+    shares = pool_shares(mine)
+    player_pool = sum(t["total"] for t in totals.values())
+    house = house_stakes(bets)
+    house_pool = sum(house.values())
+    total_pool = player_pool + house_pool
+
     lines = []
     for key, label in outcomes_for_market(market):
         entry = totals.get(key, {"total": 0, "count": 0, "backers": 0})
-        # An outcome nobody has backed has no meaningful cote yet — don't invent one.
+        # An outcome nobody has backed at all — not even the house — has no meaningful cote.
         cote = f"`{odds[key]:.2f}x`" if key in odds else "`—`"
         winner_mark = " ✅" if status == "resolved" and key == market["winner"] else ""
         share = shares.get(key, 0.0)
@@ -88,6 +104,9 @@ def build_market_embed(market: Mapping, bets: Sequence[Mapping]) -> discord.Embe
             f"{emoji[key]} **{label}** {cote}{winner_mark}\n"
             f"`{_bar(share)}` {share:.0%} · {entry['total']:,} 🪙 · {people} 👤"
         )
+    if house_pool:
+        line = " / ".join(f"{house.get(key, 0):,}" for key, _ in outcomes_for_market(market))
+        lines.append(f"\n🏦 *Mise de la banque : {line} 🪙 — de quoi gagner même seul sur un pari.*")
 
     if custom:
         # For a custom bet the competition column holds the question being bet on.
@@ -115,11 +134,12 @@ def build_market_embed(market: Mapping, bets: Sequence[Mapping]) -> discord.Embe
         title = f"✅ {'Community bet' if custom else market['competition']} — {winner_label} won"
         color = discord.Color.green()
         description = matchup
-        winning_pool = totals.get(winner, {"total": 0})["total"]
-        if winning_pool > 0:
-            footer = f"Payout: {total_pool / winning_pool:.2f}x stake"
-        else:
+        # The multiplier that was actually paid, so it must be priced off the whole pool —
+        # the same numbers settlement used, not the members-only view above it.
+        if totals.get(winner, {"total": 0})["total"] == 0:
             footer = "Nobody bet on the winning outcome — no payouts"
+        else:
+            footer = f"Payout: {odds[winner]:.2f}x stake"
     else:  # void
         title = f"⚠️ {'Community bet' if custom else market['competition']} — {void_word}"
         color = discord.Color.red()
@@ -130,5 +150,8 @@ def build_market_embed(market: Mapping, bets: Sequence[Mapping]) -> discord.Embe
     embed.add_field(name="Cotes", value="\n".join(lines), inline=False)
     if custom and market.get("creator_user_id"):
         embed.add_field(name="Opened by", value=f"<@{market['creator_user_id']}>", inline=False)
-    embed.set_footer(text=f"{footer} · Total pool: {total_pool:,} 🪙")
+    pool_text = f"Total pool: {total_pool:,} 🪙"
+    if house_pool:
+        pool_text += f" (dont {house_pool:,} de la banque)"
+    embed.set_footer(text=f"{footer} · {pool_text}")
     return embed

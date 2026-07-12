@@ -3,6 +3,8 @@ import datetime
 import discord
 
 from bot.cogs.betting.embeds import build_market_embed
+from bot.cogs.betting.service import HOUSE_SEED_PER_OUTCOME, implied_odds, settle_parimutuel
+from bot.cogs.currency.service import HOUSE_USER_ID
 
 
 def _market(status="open", sport="football", winner=None):
@@ -134,3 +136,58 @@ def test_custom_market_resolved_names_winning_option():
     )
     assert "Team Red" in embed.title
     assert embed.color == discord.Color.green()
+
+
+# --- The house line ----------------------------------------------------------
+
+
+def _seeded(*outcomes):
+    return [
+        {"id": -i, "user_id": HOUSE_USER_ID, "outcome": key, "amount": HOUSE_SEED_PER_OUTCOME}
+        for i, key in enumerate(outcomes, 1)
+    ]
+
+
+def test_the_card_prices_a_market_nobody_has_bet_on_yet():
+    # It used to open on "—" across the board and stay there until someone committed blind.
+    embed = build_market_embed(_market(sport="lol"), _seeded("home", "away"))
+    field = embed.fields[0].value
+
+    assert field.count("2.00x") == 2
+    assert "`—`" not in field  # the "no cote yet" placeholder, on no outcome
+    assert "banque" in field.lower()
+
+
+def test_the_bars_show_what_members_staked_not_what_the_house_did():
+    """The odds and the bars answer different questions on purpose.
+
+    The cote is priced off every coin in the pool, house included, because that is what
+    settlement pays. The bar is about the room: a bar half-full because the bank is on that
+    side would say a member backed it, which is a lie.
+    """
+    bets = [*_seeded("home", "away"), {"id": 1, "user_id": 7, "outcome": "away", "amount": 100}]
+    embed = build_market_embed(_market(sport="lol"), bets)
+    field = embed.fields[0].value
+
+    assert "100%" in field  # every member on this market is on Argentina
+    assert "1 👤" in field
+    assert "0 👤" in field  # and nobody is on France, house seed notwithstanding
+    assert "1.71x" in field  # but France is still priced, and Argentina pays more than 1.00x
+
+
+def test_the_advertised_cote_is_the_one_settlement_pays():
+    # The bot must never advertise one payout and pay another.
+    bets = [*_seeded("home", "away"), {"id": 1, "user_id": 7, "outcome": "away", "amount": 100}]
+    embed = build_market_embed(_market(sport="lol"), bets)
+
+    payout = settle_parimutuel(bets, "away")[1]
+    assert f"{implied_odds(bets)['away']:.2f}x" in embed.fields[0].value
+    assert payout == int(100 * implied_odds(bets)["away"])
+
+
+def test_the_footer_separates_member_money_from_house_liquidity():
+    bets = [*_seeded("home", "away"), {"id": 1, "user_id": 7, "outcome": "away", "amount": 100}]
+    footer = build_market_embed(_market(sport="lol"), bets).footer.text
+
+    assert "600" in footer  # the whole pool, which is what pays out
+    assert "500" in footer  # of which the bank's, so nobody thinks 5 people showed up

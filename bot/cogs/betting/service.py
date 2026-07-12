@@ -7,8 +7,10 @@ from dataclasses import dataclass
 from typing import Literal
 
 import asyncpg
+from loguru import logger
 
 from bot.cogs.currency import service as currency_service
+from bot.cogs.currency.service import HOUSE_USER_ID
 from bot.db.client import get_pool
 
 PlaceBetResult = Literal["ok", "closed", "insufficient_funds", "invalid_amount", "other_outcome"]
@@ -16,11 +18,18 @@ PlaceBetResult = Literal["ok", "closed", "insufficient_funds", "invalid_amount",
 # What it costs to open a community bet. See charge_creation_fee for why a fee and not a cap.
 CREATE_FEE = 100
 
-# How long after a community bet locks before its creator is reminded to settle it, and how
-# often the nudge repeats until they do. One ignorable ping isn't enough when other people's
-# coins are stuck behind it.
+# What the house stakes on each side of a market when it opens. See seed_market.
+HOUSE_SEED_PER_OUTCOME = 250
+
+# How long after a market locks before someone is reminded to settle it, and how often the
+# nudge repeats until they do. One ignorable ping isn't enough when other people's coins are
+# stuck behind it.
 RESOLVE_REMINDER_AFTER = datetime.timedelta(hours=2)
 RESOLVE_REMINDER_REPEAT = datetime.timedelta(hours=24)
+
+# A market still locked this long after kickoff is never going to be settled by hand. Refund
+# it rather than leave the stakes frozen forever — a refund cannot make anyone worse off.
+STUCK_VOID_AFTER = datetime.timedelta(days=7)
 
 
 @dataclass
@@ -55,6 +64,27 @@ def settle_parimutuel(bets: Sequence[Mapping], winner: str) -> dict[int, int]:
         return {}
     losing_pool = total_pool - winning_pool
     return {b["id"]: b["amount"] + (b["amount"] * losing_pool) // winning_pool for b in winning_bets}
+
+
+def player_bets(bets: Sequence[Mapping]) -> list[Mapping]:
+    """Just the bets real people placed.
+
+    The house's seed is a bet like any other as far as the payout maths is concerned — that
+    is the whole point, it wins and loses on the same terms. But it is *not* interesting as
+    a fact about the server: a card that said "1 backer" because the house is on that side,
+    or a P&L board topped by the bank, would be lying about what the members did. So the
+    money view of a market includes the house and the people view does not.
+    """
+    return [b for b in bets if b.get("user_id") != HOUSE_USER_ID]
+
+
+def house_stakes(bets: Sequence[Mapping]) -> dict[str, int]:
+    """What the house has riding on each outcome — its line, as shown on the card."""
+    stakes: dict[str, int] = {}
+    for b in bets:
+        if b.get("user_id") == HOUSE_USER_ID:
+            stakes[b["outcome"]] = stakes.get(b["outcome"], 0) + b["amount"]
+    return stakes
 
 
 def pool_totals(bets: Sequence[Mapping]) -> dict[str, dict[str, int]]:
@@ -107,6 +137,69 @@ def outcomes_for_market(market: Mapping) -> list[tuple[str, str]]:
     return outcomes
 
 
+async def seed_market(market_id: int) -> bool:
+    """Stake the house on every outcome of a freshly opened market. Returns whether it did.
+
+    Without this, a market's odds are whatever the crowd happens to have staked — and on a
+    small server the crowd is often one person. Backing the only outcome anyone bet on paid
+    `1.00x`: your own stake, handed back to you. Betting alone was pointless, which is the
+    thing members actually complained about.
+
+    Seeding both sides gives every market a real opening line (2.00x on a two-way) and, more
+    importantly, gives a lone bettor someone to win *from*. The house is an ordinary row in
+    betting_bets, so settle_parimutuel needs no special case: it wins and loses on exactly the
+    same terms as a member, and no coins are minted to pay anyone.
+
+    Only an `open` market may be seeded. Seeding one that has already locked would move the
+    odds under people who have already bet — they were promised the pool they could see.
+    """
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            market = await conn.fetchrow("SELECT * FROM betting_markets WHERE id = $1 FOR UPDATE", market_id)
+            if not market or market["status"] != "open":
+                return False
+
+            already_seeded = await conn.fetchval(
+                "SELECT EXISTS (SELECT 1 FROM betting_bets WHERE market_id = $1 AND user_id = $2)",
+                market_id,
+                HOUSE_USER_ID,
+            )
+            if already_seeded:
+                return False
+
+            outcomes = outcomes_for_market(market)
+            needed = HOUSE_SEED_PER_OUTCOME * len(outcomes)
+
+            # Read the house wallet directly rather than through get_balance_locked, which
+            # would happily *create* it with a member's opening balance. If the house has no
+            # wallet, something is wrong and quietly inventing a 1000 🪙 bank is not the fix.
+            balance = await conn.fetchval(
+                "SELECT balance FROM currency_wallets WHERE user_id = $1 FOR UPDATE", HOUSE_USER_ID
+            )
+            if balance is None:
+                logger.warning(f"House wallet missing — market {market_id} opens unseeded")
+                return False
+            if balance < needed:
+                # Broke, not broken: the market still works, it just prices itself off the
+                # crowd like it used to. The losing pools it collects will refill it.
+                logger.warning(f"House has {balance} 🪙, needs {needed} — market {market_id} opens unseeded")
+                return False
+
+            await currency_service.adjust(
+                conn, guild_id=market["guild_id"], user_id=HOUSE_USER_ID, amount=-needed, reason="house_seed"
+            )
+            for key, _label in outcomes:
+                await conn.execute(
+                    "INSERT INTO betting_bets (market_id, user_id, outcome, amount) VALUES ($1, $2, $3, $4)",
+                    market_id,
+                    HOUSE_USER_ID,
+                    key,
+                    HOUSE_SEED_PER_OUTCOME,
+                )
+            return True
+
+
 async def charge_creation_fee(*, guild_id: int, user_id: int) -> tuple[bool, int]:
     """Debit the fee for opening a community bet. Returns (charged, balance).
 
@@ -115,9 +208,10 @@ async def charge_creation_fee(*, guild_id: int, user_id: int) -> tuple[bool, int
     have open: on a busy night with a dozen real events, a cap punishes the person doing
     the work, while a fee just asks them to have skin in the game.
 
-    Burned rather than added to the pool — a bet's pool must be exactly what bettors put
-    in, or the payout maths stops being parimutuel. Not refunded when a bet is cancelled,
-    or create-and-cancel would be a free spam loop.
+    It goes to the house, never into the pool — a bet's pool must be exactly what bettors put
+    in, or the payout maths stops being parimutuel. Paying the house rather than burning it
+    is what funds the seed on the next market. Not refunded when a bet is cancelled, or
+    create-and-cancel would be a free spam loop.
     """
     pool = get_pool()
     async with pool.acquire() as conn:
@@ -127,6 +221,9 @@ async def charge_creation_fee(*, guild_id: int, user_id: int) -> tuple[bool, int
                 return False, balance
             new_balance = await currency_service.adjust(
                 conn, guild_id=guild_id, user_id=user_id, amount=-CREATE_FEE, reason="bet_create_fee"
+            )
+            await currency_service.adjust(
+                conn, guild_id=guild_id, user_id=HOUSE_USER_ID, amount=CREATE_FEE, reason="bet_create_fee"
             )
             return True, new_balance
 
@@ -316,6 +413,10 @@ async def betting_pnl(guild_id: int, limit: int = 100) -> list[asyncpg.Record]:
 
     `payout` is written on settlement: the full return for a winner, 0 for a loser. So
     `payout - amount` is exactly what the bet made or cost.
+
+    The house is excluded — it is staked on both sides of every market, so it would appear on
+    this board as the most prolific bettor on the server, which tells nobody anything about
+    who is good at betting.
     """
     pool = get_pool()
     return await pool.fetch(
@@ -326,26 +427,32 @@ async def betting_pnl(guild_id: int, limit: int = 100) -> list[asyncpg.Record]:
                COUNT(*) FILTER (WHERE COALESCE(b.payout, 0) > b.amount) AS wins
         FROM betting_bets b
         JOIN betting_markets m ON m.id = b.market_id
-        WHERE m.guild_id = $1 AND m.status = 'resolved'
+        WHERE m.guild_id = $1 AND m.status = 'resolved' AND b.user_id <> $3
         GROUP BY b.user_id
         ORDER BY profit DESC
         LIMIT $2
         """,
         guild_id,
         limit,
+        HOUSE_USER_ID,
     )
 
 
-async def claim_resolve_reminders(guild_id: int) -> list[asyncpg.Record]:
-    """Community bets whose creator needs nudging to settle them. Claims them as it returns.
+async def claim_settle_reminders(guild_id: int) -> list[asyncpg.Record]:
+    """Markets stuck at 'locked' that someone needs to settle. Claims them as it returns.
 
-    A community bet has no provider, so nothing settles it automatically: it sits at
-    'locked' until the creator runs /bet resolve. If they forget, every stake on it is
-    trapped there permanently and the bot never mentions it.
+    A community bet has no provider, so nothing settles it automatically: it sits at 'locked'
+    until the creator runs /bet resolve. If they forget, every stake on it is trapped there
+    permanently.
 
-    The claim and the send cannot be two steps, or a slow tick would ping the creator
-    twice. Stamping `resolve_reminded_at` inside the same UPDATE also makes the reminder
-    repeat on a slow cadence instead of firing every few minutes.
+    Provider markets are chased too, and used not to be — which is how a finished MSI match
+    sat locked with a member's coins in it and the bot never said a word. The resolution
+    ticker retries such a market forever in silence; if the API never reports a usable result,
+    silence is all anyone ever gets. A market nobody can settle has to be *visible*.
+
+    The claim and the send cannot be two steps, or a slow tick would ping twice. Stamping
+    `resolve_reminded_at` inside the same UPDATE also makes the reminder repeat on a slow
+    cadence instead of firing every few minutes.
     """
     pool = get_pool()
     return await pool.fetch(
@@ -354,7 +461,6 @@ async def claim_resolve_reminders(guild_id: int) -> list[asyncpg.Record]:
         SET resolve_reminded_at = NOW()
         WHERE guild_id = $1
           AND status = 'locked'
-          AND provider = 'custom'
           AND start_time < NOW() - $2::interval
           AND (resolve_reminded_at IS NULL OR resolve_reminded_at < NOW() - $3::interval)
         RETURNING *
@@ -362,6 +468,25 @@ async def claim_resolve_reminders(guild_id: int) -> list[asyncpg.Record]:
         guild_id,
         RESOLVE_REMINDER_AFTER,
         RESOLVE_REMINDER_REPEAT,
+    )
+
+
+async def get_stuck_markets(guild_id: int) -> list[asyncpg.Record]:
+    """Markets locked so long that nobody is ever going to settle them by hand.
+
+    The last line of defence for the trapped-stakes bug: whatever went wrong — a provider that
+    never reported a result, a creator who left the server — the coins come back. Voiding
+    refunds every stake exactly, so this can never cost anyone anything; the only thing it
+    takes away is the chance of a settlement that was never coming.
+    """
+    pool = get_pool()
+    return await pool.fetch(
+        """
+        SELECT * FROM betting_markets
+        WHERE guild_id = $1 AND status = 'locked' AND start_time < NOW() - $2::interval
+        """,
+        guild_id,
+        STUCK_VOID_AFTER,
     )
 
 
@@ -426,6 +551,15 @@ async def place_bet(*, market_id: int, guild_id: int, user_id: int, outcome: str
 
 
 async def resolve_market(market_id: int, winner: str) -> None:
+    """Pay the winners out of the pool and close the market.
+
+    The house is the residual claimant: whatever the pool does not pay out goes to it. That
+    is one rule covering two leaks that used to just delete coins — the few 🪙 of rounding
+    dust that integer division leaves behind, and (when the house is not staked, so nobody
+    backed the winner) the entire pool. Those losing stakes are what refills the treasury and
+    pays for the next market's seed, which is what makes the house self-sustaining rather
+    than a slow faucet.
+    """
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
@@ -439,6 +573,17 @@ async def resolve_market(market_id: int, winner: str) -> None:
                     await currency_service.adjust(
                         conn, guild_id=market["guild_id"], user_id=bet["user_id"], amount=payout, reason="payout"
                     )
+
+            residual = sum(b["amount"] for b in bets) - sum(payouts.values())
+            if residual > 0:
+                await currency_service.adjust(
+                    conn,
+                    guild_id=market["guild_id"],
+                    user_id=HOUSE_USER_ID,
+                    amount=residual,
+                    reason="house_margin",
+                )
+
             await conn.execute(
                 "UPDATE betting_markets SET status = 'resolved', winner = $1 WHERE id = $2", winner, market_id
             )
@@ -462,15 +607,25 @@ async def void_market(market_id: int) -> None:
             # Give the creation fee back, but only for a bet other people actually joined.
             # Cancelling a bet nobody touched is the very case the fee exists to deter, and
             # refunding it there would make create-and-cancel a free spam loop — including
-            # the creator staking on their own bet to fake participation.
+            # the creator staking on their own bet to fake participation. The house's seed is
+            # not participation either: it is on every bet ever opened, so counting it would
+            # make the refund unconditional and hand the spam loop straight back.
             creator = market["creator_user_id"]
             if market["provider"] == "custom" and creator is not None:
-                if any(bet["user_id"] != creator for bet in bets):
+                if any(bet["user_id"] not in (creator, HOUSE_USER_ID) for bet in bets):
                     await currency_service.adjust(
                         conn,
                         guild_id=market["guild_id"],
                         user_id=creator,
                         amount=CREATE_FEE,
+                        reason="bet_create_fee_refund",
+                    )
+                    # Out of the house's pocket, since that is where the fee went.
+                    await currency_service.adjust(
+                        conn,
+                        guild_id=market["guild_id"],
+                        user_id=HOUSE_USER_ID,
+                        amount=-CREATE_FEE,
                         reason="bet_create_fee_refund",
                     )
 

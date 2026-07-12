@@ -133,3 +133,70 @@ async def test_pandascore_returns_nothing_when_no_leagues_match():
         fixtures = await PandaScoreProvider("key").list_upcoming(7)
 
     assert fixtures == []
+
+
+# --- Results -----------------------------------------------------------------
+#
+# A market only settles when the provider reports a winner it can map onto home/away. Every
+# way that mapping can fail leaves real coins frozen in a locked market, so each one matters.
+
+_BLG, _HLE = 3211, 3212
+
+
+def _finished(winner_id, results=None, **kw):
+    return {
+        "id": 1,
+        "status": "finished",
+        "winner_id": winner_id,
+        "opponents": [{"opponent": {"id": _BLG}}, {"opponent": {"id": _HLE}}],
+        "results": results,
+        **kw,
+    }
+
+
+async def _result(payload):
+    with patch("aiohttp.ClientSession", _mock_session(payload)):
+        return await PandaScoreProvider("key").get_result("1")
+
+
+@pytest.mark.asyncio
+async def test_pandascore_maps_the_reported_winner():
+    assert (await _result(_finished(_HLE))).winner == "away"
+    assert (await _result(_finished(_BLG))).winner == "home"
+
+
+@pytest.mark.asyncio
+async def test_pandascore_falls_back_to_the_scoreline():
+    """The MSI bug: a finished match with no winner_id used to settle nothing, forever.
+
+    The resolution ticker retried it every five minutes, reported "finished with no winner",
+    and left a member's stake frozen in a locked market with no announcement. The score was in
+    the same payload the whole time.
+    """
+    result = await _result(_finished(None, results=[{"team_id": _BLG, "score": 1}, {"team_id": _HLE, "score": 3}]))
+
+    assert result.status == "finished"
+    assert result.winner == "away"
+
+
+@pytest.mark.asyncio
+async def test_pandascore_never_guesses_a_winner():
+    # Settling on a coin-flip would pay the wrong people, which is worse than paying nobody
+    # yet — the stuck-market reminder and the 7-day refund are the safety net for these.
+    tied = _finished(None, results=[{"team_id": _BLG, "score": 2}, {"team_id": _HLE, "score": 2}])
+    unknown = _finished(None, results=[{"team_id": 9999, "score": 3}, {"team_id": 8888, "score": 1}])
+
+    assert (await _result(tied)).winner is None
+    assert (await _result(unknown)).winner is None
+    assert (await _result(_finished(None, results=None))).winner is None
+
+
+@pytest.mark.asyncio
+async def test_pandascore_voids_a_cancelled_match():
+    assert (await _result({"id": 1, "status": "canceled"})).status == "cancelled"
+    assert (await _result({"id": 1, "status": "postponed"})).status == "postponed"
+
+
+@pytest.mark.asyncio
+async def test_pandascore_says_nothing_about_a_match_still_running():
+    assert await _result({"id": 1, "status": "running"}) is None

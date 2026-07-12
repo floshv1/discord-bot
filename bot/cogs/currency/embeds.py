@@ -5,6 +5,8 @@ from collections.abc import Mapping, Sequence
 
 import discord
 
+from bot.cogs.currency.service import HOUSE_USER_ID
+
 CURRENCY_NAME = "FloshCoins"
 CURRENCY_EMOJI = "🪙"
 
@@ -18,6 +20,9 @@ REASON_LABELS = {
     "bet_create_fee": "Ouverture d'un pari",
     "bet_create_fee_refund": "Frais d'ouverture rendus",
     "admin_grant": "Ajustement admin",
+    "house_endowment": "Fonds de la banque",
+    "house_seed": "Mise de la banque",
+    "house_margin": "Bénéfice de la banque",
 }
 
 
@@ -57,7 +62,9 @@ def build_transactions_log_embed(rows: Sequence[Mapping]) -> discord.Embed:
     for r in rows:
         label = REASON_LABELS.get(r["reason"], r["reason"])
         after = f" → {r['balance_after']:,}" if r["balance_after"] is not None else ""
-        lines.append(f"<@{r['user_id']}> **{r['amount']:+,}**{after} — {label}")
+        # The house is a wallet, not a member: <@0> would render as a broken mention.
+        who = "🏦 **La Banque**" if r["user_id"] == HOUSE_USER_ID else f"<@{r['user_id']}>"
+        lines.append(f"{who} **{r['amount']:+,}**{after} — {label}")
 
     return discord.Embed(
         description=f"**{CURRENCY_EMOJI} Transactions**\n" + "\n".join(lines),

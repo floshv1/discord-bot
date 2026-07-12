@@ -12,10 +12,16 @@ ALTER TABLE currency_transactions
 
 -- The opening balance every existing wallet was given but never recorded. Dated from the
 -- wallet's creation so the ledger reads in the right order.
+--
+-- The house (user_id 0) is excluded, and must be: this statement re-runs on every boot, and
+-- the house's opening row is a 'house_endowment', not an 'initial'. Without the guard it would
+-- be handed a phantom 1000 🪙 transaction on the first restart after the house shipped, and
+-- its ledger would never reconcile again.
 INSERT INTO currency_transactions (user_id, guild_id, amount, reason, created_at)
 SELECT w.user_id, w.guild_id, 1000, 'initial', COALESCE(w.updated_at, NOW())
 FROM currency_wallets w
-WHERE NOT EXISTS (
+WHERE w.user_id <> 0
+  AND NOT EXISTS (
     SELECT 1 FROM currency_transactions t
     WHERE t.user_id = w.user_id AND t.reason = 'initial'
 );
