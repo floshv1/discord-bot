@@ -10,6 +10,7 @@ from bot.db.models import load_all_migrations
 COGS = [
     "bot.cogs.logs.cog",
     "bot.cogs.moderation.cog",
+    "bot.cogs.tribunal.cog",
     "bot.cogs.queue.cog",
     "bot.cogs.suggestions.cog",
     "bot.cogs.voice.cog",

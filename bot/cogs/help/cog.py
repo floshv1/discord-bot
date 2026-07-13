@@ -7,12 +7,16 @@ from discord.ext import commands
 from bot.cogs.help.embeds import build_help_embed
 from bot.db.client import get_pool
 
-# Feature key → the table whose row proves an admin has set it up.
-FEATURE_TABLES = {
-    "currency": "currency_leaderboard",
-    "betting": "betting_config",
-    "queue": "queue_config",
-    "suggestions": "suggestion_config",
+# Feature key → the table whose row proves an admin has set it up, plus an optional column
+# that must also be non-NULL. The tribunal needs that guard: reprimand_config has a
+# channel from the moment /setup reprimand runs, but there is no tribunal until a jury role
+# is set, and the channel alone must not advertise a court that cannot sit.
+FEATURE_TABLES: dict[str, tuple[str, str | None]] = {
+    "currency": ("currency_leaderboard", None),
+    "betting": ("betting_config", None),
+    "queue": ("queue_config", None),
+    "suggestions": ("suggestion_config", None),
+    "tribunal": ("reprimand_config", "judge_role_id"),
 }
 
 
@@ -26,11 +30,14 @@ class HelpCog(commands.Cog):
         pool = get_pool()
 
         channels: dict[str, str | None] = {}
-        for key, table in FEATURE_TABLES.items():
+        for key, (table, guard) in FEATURE_TABLES.items():
+            selected = "channel_id" + (f", {guard}" if guard else "")
             row = await pool.fetchrow(
-                f"SELECT channel_id FROM {table} WHERE guild_id = $1",  # noqa: S608 - names are literals
+                f"SELECT {selected} FROM {table} WHERE guild_id = $1",  # noqa: S608 - names are literals
                 interaction.guild_id,
             )
+            if row and guard and row[guard] is None:
+                row = None
             channel = self.bot.get_channel(row["channel_id"]) if row else None
             channels[key] = channel.mention if channel else None
 
