@@ -2,6 +2,7 @@ import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from loguru import logger
 
 from bot.cogs.betting.providers.football_data import FootballDataProvider
 from bot.cogs.betting.providers.pandascore import PandaScoreProvider
@@ -133,6 +134,26 @@ async def test_pandascore_returns_nothing_when_no_leagues_match():
         fixtures = await PandaScoreProvider("key").list_upcoming(7)
 
     assert fixtures == []
+
+
+@pytest.mark.asyncio
+async def test_pandascore_warns_about_a_league_name_that_matched_nothing():
+    # A misspelt league is dropped by the strict-equality filter while the others still
+    # resolve, so the only symptom is a tournament that silently never gets a market.
+    # Loguru doesn't feed caplog, so capture it with a sink of our own.
+    warnings: list[str] = []
+    sink_id = logger.add(lambda m: warnings.append(m.record["message"]), level="WARNING")
+    try:
+        with patch("aiohttp.ClientSession", _mock_session(_LEAGUES_PAYLOAD, [])):
+            await PandaScoreProvider("key").list_upcoming(7)
+    finally:
+        logger.remove(sink_id)
+
+    missing = next(w for w in warnings if "no league named" in w)
+    assert "World Championship" in missing
+    assert "Mid-Season Invitational" in missing
+    assert "Esports World Cup" in missing
+    assert "LEC" not in missing  # the one league that did resolve isn't reported as missing
 
 
 # --- Results -----------------------------------------------------------------
