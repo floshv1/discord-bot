@@ -398,29 +398,40 @@ class SetupCog(commands.Cog):
             ephemeral=True,
         )
 
-    @setup.command(name="betting", description="Set the channel where match betting cards are posted.")
-    @app_commands.describe(channel="Channel that will host the match betting cards")
+    @setup.command(name="betting", description="Set the channel where betting cards are posted.")
+    @app_commands.describe(
+        channel="Channel that will host the betting cards",
+        staff_channel="Private channel where settlement recaps are posted (optional)",
+    )
     @app_commands.default_permissions(manage_guild=True)
-    async def setup_betting(self, interaction: discord.Interaction, channel: discord.TextChannel) -> None:
-        cog: BettingCog | None = self.bot.cogs.get("BettingCog")  # type: ignore[assignment]
-        if cog and not cog.providers:
-            await interaction.response.send_message(
-                "❌ No betting provider is configured — set `FOOTBALL_DATA_API_KEY` and/or "
-                "`PANDASCORE_API_KEY`, then restart the bot.",
-                ephemeral=True,
-            )
-            return
-
+    async def setup_betting(
+        self,
+        interaction: discord.Interaction,
+        channel: discord.TextChannel,
+        staff_channel: discord.TextChannel | None = None,
+    ) -> None:
         await interaction.response.defer(ephemeral=True)
-        await betting_service.set_betting_channel(interaction.guild_id, channel.id)
+        cog: BettingCog | None = self.bot.cogs.get("BettingCog")  # type: ignore[assignment]
+        await betting_service.set_betting_channel(
+            interaction.guild_id, channel.id, staff_channel.id if staff_channel else None
+        )
         stats = await cog.poll_fixtures_now() if cog else {}
 
         # Report per provider so a dead feed is obvious, and so "already posted" doesn't
         # read as "broken" — both would otherwise show up as zero new markets.
         lines = [f"• `{name}` — {stat.summary()}" for name, stat in stats.items()]
-        detail = "\n".join(lines) if lines else "_No providers configured._"
+        detail = (
+            "\n".join(lines)
+            if lines
+            else "_Aucun provider configuré — seuls les paris communautaires (`/bet create`) apparaîtront ici._"
+        )
+        staff_line = (
+            f"\n📋 Récaps de résolution dans {staff_channel.mention}."
+            if staff_channel
+            else "\n📋 Aucun salon staff : les parieurs recevront leurs MP, mais aucun récap ne sera posté."
+        )
         await interaction.followup.send(
-            f"✅ Betting channel set to {channel.mention}.\n\n{detail}",
+            f"✅ Salon de paris : {channel.mention}.{staff_line}\n\n{detail}",
             ephemeral=True,
         )
 

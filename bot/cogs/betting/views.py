@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
+
 import discord
 from loguru import logger
 
 from bot.cogs.betting import service
 from bot.cogs.betting.cards import mark_card_dirty
-from bot.cogs.betting.embeds import build_market_embed
+from bot.cogs.betting.embeds import build_market_embed, build_staff_result_embed
+from bot.cogs.currency import service as currency_service
 from bot.cogs.currency.leaderboard import mark_dirty
 
 CLOSED_MESSAGE = "❌ Betting has closed on this one — no new stakes. Anything you already staked still stands."
@@ -46,101 +49,176 @@ def make_market_view(market) -> MarketView:
     return MarketView(market["id"], service.outcomes_for_market(market))
 
 
-async def announce_result(client: discord.Client, market_id: int) -> None:
-    """Post a result summary under the market card, so bettors actually learn how they did.
+async def announce_result_to_staff(client: discord.Client, market_id: int, settled_by: str) -> None:
+    """Post the full breakdown of a settled market in the staff channel.
 
-    Without this the card is silently edited in place, far up the channel, and nobody notices.
-    Skipped entirely when no *member* bet: the house is staked on every market ever opened, so
-    counting it would announce the bank beating itself under every fixture nobody played.
+    Not in the betting channel — that one holds cards, and a pinged list of winners under every
+    settled fixture was the noise this replaced. And not nowhere: a custom bet's winner is
+    declared by a person, so *somebody* has to be able to see who declared what without opening
+    psql. That is what this is.
+
+    No staff channel configured means no recap and no error: the DMs still went out and the card
+    is still rewritten. Degraded, not broken.
+
+    Skipped when no member bet: the house is staked on every market ever opened, so this would
+    otherwise fire under every fixture nobody played.
     """
     market = await service.get_market(market_id)
-    if not market or not market["channel_id"] or not market["message_id"]:
+    if not market:
         return
-    bets = service.player_bets(await service.get_bets(market_id))
-    if not bets:
+    channel_id = await service.get_staff_channel(market["guild_id"])
+    if not channel_id:
         return
 
-    channel = client.get_channel(market["channel_id"])
+    bets = await service.get_bets(market_id)
+    if not service.player_bets(bets):
+        return
+
+    channel = client.get_channel(channel_id)
     if channel is None:
+        logger.warning(f"Staff channel {channel_id} is not visible — no recap for market {market_id}")
         return
-
-    labels = dict(service.outcomes_for_market(market))
-    headline = (
-        market["competition"] if market["sport"] == "custom" else f"{market['home_name']} vs {market['away_name']}"
-    )
-
-    if market["status"] == "void":
-        text = f"⚠️ **{headline}** was cancelled — all **{len(bets)}** bet(s) refunded."
-    else:
-        winner_label = labels.get(market["winner"], market["winner"])
-        winners = [b for b in bets if (b["payout"] or 0) > 0]
-        if not winners:
-            text = f"🏁 **{headline}** — **{winner_label}** won, but nobody backed them. No payouts!"
-        else:
-            lines = [
-                f"<@{b['user_id']}> +**{b['payout'] - b['amount']:,}** 🪙 (staked {b['amount']:,})"
-                for b in sorted(winners, key=lambda b: b["payout"], reverse=True)[:10]
-            ]
-            losers = len(bets) - len(winners)
-            text = f"🏁 **{headline}** — **{winner_label}** won!\n\n" + "\n".join(lines)
-            if losers:
-                text += f"\n\n{losers} bet(s) on the losing side."
 
     try:
-        card = await channel.fetch_message(market["message_id"])
-        await channel.send(text, reference=card)
-    except discord.NotFound:
-        await channel.send(text)
+        await channel.send(embed=build_staff_result_embed(market, bets, settled_by))
     except discord.HTTPException as e:
-        logger.warning(f"Failed to announce result for market {market_id}: {e}")
+        logger.warning(f"Failed to post the staff recap for market {market_id}: {e}")
+
+
+def _headline(market: Mapping) -> str:
+    return market["competition"] if market["sport"] == "custom" else f"{market['home_name']} vs {market['away_name']}"
+
+
+def build_dm_text(market: Mapping, bets: Sequence[Mapping], balance: int) -> str:
+    """What one bettor is told about one market. `bets` is that person's rows only.
+
+    Someone who topped up their position has several rows and gets one message, not three.
+    """
+    staked = sum(b["amount"] for b in bets)
+    payout = sum(b["payout"] or 0 for b in bets)
+    headline = _headline(market)
+    labels = dict(service.outcomes_for_market(market))
+    backed = labels.get(bets[0]["outcome"], bets[0]["outcome"])
+
+    if market["status"] == "void":
+        return f"⚠️ **{headline}** a été annulé — tes **{staked:,}** 🪙 t'ont été rendus.\nSolde : **{balance:,}** 🪙."
+
+    winner = labels.get(market["winner"], market["winner"])
+    if payout > 0:
+        return (
+            f"🎉 **{headline}** — **{winner}** a gagné !\n"
+            f"Tu avais misé **{staked:,}** 🪙 → tu récupères **{payout:,}** 🪙 (**+{payout - staked:,}**).\n"
+            f"Nouveau solde : **{balance:,}** 🪙."
+        )
+    return (
+        f"💀 **{headline}** — **{winner}** a gagné.\n"
+        f"Tu avais misé **{staked:,}** 🪙 sur **{backed}**. Perdu.\n"
+        f"Solde : **{balance:,}** 🪙."
+    )
+
+
+async def dm_bettors(client: discord.Client, market_id: int) -> None:
+    """Tell every bettor how they did, in private.
+
+    This used to be a pinged list under the card. A football matchday settles five matches in a
+    row, so the one channel that should hold nothing but cards held five walls of pings.
+
+    The house is skipped: it is staked on every market ever opened and does not read its mail.
+    Each send is isolated — one member who blocked the bot must not cost the other nine theirs,
+    and closed DMs are a *choice*, not an error: the card and /bet mine are still there for them.
+    """
+    market = await service.get_market(market_id)
+    if not market:
+        return
+
+    by_user: dict[int, list[Mapping]] = {}
+    for bet in service.player_bets(await service.get_bets(market_id)):
+        by_user.setdefault(bet["user_id"], []).append(bet)
+
+    for user_id, bets in by_user.items():
+        try:
+            user = client.get_user(user_id) or await client.fetch_user(user_id)
+            balance = await currency_service.get_balance(market["guild_id"], user_id)
+            await user.send(build_dm_text(market, bets, balance))
+        except discord.Forbidden:
+            logger.info(f"Bettor {user_id} has DMs closed — no result DM for market {market_id}")
+        except discord.HTTPException as e:
+            logger.warning(f"Failed to DM bettor {user_id} about market {market_id}: {e}")
 
 
 async def remind_to_settle(client: discord.Client, market) -> None:
-    """Nudge whoever can settle a stuck market, under its own card.
+    """Nudge whoever can settle a stuck market. The point is that frozen coins are never silent.
 
-    A community bet is the creator's to close. A provider match has no creator — if the API
-    never reported a usable result it will sit locked forever, so the channel is told and any
-    mod can settle it. Either way the point is that frozen coins must never be *silent*.
+    Where the nudge goes follows the gavel. A creator who stayed out of their own bet is chased
+    under their own card, publicly, because it is theirs to close. A creator who *bet* on it can
+    no longer settle it — pinging them would be telling them to do something the bot will
+    refuse — so the chase goes to the staff channel, along with every provider match whose API
+    never reported a result. Falls back to the betting channel when there is no staff channel:
+    a frozen market must never be silent.
 
     Only when members' money is actually stuck: the house's seed doesn't count (it is on every
     market ever opened), and nagging about a bet nobody staked on would just be noise.
     """
-    bets = service.player_bets(await service.get_bets(market["id"]))
+    all_bets = await service.get_bets(market["id"])
+    bets = service.player_bets(all_bets)
     if not bets:
-        return
-
-    channel = client.get_channel(market["channel_id"]) if market["channel_id"] else None
-    if channel is None:
         return
 
     staked = sum(b["amount"] for b in bets)
     backers = len({b["user_id"] for b in bets})
     stuck = f"**{staked:,}** 🪙 de **{backers}** personne(s) sont bloqués."
 
-    if market["provider"] == "custom":
+    if service.creator_holds_gavel(market, all_bets):
         text = (
             f"⏰ <@{market['creator_user_id']}> — ton pari **{market['competition']}** est fermé "
             f"mais pas encore clôturé.\n"
             f"{stuck}\n"
             f"Utilise `/bet resolve` pour désigner le gagnant, ou `/bet cancel` pour tout rembourser."
         )
+        channel = client.get_channel(market["channel_id"]) if market["channel_id"] else None
     else:
-        days = service.STUCK_VOID_AFTER.days
-        text = (
-            f"⏰ **{market['home_name']} vs {market['away_name']}** est fermé, "
-            f"mais le résultat n'est jamais arrivé.\n"
-            f"{stuck}\n"
-            f"Un modérateur peut le régler avec `/bet resolve`, ou `/bet cancel` pour rembourser. "
-            f"Remboursement automatique {days} jours après le coup d'envoi."
-        )
+        if market["provider"] == "custom":
+            text = (
+                f"⏰ Le pari **{market['competition']}** de <@{market['creator_user_id']}> est fermé "
+                f"et attend un arbitre.\n"
+                f"Son créateur a misé dessus, c'est donc à un modérateur de trancher.\n"
+                f"{stuck}\n"
+                f"`/bet resolve` pour désigner le gagnant, `/bet cancel` pour rembourser."
+            )
+        else:
+            days = service.STUCK_VOID_AFTER.days
+            text = (
+                f"⏰ **{market['home_name']} vs {market['away_name']}** est fermé, "
+                f"mais le résultat n'est jamais arrivé.\n"
+                f"{stuck}\n"
+                f"Un modérateur peut le régler avec `/bet resolve`, ou `/bet cancel` pour rembourser. "
+                f"Remboursement automatique {days} jours après le coup d'envoi."
+            )
+        staff_id = await service.get_staff_channel(market["guild_id"])
+        channel = client.get_channel(staff_id) if staff_id else None
+        # No staff channel: better noisy in the betting channel than silent about frozen coins.
+        if channel is None and market["channel_id"]:
+            channel = client.get_channel(market["channel_id"])
 
-    try:
-        if market["message_id"]:
+    if channel is None:
+        return
+
+    # A reference is only worth attempting when the reminder lands in the card's own channel
+    # — in the staff channel it is a guaranteed NotFound (wasted round-trip) and, worse, a
+    # Forbidden (no Read Message History there) would be swallowed by the except below and
+    # leave the reminder unsent, which is the exact silence this function exists to prevent.
+    if market["message_id"] and channel.id == market["channel_id"]:
+        try:
             card = await channel.fetch_message(market["message_id"])
             await channel.send(text, reference=card)
-        else:
-            await channel.send(text)
-    except discord.NotFound:
+            return
+        except discord.NotFound:
+            pass  # card was deleted from its own channel — fall through and send plainly
+        except discord.HTTPException as e:
+            logger.warning(f"Failed to send settle reminder for market {market['id']}: {e}")
+            return
+
+    try:
         await channel.send(text)
     except discord.HTTPException as e:
         logger.warning(f"Failed to send settle reminder for market {market['id']}: {e}")

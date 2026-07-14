@@ -19,8 +19,8 @@ def _market(status="open", sport="football", winner=None):
     }
 
 
-def _bet(outcome, amount):
-    return {"outcome": outcome, "amount": amount}
+def _bet(outcome, amount, user_id=1):
+    return {"outcome": outcome, "amount": amount, "user_id": user_id}
 
 
 def test_open_market_shows_pool_and_blurple_color():
@@ -102,31 +102,36 @@ def test_lol_market_omits_draw_outcome():
     assert "Draw" not in pool_field
 
 
-def _custom_market(status="open", winner=None):
-    return {
+def _custom_market(status="open", winner=None, **kw):
+    market = {
+        "id": 1,
+        "guild_id": 1,
+        "provider": "custom",
         "sport": "custom",
-        "competition": "Who wins tonight's scrim?",
-        "home_name": "Team Blue",
-        "away_name": "Team Red",
-        "start_time": datetime.datetime(2026, 7, 15, 18, 0, tzinfo=datetime.UTC),
         "status": status,
+        "competition": "Qui gagne le scrim ?",
+        "home_name": "Team Bleue",
+        "away_name": "Team Rouge",
+        "start_time": datetime.datetime(2026, 7, 20, 20, 0, tzinfo=datetime.UTC),
         "winner": winner,
-        "creator_user_id": 4242,
+        "creator_user_id": 10,
     }
+    market.update(kw)
+    return market
 
 
 def test_custom_market_shows_question_and_user_options():
     embed = build_market_embed(_custom_market(), [_bet("home", 100)])
-    assert "Who wins tonight's scrim?" in embed.description
+    assert "Qui gagne le scrim ?" in embed.description
     pool_field = embed.fields[0].value
-    assert "Team Blue" in pool_field
-    assert "Team Red" in pool_field
+    assert "Team Bleue" in pool_field
+    assert "Team Rouge" in pool_field
     assert "Draw" not in pool_field
 
 
 def test_custom_market_credits_its_creator():
     embed = build_market_embed(_custom_market(), [])
-    assert any("4242" in f.value for f in embed.fields)
+    assert any("10" in f.value for f in embed.fields)
 
 
 def test_custom_market_resolved_names_winning_option():
@@ -134,7 +139,7 @@ def test_custom_market_resolved_names_winning_option():
         _custom_market(status="resolved", winner="away"),
         [_bet("home", 100), _bet("away", 100)],
     )
-    assert "Team Red" in embed.title
+    assert "Team Rouge" in embed.title
     assert embed.color == discord.Color.green()
 
 
@@ -191,3 +196,31 @@ def test_the_footer_separates_member_money_from_house_liquidity():
 
     assert "600" in footer  # the whole pool, which is what pays out
     assert "500" in footer  # of which the bank's, so nobody thinks 5 people showed up
+
+
+# --- The arbiter (who settles the custom bet) --------------------------------
+
+
+def _field(embed, name):
+    return next((f.value for f in embed.fields if f.name == name), None)
+
+
+def test_the_card_names_the_creator_as_arbiter_while_they_have_not_bet():
+    bets = [{"id": -1, "user_id": 0, "outcome": "home", "amount": 100}]
+    embed = build_market_embed(_custom_market(), bets)
+    assert _field(embed, "⚖️ Arbitre") == "<@10>"
+
+
+def test_the_card_hands_the_gavel_to_the_mods_once_the_creator_bets():
+    # The member reading the card must know who will settle it *before* they stake.
+    bets = [
+        {"id": -1, "user_id": 0, "outcome": "home", "amount": 100},
+        {"id": 1, "user_id": 10, "outcome": "home", "amount": 500},
+    ]
+    embed = build_market_embed(_custom_market(), bets)
+    assert _field(embed, "⚖️ Arbitre") == "un modérateur"
+
+
+def test_a_provider_match_has_no_arbiter_field():
+    embed = build_market_embed(_custom_market(provider="football-data", sport="football"), [])
+    assert _field(embed, "⚖️ Arbitre") is None

@@ -290,5 +290,6 @@ panel messages and records the message IDs in the DB so they persist across rest
 | `/setup birthday <channel> [announce_channel]` | Manage Guild | Posts the two birthday embeds; wishes go to `announce_channel` (defaults to the same) |
 | `/setup suggestions <channel>` | Manage Channels | Posts the suggestion entry-point message in the channel |
 | `/setup queue <channel>` | Manage Channels | Posts the game-queue control panel in the channel |
+| `/setup betting <channel> [staff_channel]` | Manage Guild | Sets where betting cards are posted; settlement recaps (with *who* settled each market) go to `staff_channel`, and nowhere if it is omitted |
 
 Each command is safe to re-run — it reposts the message and updates the stored ID.

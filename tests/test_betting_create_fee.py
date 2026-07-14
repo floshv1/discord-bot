@@ -91,7 +91,7 @@ async def test_exactly_affording_the_fee_is_allowed():
 
 async def _void(conn):
     with patch("bot.cogs.betting.service.get_pool", return_value=_mock_pool(conn)):
-        await service.void_market(1)
+        return await service.void_market(1)
 
 
 def _fee_refunds(conn):
@@ -140,6 +140,29 @@ async def test_the_house_seed_does_not_earn_the_creator_their_fee_back():
     await _void(conn)
 
     assert not _fee_refunds(conn)
+
+
+@pytest.mark.asyncio
+async def test_voiding_a_bet_only_the_house_and_creator_staked_reports_no_refund():
+    # Same setup as test_the_house_seed_does_not_earn_the_creator_their_fee_back, but this
+    # checks what the caller is actually *told*. get_bets always includes the house's seed,
+    # and every market is seeded, so a naive "someone other than the creator staked" check
+    # in the cog is always true — the cog must not re-derive this; it has to trust
+    # VoidResult.fee_refunded, which is what this test guards.
+    conn = AsyncMock()
+    conn.fetchrow.side_effect = [
+        {"guild_id": 1, "provider": "custom", "creator_user_id": CREATOR},
+        {"balance": 500},
+        {"balance": 500},
+    ]
+    conn.fetch.return_value = [
+        {"id": 1, "user_id": HOUSE_USER_ID, "amount": 250, "outcome": "home"},
+        {"id": 2, "user_id": HOUSE_USER_ID, "amount": 250, "outcome": "away"},
+    ]
+
+    result = await _void(conn)
+
+    assert result.fee_refunded is False
 
 
 @pytest.mark.asyncio

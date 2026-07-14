@@ -20,7 +20,15 @@ def _mock_pool(conn):
 
 
 def _market(**kw):
-    base = {"id": 1, "guild_id": 1, "status": "open", "sport": "lol", "home_name": "BLG", "away_name": "HLE"}
+    base = {
+        "id": 1,
+        "guild_id": 1,
+        "status": "open",
+        "provider": "pandascore",
+        "sport": "lol",
+        "home_name": "BLG",
+        "away_name": "HLE",
+    }
     return {**base, **kw}
 
 
@@ -60,6 +68,20 @@ async def test_football_gets_a_line_on_the_draw_too():
     await _seed(conn)
 
     assert [row[3] for row in _seed_rows(conn)] == ["home", "draw", "away"]
+
+
+@pytest.mark.asyncio
+async def test_a_custom_market_is_seeded_lighter_than_a_real_match():
+    # Its winner is declared by a member, so the seed must stay under the fee charged to open
+    # it — otherwise create/stake/resolve prints coins. See test_betting_house_invariant.py.
+    conn = AsyncMock()
+    conn.fetchrow.side_effect = [_market(provider="custom", sport="custom"), {"balance": 9000}]
+    conn.fetchval.side_effect = [False, 9000]
+
+    await _seed(conn)
+
+    assert {row[4] for row in _seed_rows(conn)} == {service.CUSTOM_SEED_PER_OUTCOME}
+    assert service.CUSTOM_SEED_PER_OUTCOME <= service.CREATE_FEE
 
 
 @pytest.mark.asyncio

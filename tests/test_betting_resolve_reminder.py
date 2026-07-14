@@ -70,12 +70,18 @@ def _market(**kw):
         "creator_user_id": 42,
         "channel_id": 500,
         "message_id": 600,
+        "guild_id": 1,
     }
     return {**base, **kw}
 
 
-def _channel():
+def _channel(channel_id=500):
+    # The id matters: remind_to_settle only replies to the card when it is posting into the
+    # card's own channel. A bare MagicMock's .id is a Mock, which equals nothing — every test
+    # would then take the "not the card's channel" branch and the reply path would be dead
+    # code that no test covers.
     channel = MagicMock()
+    channel.id = channel_id
     channel.send = AsyncMock()
     channel.fetch_message = AsyncMock(return_value=MagicMock())
     return channel
@@ -151,7 +157,10 @@ async def test_a_stuck_match_names_the_teams_and_the_deadline():
 
     market = _market(provider="pandascore", creator_user_id=None, home_name="BLG", away_name="HLE")
     bets = [{"user_id": 1, "amount": 100, "outcome": "away"}]
-    with patch("bot.cogs.betting.views.service.get_bets", new=AsyncMock(return_value=bets)):
+    with (
+        patch("bot.cogs.betting.views.service.get_bets", new=AsyncMock(return_value=bets)),
+        patch("bot.cogs.betting.views.service.get_staff_channel", new=AsyncMock(return_value=None)),
+    ):
         await remind_to_settle(client, market)
 
     text = channel.send.call_args[0][0]
@@ -159,3 +168,89 @@ async def test_a_stuck_match_names_the_teams_and_the_deadline():
     assert "<@None>" not in text  # there is no creator to ping
     assert "/bet resolve" in text
     assert str(service.STUCK_VOID_AFTER.days) in text  # promises the automatic refund
+
+
+@pytest.mark.asyncio
+async def test_a_creator_who_bet_is_chased_in_the_staff_channel_instead():
+    # They can't settle their own bet any more, so pinging them under the card would be telling
+    # them to do something the bot will refuse. It's a mod's job now — chase the mods.
+    from bot.cogs.betting.views import remind_to_settle
+
+    staff = _channel(channel_id=99)
+    client = MagicMock()
+    client.get_channel = MagicMock(return_value=staff)
+
+    bets = [{"user_id": 42, "amount": 100, "outcome": "home"}]  # 42 is the creator
+    with (
+        patch("bot.cogs.betting.views.service.get_bets", new=AsyncMock(return_value=bets)),
+        patch("bot.cogs.betting.views.service.get_staff_channel", new=AsyncMock(return_value=99)),
+    ):
+        await remind_to_settle(client, _market())
+
+    client.get_channel.assert_called_with(99)
+    staff.send.assert_awaited_once()
+    text = staff.send.call_args[0][0]
+    assert "modérateur" in text
+
+
+@pytest.mark.asyncio
+async def test_a_staff_channel_reminder_never_calls_fetch_message():
+    # The card lives in the betting channel, not the staff channel — attempting a reference
+    # there is a guaranteed NotFound (a wasted round-trip), and a Forbidden there (no Read
+    # Message History) would be swallowed and leave the reminder unsent entirely, which is
+    # the exact silence this function exists to prevent. Skip the reference off the card's
+    # own channel and send plainly instead.
+    from bot.cogs.betting.views import remind_to_settle
+
+    staff = _channel(channel_id=99)
+    client = MagicMock()
+    client.get_channel = MagicMock(return_value=staff)
+
+    bets = [{"user_id": 42, "amount": 100, "outcome": "home"}]  # creator bet, gavel is gone
+    with (
+        patch("bot.cogs.betting.views.service.get_bets", new=AsyncMock(return_value=bets)),
+        patch("bot.cogs.betting.views.service.get_staff_channel", new=AsyncMock(return_value=99)),
+    ):
+        await remind_to_settle(client, _market())
+
+    staff.fetch_message.assert_not_awaited()
+    staff.send.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_the_reminder_still_replies_under_the_card_in_its_own_channel():
+    # The other half of the rule above, and the half a regression would eat silently: in the
+    # betting channel the reminder *must* still hang off the card, or a member reading it has
+    # no idea which bet is being chased.
+    from bot.cogs.betting.views import remind_to_settle
+
+    channel = _channel()  # id 500 — the card's own channel
+    client = MagicMock()
+    client.get_channel = MagicMock(return_value=channel)
+
+    bets = [{"user_id": 1, "amount": 100, "outcome": "home"}]  # the creator (42) stayed out
+    with patch("bot.cogs.betting.views.service.get_bets", new=AsyncMock(return_value=bets)):
+        await remind_to_settle(client, _market())
+
+    channel.fetch_message.assert_awaited_once_with(600)
+    assert channel.send.call_args.kwargs["reference"] is channel.fetch_message.return_value
+
+
+@pytest.mark.asyncio
+async def test_with_no_staff_channel_the_reminder_still_lands_in_the_betting_channel():
+    # A frozen market must never be silent. Falling back is worse than the staff channel, and
+    # far better than nothing.
+    from bot.cogs.betting.views import remind_to_settle
+
+    channel = _channel()
+    client = MagicMock()
+    client.get_channel = MagicMock(return_value=channel)
+
+    bets = [{"user_id": 42, "amount": 100, "outcome": "home"}]  # the creator bet, gavel is gone
+    with (
+        patch("bot.cogs.betting.views.service.get_bets", new=AsyncMock(return_value=bets)),
+        patch("bot.cogs.betting.views.service.get_staff_channel", new=AsyncMock(return_value=None)),
+    ):
+        await remind_to_settle(client, _market())
+
+    channel.send.assert_awaited_once()
