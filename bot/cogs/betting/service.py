@@ -21,6 +21,17 @@ CREATE_FEE = 100
 # What the house stakes on each side of a market when it opens. See seed_market.
 HOUSE_SEED_PER_OUTCOME = 250
 
+# ...and what it stakes on a *custom* one. Lower, and not by taste: a custom market's winner is
+# declared by a member, so anyone who can bet on it can also decide it. The most a bettor can
+# ever take off the house on a market is strictly less than the seed of the losing side, so
+# keeping that seed under the fee charged to open the market makes `create -> stake -> resolve`
+# structurally unprofitable — in solo, and in collusion. This inequality *is* the fix:
+#
+#     CUSTOM_SEED_PER_OUTCOME <= CREATE_FEE
+#
+# Provider markets keep the fat seed: their result comes from an API nobody here can bend.
+CUSTOM_SEED_PER_OUTCOME = 100
+
 # How long after a market locks before someone is reminded to settle it, and how often the
 # nudge repeats until they do. One ignorable ping isn't enough when other people's coins are
 # stuck behind it.
@@ -85,6 +96,61 @@ def house_stakes(bets: Sequence[Mapping]) -> dict[str, int]:
         if b.get("user_id") == HOUSE_USER_ID:
             stakes[b["outcome"]] = stakes.get(b["outcome"], 0) + b["amount"]
     return stakes
+
+
+def seed_for_market(market: Mapping) -> int:
+    """What the house stakes per outcome on this market. See CUSTOM_SEED_PER_OUTCOME."""
+    return CUSTOM_SEED_PER_OUTCOME if market["provider"] == "custom" else HOUSE_SEED_PER_OUTCOME
+
+
+def house_pnl(bets: Sequence[Mapping]) -> int:
+    """What a settled market made (+) or cost (-) the house, in coins.
+
+    The house is paid twice: through its own winning bets, and as the residual claimant of
+    whatever integer division leaves in the pool. Both count, or the number lies.
+    """
+    paid = sum(b["payout"] or 0 for b in bets)
+    residual = sum(b["amount"] for b in bets) - paid
+    house = [b for b in bets if b["user_id"] == HOUSE_USER_ID]
+    return sum(b["payout"] or 0 for b in house) + residual - sum(b["amount"] for b in house)
+
+
+def creator_holds_gavel(market: Mapping, bets: Sequence[Mapping]) -> bool:
+    """Whether the creator of a custom bet is still the one who settles it.
+
+    They are, right up until they stake on it — at which point the gavel passes to the mods.
+    That is the creator's own free choice, made by betting rather than by answering one more
+    question in /bet create: play your bet, or referee it. Not both.
+
+    The house's seed is not a stake for this purpose: it is on every market ever opened, so
+    counting it would leave no creator holding the gavel, ever.
+    """
+    creator = market["creator_user_id"]
+    if creator is None:
+        return False  # a provider match has no creator — the mods have it
+    return not any(b["user_id"] == creator for b in bets)
+
+
+def may_settle(market: Mapping, bets: Sequence[Mapping], user_id: int, *, is_mod: bool) -> bool:
+    """Whether this person may /bet resolve or /bet cancel this market.
+
+    Nobody settles a custom bet they have money on — not the creator, not a moderator. Its
+    winner is *declared*, not observed, so anyone who both stakes and settles can simply hand
+    themselves the pool, and that pool is other members' coins.
+
+    A provider match is different and deliberately looser: any mod can settle one even having
+    bet on it. Its result is public, so a mod who called it wrong gets caught immediately, and
+    the ability to settle by hand is the only escape hatch when an API never reports a result.
+    Take it away and everyone's stakes stay frozen forever.
+
+    /bet cancel is gated exactly like /bet resolve: once the real result is known, a refund is
+    an exit for whoever was about to lose, and it is *not* neutral for whoever was about to win.
+    """
+    if market["provider"] != "custom":
+        return is_mod
+    if any(b["user_id"] == user_id for b in bets):
+        return False
+    return is_mod or market["creator_user_id"] == user_id
 
 
 def pool_totals(bets: Sequence[Mapping]) -> dict[str, dict[str, int]]:
@@ -152,6 +218,8 @@ async def seed_market(market_id: int) -> bool:
 
     Only an `open` market may be seeded. Seeding one that has already locked would move the
     odds under people who have already bet — they were promised the pool they could see.
+
+    A custom market is seeded lighter than a provider one — see CUSTOM_SEED_PER_OUTCOME.
     """
     pool = get_pool()
     async with pool.acquire() as conn:
@@ -169,7 +237,8 @@ async def seed_market(market_id: int) -> bool:
                 return False
 
             outcomes = outcomes_for_market(market)
-            needed = HOUSE_SEED_PER_OUTCOME * len(outcomes)
+            per_outcome = seed_for_market(market)
+            needed = per_outcome * len(outcomes)
 
             # Read the house wallet directly rather than through get_balance_locked, which
             # would happily *create* it with a member's opening balance. If the house has no
@@ -195,7 +264,7 @@ async def seed_market(market_id: int) -> bool:
                     market_id,
                     HOUSE_USER_ID,
                     key,
-                    HOUSE_SEED_PER_OUTCOME,
+                    per_outcome,
                 )
             return True
 
@@ -262,21 +331,38 @@ async def create_custom_market(
     return row["id"]
 
 
-async def list_settleable_markets(guild_id: int) -> list[asyncpg.Record]:
-    """Every market still awaiting a result.
+async def list_settleable_markets(guild_id: int, user_id: int, *, is_mod: bool) -> list[asyncpg.Record]:
+    """Every market this person is actually allowed to settle. The SQL mirrors may_settle().
 
-    Includes provider markets, not just custom ones: if an API never reports a final
-    result the market would otherwise stay locked forever with everyone's stakes trapped,
-    so a mod needs to be able to settle or cancel it by hand.
+    The exclusion has to happen in the query and not in Python: this feeds an autocomplete, and
+    an autocomplete re-runs on every keystroke — one extra round-trip per open market would be
+    a dozen queries per letter typed.
+
+    Provider markets are included for mods even if they bet on them: their result is public,
+    and settling one by hand is the only escape hatch when an API never reports a result.
     """
     pool = get_pool()
     return await pool.fetch(
         """
-        SELECT * FROM betting_markets
-        WHERE guild_id = $1 AND status IN ('open', 'locked')
-        ORDER BY start_time
+        SELECT m.* FROM betting_markets m
+        WHERE m.guild_id = $1
+          AND m.status IN ('open', 'locked')
+          AND (
+                ($3 AND m.provider <> 'custom')
+             OR (
+                    m.provider = 'custom'
+                AND ($3 OR m.creator_user_id = $2)
+                AND NOT EXISTS (
+                        SELECT 1 FROM betting_bets b
+                        WHERE b.market_id = m.id AND b.user_id = $2
+                    )
+                )
+          )
+        ORDER BY m.start_time
         """,
         guild_id,
+        user_id,
+        is_mod,
     )
 
 
@@ -285,16 +371,24 @@ async def list_settleable_markets(guild_id: int) -> list[asyncpg.Record]:
 # ---------------------------------------------------------------------------
 
 
-async def set_betting_channel(guild_id: int, channel_id: int) -> None:
+async def set_betting_channel(guild_id: int, channel_id: int, staff_channel_id: int | None = None) -> None:
+    """Point the betting cards at a channel, and optionally the settlement recaps at another.
+
+    A re-run with no staff channel clears the old one on purpose: /setup is re-runnable, and a
+    stale staff channel would keep mirroring settlements into a channel the admin just
+    dropped.
+    """
     pool = get_pool()
     await pool.execute(
         """
-        INSERT INTO betting_config (guild_id, channel_id)
-        VALUES ($1, $2)
-        ON CONFLICT (guild_id) DO UPDATE SET channel_id = EXCLUDED.channel_id
+        INSERT INTO betting_config (guild_id, channel_id, staff_channel_id)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (guild_id) DO UPDATE SET channel_id = EXCLUDED.channel_id,
+                                             staff_channel_id = EXCLUDED.staff_channel_id
         """,
         guild_id,
         channel_id,
+        staff_channel_id,
     )
 
 
@@ -302,6 +396,13 @@ async def get_betting_channel(guild_id: int) -> int | None:
     pool = get_pool()
     row = await pool.fetchrow("SELECT channel_id FROM betting_config WHERE guild_id = $1", guild_id)
     return row["channel_id"] if row else None
+
+
+async def get_staff_channel(guild_id: int) -> int | None:
+    """Where settlement recaps go. NULL means nowhere, and nothing breaks — see migration 026."""
+    pool = get_pool()
+    row = await pool.fetchrow("SELECT staff_channel_id FROM betting_config WHERE guild_id = $1", guild_id)
+    return row["staff_channel_id"] if row else None
 
 
 # ---------------------------------------------------------------------------
@@ -550,8 +651,28 @@ async def place_bet(*, market_id: int, guild_id: int, user_id: int, outcome: str
 # ---------------------------------------------------------------------------
 
 
-async def resolve_market(market_id: int, winner: str) -> None:
-    """Pay the winners out of the pool and close the market.
+@dataclass
+class VoidResult:
+    """Outcome of voiding a market.
+
+    `voided` is False when the market had already been settled — the loser of a settle race
+    must not refund on top of a payout. `fee_refunded` exists so the caller cannot re-derive
+    the rule and get it wrong, which is exactly what happened before.
+    """
+
+    voided: bool
+    fee_refunded: bool = False
+
+
+async def resolve_market(market_id: int, winner: str) -> bool:
+    """Pay the winners out of the pool and close the market. Returns whether it did.
+
+    The claim is the first statement of the transaction, not the last: two `/bet resolve`
+    calls a second apart (double click, two clients, a mod racing the ticker) both take
+    `FOR UPDATE`, but `FOR UPDATE` only serializes them — it does not undo a stale status read
+    taken before either wrote. Claiming the status change atomically means the loser of the
+    race reads back zero rows and must stand down before touching a single coin, the same
+    pattern as the tribunal's `claim_verdict`.
 
     The house is the residual claimant: whatever the pool does not pay out goes to it. That
     is one rule covering two leaks that used to just delete coins — the few 🪙 of rounding
@@ -563,7 +684,18 @@ async def resolve_market(market_id: int, winner: str) -> None:
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
-            market = await conn.fetchrow("SELECT guild_id FROM betting_markets WHERE id = $1 FOR UPDATE", market_id)
+            market = await conn.fetchrow(
+                """
+                UPDATE betting_markets SET status = 'resolved', winner = $1
+                WHERE id = $2 AND status IN ('open', 'locked')
+                RETURNING guild_id
+                """,
+                winner,
+                market_id,
+            )
+            if market is None:
+                return False
+
             bets = await conn.fetch("SELECT * FROM betting_bets WHERE market_id = $1", market_id)
             payouts = settle_parimutuel(bets, winner)
             for bet in bets:
@@ -584,19 +716,25 @@ async def resolve_market(market_id: int, winner: str) -> None:
                     reason="house_margin",
                 )
 
-            await conn.execute(
-                "UPDATE betting_markets SET status = 'resolved', winner = $1 WHERE id = $2", winner, market_id
-            )
+            return True
 
 
-async def void_market(market_id: int) -> None:
+async def void_market(market_id: int) -> VoidResult:
+    """Refund every stake and close the market. See resolve_market for why the claim comes first."""
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
             market = await conn.fetchrow(
-                "SELECT guild_id, provider, creator_user_id FROM betting_markets WHERE id = $1 FOR UPDATE",
+                """
+                UPDATE betting_markets SET status = 'void'
+                WHERE id = $1 AND status IN ('open', 'locked')
+                RETURNING guild_id, provider, creator_user_id
+                """,
                 market_id,
             )
+            if market is None:
+                return VoidResult(voided=False)
+
             bets = await conn.fetch("SELECT * FROM betting_bets WHERE market_id = $1", market_id)
             for bet in bets:
                 await conn.execute("UPDATE betting_bets SET payout = $1 WHERE id = $2", bet["amount"], bet["id"])
@@ -611,8 +749,10 @@ async def void_market(market_id: int) -> None:
             # not participation either: it is on every bet ever opened, so counting it would
             # make the refund unconditional and hand the spam loop straight back.
             creator = market["creator_user_id"]
+            fee_refunded = False
             if market["provider"] == "custom" and creator is not None:
                 if any(bet["user_id"] not in (creator, HOUSE_USER_ID) for bet in bets):
+                    fee_refunded = True
                     await currency_service.adjust(
                         conn,
                         guild_id=market["guild_id"],
@@ -629,4 +769,4 @@ async def void_market(market_id: int) -> None:
                         reason="bet_create_fee_refund",
                     )
 
-            await conn.execute("UPDATE betting_markets SET status = 'void' WHERE id = $1", market_id)
+            return VoidResult(voided=True, fee_refunded=fee_refunded)

@@ -10,8 +10,8 @@ from bot.cogs.betting.providers import FixtureDTO, ResultDTO
 BASE_URL = "https://api.pandascore.co"
 
 # PandaScore's `filter[...]` is strict equality, so these must be the league's exact name.
-# "Worlds" and "MSI" are the colloquial names and match nothing.
-LEAGUES = ["LEC", "World Championship", "Mid-Season Invitational"]
+# "Worlds", "MSI" and "EWC" are the colloquial names and match nothing.
+LEAGUES = ["LEC", "World Championship", "Mid-Season Invitational", "Esports World Cup"]
 
 _VOID_STATUSES = {"canceled", "postponed"}
 
@@ -65,6 +65,12 @@ class PandaScoreProvider:
         self._league_ids = [league["id"] for league in leagues]
         found = ", ".join(f"{league['name']} ({league['id']})" for league in leagues)
         logger.info(f"PandaScore leagues resolved: {found}")
+
+        # A name that matches nothing is silently dropped by the filter: the other leagues
+        # still resolve, so the only symptom is a tournament that never gets a market. Say it.
+        missing = [name for name in LEAGUES if name not in {league["name"] for league in leagues}]
+        if missing:
+            logger.warning(f"PandaScore has no league named: {', '.join(missing)} — no market will be created for it")
         return self._league_ids
 
     async def list_upcoming(self, days: int) -> list[FixtureDTO]:

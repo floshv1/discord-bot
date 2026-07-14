@@ -16,7 +16,8 @@ from bot.cogs.betting.providers.pandascore import PandaScoreProvider
 from bot.cogs.betting.service import CREATE_FEE
 from bot.cogs.betting.views import (
     MarketView,
-    announce_result,
+    announce_result_to_staff,
+    dm_bettors,
     refresh_market_message,
     remind_to_settle,
 )
@@ -62,21 +63,17 @@ def _market_label(market) -> str:
 
 
 async def _settleable_autocomplete(interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
-    markets = await service.list_settleable_markets(interaction.guild_id)
-    is_mod = interaction.user.guild_permissions.manage_messages
+    markets = await service.list_settleable_markets(
+        interaction.guild_id,
+        interaction.user.id,
+        is_mod=interaction.user.guild_permissions.manage_messages,
+    )
     current = current.lower()
-
-    choices = []
-    for m in markets:
-        # Members only ever settle their own community bets; mods can settle anything,
-        # including a real match left stuck because a provider never reported a result.
-        if not is_mod and (m["provider"] != "custom" or m["creator_user_id"] != interaction.user.id):
-            continue
-        label = _market_label(m)
-        if current not in label.lower():
-            continue
-        choices.append(app_commands.Choice(name=label[:100], value=str(m["id"])))
-    return choices[:25]
+    return [
+        app_commands.Choice(name=_market_label(m)[:100], value=str(m["id"]))
+        for m in markets
+        if current in _market_label(m).lower()
+    ][:25]
 
 
 async def _winner_autocomplete(interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
@@ -302,12 +299,20 @@ class BettingCog(commands.Cog):
             return
 
         await interaction.response.defer(ephemeral=True)
-        await service.resolve_market(market["id"], winner)
+        resolved = await service.resolve_market(market["id"], winner)
+        if not resolved:
+            # Someone else claimed it first — a race, not an error. They already sent the
+            # DMs and the staff recap; sending them again would pay nobody but would confuse.
+            await interaction.followup.send("❌ Ce pari vient d'être réglé par quelqu'un d'autre.", ephemeral=True)
+            return
         mark_dirty(self.bot)
         await refresh_market_message(self.bot, market["id"])
-        await announce_result(self.bot, market["id"])
+        await dm_bettors(self.bot, market["id"])
+        await announce_result_to_staff(self.bot, market["id"], settled_by=interaction.user.mention)
         winner_label = dict(service.outcomes_for_market(market))[winner]
-        await interaction.followup.send(f"✅ Settled — **{winner_label}** won. Payouts sent.", ephemeral=True)
+        await interaction.followup.send(
+            f"✅ Réglé — **{winner_label}** a gagné. Les parieurs ont reçu un MP.", ephemeral=True
+        )
 
     @bet.command(name="cancel", description="Cancel a community bet and refund every stake.")
     @app_commands.describe(bet="The bet to cancel")
@@ -318,43 +323,59 @@ class BettingCog(commands.Cog):
             return
 
         await interaction.response.defer(ephemeral=True)
-        # Whether the fee comes back depends on whether anyone else joined — work that out
-        # before voiding, while the bets are still there to look at.
-        bets = await service.get_bets(market["id"])
-        fee_refunded = market["provider"] == "custom" and any(b["user_id"] != market["creator_user_id"] for b in bets)
-
-        await service.void_market(market["id"])
+        result = await service.void_market(market["id"])
+        if not result.voided:
+            # Someone else claimed it first — a race, not an error. They already sent the
+            # DMs and the staff recap; sending them again would refund nobody but would confuse.
+            await interaction.followup.send("❌ Ce pari vient d'être réglé par quelqu'un d'autre.", ephemeral=True)
+            return
         mark_dirty(self.bot)
         await refresh_market_message(self.bot, market["id"])
-        await announce_result(self.bot, market["id"])
+        await dm_bettors(self.bot, market["id"])
+        await announce_result_to_staff(self.bot, market["id"], settled_by=interaction.user.mention)
         note = (
             f" Your **{CREATE_FEE:,}** 🪙 opening fee came back too."
-            if fee_refunded
+            if result.fee_refunded
             else f" The **{CREATE_FEE:,}** 🪙 opening fee is not refunded, since nobody else bet on it."
         )
         await interaction.followup.send(f"✅ Bet cancelled — all stakes refunded.{note}", ephemeral=True)
 
     async def _settleable_or_error(self, interaction: discord.Interaction, bet: str):
-        """Resolve the autocomplete value to a market the caller is allowed to settle."""
+        """Resolve the autocomplete value to a market the caller is allowed to settle.
+
+        The autocomplete already hides what they can't settle, but it is not a security
+        boundary — the id can be typed by hand. This is the check that counts.
+        """
         try:
             market_id = int(bet)
         except ValueError:
-            await interaction.response.send_message("❌ Pick a bet from the list.", ephemeral=True)
+            await interaction.response.send_message("❌ Choisis un pari dans la liste.", ephemeral=True)
             return None
 
         market = await service.get_market(market_id)
         if not market or market["status"] not in ("open", "locked"):
-            await interaction.response.send_message("❌ That bet is not open for settling.", ephemeral=True)
+            await interaction.response.send_message("❌ Ce pari n'est pas à régler.", ephemeral=True)
             return None
 
+        bets = await service.get_bets(market_id)
         is_mod = interaction.user.guild_permissions.manage_messages
-        is_owner = market["provider"] == "custom" and market["creator_user_id"] == interaction.user.id
-        if not (is_mod or is_owner):
+        if service.may_settle(market, bets, interaction.user.id, is_mod=is_mod):
+            return market
+
+        # Two very different refusals, and conflating them would be maddening: one says "not
+        # your bet", the other says "you're a player in this one".
+        if any(b["user_id"] == interaction.user.id for b in bets):
             await interaction.response.send_message(
-                "❌ Only the person who opened this bet (or a moderator) can settle it.", ephemeral=True
+                "❌ Tu as misé sur ce pari — tu ne peux pas l'arbitrer.\n"
+                "C'est à un modérateur qui n'a rien misé dessus de trancher.",
+                ephemeral=True,
             )
-            return None
-        return market
+        else:
+            await interaction.response.send_message(
+                "❌ Seule la personne qui a ouvert ce pari (ou un modérateur) peut le régler.",
+                ephemeral=True,
+            )
+        return None
 
     # -----------------------------------------------------------------
     # Fixture polling — create new markets from upcoming provider fixtures
@@ -529,10 +550,19 @@ class BettingCog(commands.Cog):
             f"Market {market['id']} ({_market_label(market)}) has been locked since "
             f"{market['start_time']} with no result — auto-refunding every stake"
         )
-        await service.void_market(market["id"])
+        result = await service.void_market(market["id"])
+        if not result.voided:
+            # Someone else settled it between the stuck-market scan and this call — the
+            # other settler already sent the DMs and the recap.
+            return
         mark_dirty(self.bot)
         await refresh_market_message(self.bot, market["id"])
-        await announce_result(self.bot, market["id"])
+        await dm_bettors(self.bot, market["id"])
+        await announce_result_to_staff(
+            self.bot,
+            market["id"],
+            settled_by=f"auto-void — aucun résultat après {service.STUCK_VOID_AFTER.days} jours",
+        )
 
     async def _settle_from_provider(self, provider: Provider, market) -> None:
         result = await provider.get_result(market["external_id"])
@@ -543,12 +573,17 @@ class BettingCog(commands.Cog):
             if result.winner is None:
                 logger.warning(f"Market {market['id']} finished with no winner reported, will retry")
                 return
-            await service.resolve_market(market["id"], result.winner)
+            settled = await service.resolve_market(market["id"], result.winner)
         else:
-            await service.void_market(market["id"])
+            settled = (await service.void_market(market["id"])).voided
+        if not settled:
+            # Lost the race to a mod's /bet resolve or /bet cancel — they already sent the
+            # DMs and the recap.
+            return
         mark_dirty(self.bot)
         await refresh_market_message(self.bot, market["id"])
-        await announce_result(self.bot, market["id"])
+        await dm_bettors(self.bot, market["id"])
+        await announce_result_to_staff(self.bot, market["id"], settled_by=f"ticker `{provider.name}` (auto)")
 
     @resolution_ticker.before_loop
     async def before_resolution_ticker(self) -> None:

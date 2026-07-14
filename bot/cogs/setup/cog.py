@@ -300,26 +300,46 @@ class SetupCog(commands.Cog):
         )
         await interaction.followup.send(f"Suggestion channel set to {channel.mention}!", ephemeral=True)
 
-    @setup.command(name="reprimand", description="Configure the Ennemi Public role and goulag channel.")
-    @app_commands.describe(role="Role applied to reprimanded members", channel="Channel they're restricted to")
+    @setup.command(name="reprimand", description="Configure the Ennemi Public role, the goulag channel, and the jury.")
+    @app_commands.describe(
+        role="Role applied to reprimanded members",
+        channel="Channel they're restricted to — this is also where trials are held",
+        judge_role="Role allowed to vote guilty / not guilty. Omit for no tribunal at all.",
+    )
     @app_commands.default_permissions(manage_guild=True)
     async def setup_reprimand(
-        self, interaction: discord.Interaction, role: discord.Role, channel: discord.TextChannel
+        self,
+        interaction: discord.Interaction,
+        role: discord.Role,
+        channel: discord.TextChannel,
+        judge_role: discord.Role | None = None,
     ) -> None:
         pool = get_pool()
         await pool.execute(
             """
-            INSERT INTO reprimand_config (guild_id, role_id, channel_id)
-            VALUES ($1, $2, $3)
-            ON CONFLICT (guild_id) DO UPDATE SET role_id = $2, channel_id = $3
+            INSERT INTO reprimand_config (guild_id, role_id, channel_id, judge_role_id)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (guild_id) DO UPDATE SET role_id = $2, channel_id = $3, judge_role_id = $4
             """,
             interaction.guild_id,
             role.id,
             channel.id,
+            judge_role.id if judge_role else None,
         )
-        await interaction.response.send_message(
-            f"Reprimand configured: role {role.mention}, channel {channel.mention}.", ephemeral=True
-        )
+
+        lines = [f"✅ Réprimande configurée : rôle {role.mention}, salon {channel.mention}."]
+        if judge_role:
+            lines += [
+                f"⚖️ **Tribunal actif** — le jury est {judge_role.mention}.",
+                "",
+                f"⚠️ Vérifie que {role.mention} peut **voir** {channel.mention}. Un accusé qui ne voit pas "
+                "sa carte ne peut jamais cliquer sur « Plaider ma cause » — et sans plaidoyer, le jury ne "
+                "vote pas. Le droit d'écrire, lui, n'est pas nécessaire : les boutons suffisent.",
+            ]
+        else:
+            lines.append("ℹ️ Aucun rôle de juge : pas de tribunal, `/reprimand` reste une sanction simple.")
+
+        await interaction.response.send_message("\n".join(lines), ephemeral=True)
 
     @setup.command(name="currency", description="Post the FloshCoins panel + leaderboard, and fund every member.")
     @app_commands.describe(channel="Channel that will host the panel and pinned leaderboard")
@@ -378,29 +398,40 @@ class SetupCog(commands.Cog):
             ephemeral=True,
         )
 
-    @setup.command(name="betting", description="Set the channel where match betting cards are posted.")
-    @app_commands.describe(channel="Channel that will host the match betting cards")
+    @setup.command(name="betting", description="Set the channel where betting cards are posted.")
+    @app_commands.describe(
+        channel="Channel that will host the betting cards",
+        staff_channel="Private channel where settlement recaps are posted (optional)",
+    )
     @app_commands.default_permissions(manage_guild=True)
-    async def setup_betting(self, interaction: discord.Interaction, channel: discord.TextChannel) -> None:
-        cog: BettingCog | None = self.bot.cogs.get("BettingCog")  # type: ignore[assignment]
-        if cog and not cog.providers:
-            await interaction.response.send_message(
-                "❌ No betting provider is configured — set `FOOTBALL_DATA_API_KEY` and/or "
-                "`PANDASCORE_API_KEY`, then restart the bot.",
-                ephemeral=True,
-            )
-            return
-
+    async def setup_betting(
+        self,
+        interaction: discord.Interaction,
+        channel: discord.TextChannel,
+        staff_channel: discord.TextChannel | None = None,
+    ) -> None:
         await interaction.response.defer(ephemeral=True)
-        await betting_service.set_betting_channel(interaction.guild_id, channel.id)
+        cog: BettingCog | None = self.bot.cogs.get("BettingCog")  # type: ignore[assignment]
+        await betting_service.set_betting_channel(
+            interaction.guild_id, channel.id, staff_channel.id if staff_channel else None
+        )
         stats = await cog.poll_fixtures_now() if cog else {}
 
         # Report per provider so a dead feed is obvious, and so "already posted" doesn't
         # read as "broken" — both would otherwise show up as zero new markets.
         lines = [f"• `{name}` — {stat.summary()}" for name, stat in stats.items()]
-        detail = "\n".join(lines) if lines else "_No providers configured._"
+        detail = (
+            "\n".join(lines)
+            if lines
+            else "_Aucun provider configuré — seuls les paris communautaires (`/bet create`) apparaîtront ici._"
+        )
+        staff_line = (
+            f"\n📋 Récaps de résolution dans {staff_channel.mention}."
+            if staff_channel
+            else "\n📋 Aucun salon staff : les parieurs recevront leurs MP, mais aucun récap ne sera posté."
+        )
         await interaction.followup.send(
-            f"✅ Betting channel set to {channel.mention}.\n\n{detail}",
+            f"✅ Salon de paris : {channel.mention}.{staff_line}\n\n{detail}",
             ephemeral=True,
         )
 

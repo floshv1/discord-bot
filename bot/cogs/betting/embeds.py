@@ -5,6 +5,8 @@ from collections.abc import Mapping, Sequence
 import discord
 
 from bot.cogs.betting.service import (
+    creator_holds_gavel,
+    house_pnl,
     house_stakes,
     implied_odds,
     outcomes_for_market,
@@ -149,9 +151,71 @@ def build_market_embed(market: Mapping, bets: Sequence[Mapping]) -> discord.Embe
     embed = discord.Embed(title=title, description=description, color=color)
     embed.add_field(name="Cotes", value="\n".join(lines), inline=False)
     if custom and market.get("creator_user_id"):
-        embed.add_field(name="Opened by", value=f"<@{market['creator_user_id']}>", inline=False)
+        embed.add_field(name="Ouvert par", value=f"<@{market['creator_user_id']}>", inline=True)
+        # Who settles this is not trivia — it changes who you're trusting with your stake, and
+        # it flips the moment the creator bets on their own bet. Say it on the card, before
+        # anyone stakes, not in the refusal message afterwards.
+        arbiter = f"<@{market['creator_user_id']}>" if creator_holds_gavel(market, bets) else "un modérateur"
+        embed.add_field(name="⚖️ Arbitre", value=arbiter, inline=True)
     pool_text = f"Total pool: {total_pool:,} 🪙"
     if house_pool:
         pool_text += f" (dont {house_pool:,} de la banque)"
     embed.set_footer(text=f"{footer} · {pool_text}")
+    return embed
+
+
+STAFF_LINE_LIMIT = 15  # an embed field caps at 1024 chars — a busy market would blow past it
+
+
+def build_staff_result_embed(market: Mapping, bets: Sequence[Mapping], settled_by: str) -> discord.Embed:
+    """The full breakdown of a settled market, for moderators only.
+
+    `settled_by` is not decoration: a custom bet's winner is *declared*, not observed, so the
+    one thing moderators need to be able to see is who declared it. This embed is the audit
+    surface for that. Mentions inside an embed render as names and notify nobody, which is what
+    makes it safe to name every bettor here.
+
+    `bets` is every row, the house included — its P&L is exactly what tells you whether a market
+    fed the treasury or drained it.
+    """
+    resolved = market["status"] == "resolved"
+    headline = (
+        market["competition"] if market["sport"] == "custom" else f"{market['home_name']} vs {market['away_name']}"
+    )
+    labels = dict(outcomes_for_market(market))
+
+    if resolved:
+        title = f"🏁 {headline} — {labels.get(market['winner'], market['winner'])}"
+        color = discord.Color.green()
+    else:
+        title = f"⚠️ {headline} — annulé, tout remboursé"
+        color = discord.Color.red()
+
+    players = player_bets(bets)
+    by_user: dict[int, dict[str, int]] = {}
+    for bet in players:
+        entry = by_user.setdefault(bet["user_id"], {"staked": 0, "payout": 0})
+        entry["staked"] += bet["amount"]
+        entry["payout"] += bet["payout"] or 0
+
+    embed = discord.Embed(title=title, color=color)
+    embed.add_field(name="Réglé par", value=settled_by, inline=True)
+    embed.add_field(name="P&L maison", value=f"**{house_pnl(bets):+,}** 🪙", inline=True)
+
+    pool = sum(b["amount"] for b in bets)
+    winners = sum(1 for e in by_user.values() if resolved and e["payout"] > e["staked"])
+    embed.add_field(
+        name="Pool",
+        value=f"{pool:,} 🪙 · {len(by_user)} parieur(s) · {winners} gagnant(s)",
+        inline=False,
+    )
+
+    ranked = sorted(by_user.items(), key=lambda kv: kv[1]["payout"] - kv[1]["staked"], reverse=True)
+    lines = [
+        f"<@{user_id}> — {e['staked']:,} → {e['payout']:,} 🪙 (**{e['payout'] - e['staked']:+,}**)"
+        for user_id, e in ranked[:STAFF_LINE_LIMIT]
+    ]
+    if len(ranked) > STAFF_LINE_LIMIT:
+        lines.append(f"*… et {len(ranked) - STAFF_LINE_LIMIT} autre(s).*")
+    embed.add_field(name="Parieurs", value="\n".join(lines), inline=False)
     return embed

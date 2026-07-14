@@ -9,11 +9,13 @@ from discord.ext import commands, tasks
 from loguru import logger
 
 from bot.cogs.logs.cog import make_embed
+from bot.cogs.moderation.service import REPRIMAND_NICK, deactivate_reprimand, lift_reprimand
+from bot.cogs.moderation.service import log_action as _log_action
+from bot.cogs.tribunal import views as tribunal
 from bot.core.config import Config
 from bot.db.client import get_pool
 
 PARIS_TZ = ZoneInfo("Europe/Paris")
-REPRIMAND_NICK = "Ennemi Public"
 
 
 def _parse_until(text: str) -> datetime.datetime:
@@ -23,44 +25,6 @@ def _parse_until(text: str) -> datetime.datetime:
     except ValueError as e:
         raise ValueError(f"Invalid date '{text}', expected format JJ/MM/AAAA HH:MM") from e
     return local.astimezone(datetime.UTC)
-
-
-async def _log_action(
-    bot: commands.Bot,
-    config: Config,
-    guild_id: int,
-    target: discord.User | discord.Member,
-    moderator: discord.Member,
-    action_type: str,
-    reason: str | None,
-) -> None:
-    pool = get_pool()
-    await pool.execute(
-        """
-        INSERT INTO mod_actions (guild_id, target_id, moderator_id, action_type, reason)
-        VALUES ($1, $2, $3, $4, $5)
-        """,
-        guild_id,
-        target.id,
-        moderator.id,
-        action_type,
-        reason,
-    )
-    channel = bot.get_channel(config.log_channel_id)
-    if channel:
-        details = f"{target.mention} ({target.id}) — by {moderator.mention}" + (f" — {reason}" if reason else "")
-        color_map = {
-            "kick": discord.Color.red(),
-            "ban": discord.Color.dark_red(),
-            "unban": discord.Color.teal(),
-            "timeout": discord.Color.orange(),
-            "warn": discord.Color.yellow(),
-            "reprimand": discord.Color.dark_orange(),
-            "pardon": discord.Color.green(),
-            "reprimand_expired": discord.Color.dark_orange(),
-        }
-        color = color_map.get(action_type, discord.Color.greyple())
-        await channel.send(embed=make_embed(color, action_type.title(), details))
 
 
 class ModerationCog(commands.Cog):
@@ -85,12 +49,16 @@ class ModerationCog(commands.Cog):
             """
         )
         for row in expired:
+            # The sentence is over either way, so the trial is moot — but only if the bench
+            # never ruled. A guilty verdict's sentence simply running its course must not
+            # rewrite that card.
+            await tribunal.close_trial(self.bot, row["id"])
             guild = self.bot.get_guild(row["guild_id"])
             member = guild.get_member(row["target_id"]) if guild else None
             if member is None:
                 logger.info(f"Reprimand {row['id']} expired but member {row['target_id']} left the guild")
                 continue
-            await self._lift_reprimand(member, row["original_nick"])
+            await lift_reprimand(member, row["original_nick"])
             await _log_action(self.bot, self.config, row["guild_id"], member, self.bot.user, "reprimand_expired", None)
             logger.info(f"Reprimand {row['id']} expired for {member.id}")
 
@@ -101,21 +69,6 @@ class ModerationCog(commands.Cog):
     @reprimand_ticker.error
     async def reprimand_ticker_error(self, error: BaseException) -> None:
         logger.warning(f"reprimand_ticker error (will retry next tick): {error}")
-
-    async def _lift_reprimand(self, member: discord.Member, original_nick: str | None) -> None:
-        config = await get_pool().fetchrow("SELECT role_id FROM reprimand_config WHERE guild_id = $1", member.guild.id)
-        if config:
-            role = member.guild.get_role(config["role_id"])
-            if role and role in member.roles:
-                try:
-                    await member.remove_roles(role, reason="Reprimand lifted")
-                except discord.Forbidden:
-                    logger.warning(f"Could not remove reprimand role from {member.id}")
-        if member.nick == REPRIMAND_NICK:
-            try:
-                await member.edit(nick=original_nick, reason="Reprimand lifted")
-            except discord.Forbidden:
-                logger.warning(f"Could not restore nickname for {member.id}")
 
     @app_commands.command(name="kick", description="Kick a member from the server.")
     @app_commands.describe(user="The member to kick", reason="Reason for the kick")
@@ -213,7 +166,8 @@ class ModerationCog(commands.Cog):
 
         pool = get_pool()
         config = await pool.fetchrow(
-            "SELECT role_id, channel_id FROM reprimand_config WHERE guild_id = $1", interaction.guild_id
+            "SELECT role_id, channel_id, judge_role_id FROM reprimand_config WHERE guild_id = $1",
+            interaction.guild_id,
         )
         if not config:
             await interaction.response.send_message(
@@ -254,14 +208,11 @@ class ModerationCog(commands.Cog):
         except discord.Forbidden:
             logger.warning(f"Could not rename {user.id} for reprimand")
 
-        await channel.send(
-            f"{user.mention}, tu as été envoyé ici pour : **{reason}**. N'hésite pas à présenter tes excuses."
-        )
-
-        await pool.execute(
+        reprimand_id = await pool.fetchval(
             """
             INSERT INTO reprimands (guild_id, target_id, moderator_id, reason, original_nick, expires_at)
             VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING id
             """,
             interaction.guild_id,
             user.id,
@@ -270,6 +221,16 @@ class ModerationCog(commands.Cog):
             original_nick,
             expires_at,
         )
+
+        # No jury configured means no trial — the reprimand stands on its own, exactly as it
+        # did before the tribunal existed. Degraded, not broken.
+        if config["judge_role_id"] is None:
+            await channel.send(
+                f"{user.mention}, tu as été envoyé ici pour : **{reason}**. N'hésite pas à présenter tes excuses."
+            )
+        else:
+            await tribunal.open_trial(interaction.guild_id, reprimand_id, channel)
+
         await _log_action(self.bot, self.config, interaction.guild_id, user, interaction.user, "reprimand", reason)
         await interaction.response.send_message(f"Sent {user.mention} to the goulag.", ephemeral=True)
 
@@ -287,8 +248,9 @@ class ModerationCog(commands.Cog):
             await interaction.response.send_message(f"{user.mention} isn't in the goulag.", ephemeral=True)
             return
 
-        await pool.execute("UPDATE reprimands SET active = FALSE WHERE id = $1", row["id"])
-        await self._lift_reprimand(user, row["original_nick"])
+        await deactivate_reprimand(row["id"])
+        await tribunal.close_trial(self.bot, row["id"])
+        await lift_reprimand(user, row["original_nick"])
         await _log_action(self.bot, self.config, interaction.guild_id, user, interaction.user, "pardon", reason)
         await interaction.response.send_message(f"Pardoned {user.mention}.", ephemeral=True)
 
