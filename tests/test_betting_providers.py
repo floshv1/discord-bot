@@ -38,7 +38,7 @@ def _one_competition():
 
 
 # PandaScore matches carry a league_id but no league_name, so the provider resolves ids first.
-_LEAGUES_PAYLOAD = [{"id": 4198, "name": "LEC"}]
+_LEAGUES_PAYLOAD = [{"id": 4197, "name": "LEC"}]  # 4197 is the LEC's real id; 4198 is the LCS
 
 
 def _soon() -> str:
@@ -189,7 +189,7 @@ async def test_pandascore_filters_matches_by_resolved_league_id():
     assert leagues_call[0][0].endswith("/lol/leagues")
     assert matches_call[0][0].endswith("/lol/matches/upcoming")
     params = matches_call[1]["params"]
-    assert params["filter[league_id]"] == "4198"
+    assert params["filter[league_id]"] == "4197"
     assert "filter[league_name]" not in params
 
 
@@ -203,9 +203,15 @@ async def test_pandascore_returns_nothing_when_no_leagues_match():
 
 @pytest.mark.asyncio
 async def test_pandascore_warns_about_a_league_name_that_matched_nothing():
-    # A misspelt league is dropped by the strict-equality filter while the others still
-    # resolve, so the only symptom is a tournament that silently never gets a market.
-    # Loguru doesn't feed caplog, so capture it with a sink of our own.
+    """A wrong league name is dropped by the strict-equality filter without a word.
+
+    This is not hypothetical. `LEAGUES` held "World Championship" for months; PandaScore calls
+    it `Worlds` (id 297). Every other league resolved, so the only symptom was that Worlds
+    never got a single market — through an entire tournament. This warning is what finally
+    said so, and it is the only thing standing between a typo and a silent hole.
+
+    Loguru doesn't feed caplog, so capture it with a sink of our own.
+    """
     warnings: list[str] = []
     sink_id = logger.add(lambda m: warnings.append(m.record["message"]), level="WARNING")
     try:
@@ -215,7 +221,7 @@ async def test_pandascore_warns_about_a_league_name_that_matched_nothing():
         logger.remove(sink_id)
 
     missing = next(w for w in warnings if "no league named" in w)
-    assert "World Championship" in missing
+    assert "Worlds" in missing
     assert "Mid-Season Invitational" in missing
     assert "Esports World Cup" in missing
     assert "LEC" not in missing  # the one league that did resolve isn't reported as missing

@@ -10,18 +10,21 @@ from bot.cogs.betting.providers import FixtureDTO, ResultDTO, chunks
 
 BASE_URL = "https://api.pandascore.co"
 
-# PandaScore's `filter[...]` is strict equality, so these must be the league's exact name.
-# "Worlds", "MSI" and "EWC" are the colloquial names and match nothing. A name that matches
-# nothing is dropped silently by the filter — _resolve_league_ids logs it rather than let a
-# tournament quietly never get a market.
+# PandaScore's `filter[...]` is strict equality, so these must be the league's exact name —
+# and "exact" means *whatever PandaScore calls it*, which is not always the formal name.
+# `Worlds` (id 297) is the real one; "World Championship" matched nothing, and a comment here
+# once asserted the opposite. That cost the server every Worlds market, silently, for as long
+# as it stood: the filter drops an unmatched name without a word. Only `_resolve_league_ids`'
+# warning surfaced it. Verify a new name against GET /lol/leagues before adding it — guessing
+# is what put "World Championship" (and "Esports Nations Cup", which does not exist at all)
+# in this list.
 LEAGUES = [
     "LEC",
     "LFL",
     "LCK",
-    "World Championship",
-    "Mid-Season Invitational",
-    "Esports World Cup",
-    "Esports Nations Cup",
+    "Worlds",
+    "Mid-Season Invitational",  # "MSI" really is colloquial and matches nothing
+    "Esports World Cup",  # ...as is "EWC"
 ]
 
 _VOID_STATUSES = {"canceled", "postponed"}

@@ -20,7 +20,7 @@ def test_the_board_names_what_the_channel_follows():
     # A channel has to say what it is for before any fixture lands in it.
     text = _text(build_board_embed(service.CATEGORY_INTER, []))
 
-    assert "World Championship" in text
+    assert "Worlds" in text
     assert "Mid-Season Invitational" in text
     assert "LEC" not in text  # that's another channel's board
 
@@ -29,6 +29,7 @@ def test_the_foot_board_names_every_football_competition():
     text = _text(build_board_embed(service.CATEGORY_FOOT, []))
 
     assert "Coupe du Monde" in text
+    assert "Euro" in text
     assert "Ligue des Champions" in text
     assert "Ligue 1" in text
 

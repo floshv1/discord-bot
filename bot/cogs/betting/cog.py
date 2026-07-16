@@ -119,8 +119,19 @@ class BettingCog(commands.Cog):
     async def cog_load(self) -> None:
         await self._reregister_open_views()
         await self._seed_unseeded_markets()
+        # Say which providers are live, out loud. A provider with no key is skipped in __init__
+        # without a word, and a provider that *is* working also says nothing — so silence in the
+        # logs used to mean both "football is fine" and "there is no football at all". The only
+        # way to tell them apart was to go looking for cards. Same silent-skip shape as a league
+        # name that matches nothing: if it can be absent, it has to announce itself.
         if self.providers:
+            logger.info(f"Betting providers loaded: {', '.join(p.name for p in self.providers)}")
             self.fixture_poll_ticker.start()
+        else:
+            logger.warning(
+                "No betting provider configured (FOOTBALL_DATA_API_KEY / PANDASCORE_API_KEY are "
+                "both unset) — no fixtures will be polled; only /bet create will work"
+            )
         self.lock_ticker.start()
         self.resolution_ticker.start()
         self.card_refresh_ticker.start()

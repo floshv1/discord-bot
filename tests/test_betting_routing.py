@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from bot.cogs.betting import service
+from bot.cogs.betting.providers.football_data import COMPETITIONS
 from bot.cogs.betting.providers.pandascore import LEAGUES
 
 
@@ -17,6 +18,17 @@ def test_every_followed_league_has_a_channel():
     assert unrouted == [], f"leagues followed but not routed: {unrouted}"
 
 
+def test_every_followed_competition_is_named_on_the_board():
+    """Same split, football side: the poller's codes and the board's labels.
+
+    A code added to COMPETITIONS without a label here doesn't error either — the board just
+    quietly claims to follow less than it does, which is a board that lies about the one thing
+    it exists to say.
+    """
+    unlabelled = [code for code in COMPETITIONS if code not in service._FOOTBALL_COMPETITION_LABELS]
+    assert unlabelled == [], f"competitions followed but not named on the board: {unlabelled}"
+
+
 def test_football_is_one_category_whatever_the_competition():
     # Deliberately unlike LoL: one board for the lot.
     for competition in ("FIFA World Cup", "UEFA Champions League", "Ligue 1"):
@@ -26,7 +38,7 @@ def test_football_is_one_category_whatever_the_competition():
 def test_lol_splits_by_league():
     assert service.category_for("lol", "LEC") == service.CATEGORY_LEC
     assert service.category_for("lol", "LCK") == service.CATEGORY_LCK
-    assert service.category_for("lol", "World Championship") == service.CATEGORY_INTER
+    assert service.category_for("lol", "Worlds") == service.CATEGORY_INTER
     assert service.category_for("lol", "Mid-Season Invitational") == service.CATEGORY_INTER
 
 

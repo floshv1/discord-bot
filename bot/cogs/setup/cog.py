@@ -392,7 +392,7 @@ class SetupCog(commands.Cog):
         staff_channel="Private channel where settlement recaps are posted (optional)",
         foot="Channel for football cards — World Cup, Champions League, Ligue 1 (optional)",
         lec="Channel for European LoL cards — LEC, LFL (optional)",
-        inter="Channel for international LoL cards — Worlds, MSI, EWC, ENC (optional)",
+        inter="Channel for international LoL cards — Worlds, MSI, EWC (optional)",
         lck="Channel for LCK cards (optional)",
         perso="Channel for community bets made with /bet create (optional)",
     )

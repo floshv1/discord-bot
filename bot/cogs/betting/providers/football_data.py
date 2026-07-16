@@ -9,9 +9,14 @@ from loguru import logger
 from bot.cogs.betting.providers import FixtureDTO, ResultDTO, chunks
 
 BASE_URL = "https://api.football-data.org/v4"
-# football-data.org competition codes. Each is fetched independently: the free tier covers only
-# some competitions, and a 403 on one must not cost us the others (see _fetch_matches).
-COMPETITIONS = ["WC", "CL", "FL1"]  # World Cup, UEFA Champions League, Ligue 1
+# football-data.org competition codes, all four confirmed in the free plan's 12. Each is
+# fetched independently anyway: the plan could change, and a 403 on one must not cost us the
+# others (see _fetch_matches).
+#
+# Deliberately not the big domestic leagues (PL, PD, SA, BL1 are all available): one weekend of
+# those is ~48 cards, and football shares a single channel by design — it would bury the
+# Champions League. The API cost isn't the constraint since results are batched; the channel is.
+COMPETITIONS = ["WC", "EC", "CL", "FL1"]  # World Cup, Euro, UEFA Champions League, Ligue 1
 
 _WINNER_MAP = {"HOME_TEAM": "home", "AWAY_TEAM": "away", "DRAW": "draw"}
 _FINISHED_STATUSES = {"FINISHED", "AWARDED"}

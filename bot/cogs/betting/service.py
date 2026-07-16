@@ -239,10 +239,9 @@ _LOL_CATEGORIES = {
     # beats a sixth channel nobody asked for.
     "LFL": CATEGORY_LEC,
     "LCK": CATEGORY_LCK,
-    "World Championship": CATEGORY_INTER,
+    "Worlds": CATEGORY_INTER,
     "Mid-Season Invitational": CATEGORY_INTER,
     "Esports World Cup": CATEGORY_INTER,
-    "Esports Nations Cup": CATEGORY_INTER,
 }
 
 
@@ -266,15 +265,24 @@ def category_of_market(market: Mapping) -> str:
 def competitions_in_category(category: str) -> list[str]:
     """What the pinned board announces as followed in a channel."""
     if category == CATEGORY_FOOT:
-        return list(_FOOTBALL_COMPETITION_LABELS)
+        return list(_FOOTBALL_COMPETITION_LABELS.values())
     if category == CATEGORY_CUSTOM:
         return []
     return [name for name, cat in _LOL_CATEGORIES.items() if cat == category]
 
 
-# Display names for the football competitions the poller follows. The API's own name is what
-# ends up on a card; this is only for the board, which has to name them before any fixture lands.
-_FOOTBALL_COMPETITION_LABELS = ("Coupe du Monde", "Ligue des Champions", "Ligue 1")
+# Display names for the football competitions the poller follows, keyed by the football-data
+# code so the two can't drift: a code added to `football_data.COMPETITIONS` without a label
+# here would leave the board quietly claiming to follow less than it does. Keyed rather than a
+# bare list precisely so tests/test_betting_routing.py can lock it, the same way the LoL
+# categories are locked against pandascore.LEAGUES. The API's own name is what ends up on a
+# card; this is only for the board, which has to name them before any fixture lands.
+_FOOTBALL_COMPETITION_LABELS = {
+    "WC": "Coupe du Monde",
+    "EC": "Euro",
+    "CL": "Ligue des Champions",
+    "FL1": "Ligue 1",
+}
 
 
 async def seed_market(market_id: int) -> bool:
