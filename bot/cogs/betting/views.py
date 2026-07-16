@@ -146,6 +146,37 @@ async def dm_bettors(client: discord.Client, market_id: int) -> None:
             logger.warning(f"Failed to DM bettor {user_id} about market {market_id}: {e}")
 
 
+def _moderators(guild: discord.Guild) -> list[discord.Member]:
+    """Qui peut régler un pari : tout membre avec Manage Messages, bots exclus.
+
+    'Modo' est une permission, pas un rôle ici — le même prédicat que /bet resolve
+    vérifie (cog.py: guild_permissions.manage_messages).
+    """
+    return [m for m in guild.members if not m.bot and m.guild_permissions.manage_messages]
+
+
+async def dm_moderators(client: discord.Client, guild_id: int, text: str) -> bool:
+    """DM le rappel à chaque modo. Retourne True si au moins un DM a été délivré.
+
+    Isolé par envoi comme dm_bettors — un modo aux DMs fermés ne coûte pas leur
+    rappel aux autres. Le bool permet à l'appelant de garder l'invariant 'jamais
+    silencieux' : aucun modo joignable → fallback salon public.
+    """
+    guild = client.get_guild(guild_id)
+    if guild is None:
+        return False
+    delivered = False
+    for mod in _moderators(guild):
+        try:
+            await mod.send(text)
+            delivered = True
+        except discord.Forbidden:
+            logger.info(f"Mod {mod.id} has DMs closed — no settle nudge")
+        except discord.HTTPException as e:
+            logger.warning(f"Failed to DM mod {mod.id}: {e}")
+    return delivered
+
+
 async def remind_to_settle(client: discord.Client, market) -> None:
     """Nudge whoever can settle a stuck market. The point is that frozen coins are never silent.
 
@@ -153,8 +184,9 @@ async def remind_to_settle(client: discord.Client, market) -> None:
     under their own card, publicly, because it is theirs to close. A creator who *bet* on it can
     no longer settle it — pinging them would be telling them to do something the bot will
     refuse — so the chase goes to the staff channel, along with every provider match whose API
-    never reported a result. Falls back to the betting channel when there is no staff channel:
-    a frozen market must never be silent.
+    never reported a result. With no staff channel, it DMs the moderators (anyone with Manage
+    Messages) privately rather than dump the nudge in the public betting channel — falling back
+    to that channel only when not one mod is reachable: a frozen market must never be silent.
 
     Only when members' money is actually stuck: the house's seed doesn't count (it is on every
     market ever opened), and nagging about a bet nobody staked on would just be noise.
@@ -196,9 +228,14 @@ async def remind_to_settle(client: discord.Client, market) -> None:
             )
         staff_id = await service.get_staff_channel(market["guild_id"])
         channel = client.get_channel(staff_id) if staff_id else None
-        # No staff channel: better noisy in the betting channel than silent about frozen coins.
-        if channel is None and market["channel_id"]:
-            channel = client.get_channel(market["channel_id"])
+        if channel is None:
+            # Pas de staff channel (ou il a disparu) : DM les modos en privé plutôt que de
+            # balancer le rappel dans le salon public. On ne retombe dans ce salon que si pas
+            # un seul modo n'est joignable — un marché gelé ne doit jamais être silencieux.
+            if await dm_moderators(client, market["guild_id"], text):
+                return
+            if market["channel_id"]:
+                channel = client.get_channel(market["channel_id"])
 
     if channel is None:
         return

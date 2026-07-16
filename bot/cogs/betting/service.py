@@ -32,9 +32,13 @@ HOUSE_SEED_PER_OUTCOME = 250
 # Provider markets keep the fat seed: their result comes from an API nobody here can bend.
 CUSTOM_SEED_PER_OUTCOME = 100
 
-# How long after a market locks before someone is reminded to settle it, and how often the
-# nudge repeats until they do. One ignorable ping isn't enough when other people's coins are
-# stuck behind it.
+# How long after **kickoff** (start_time, not the final whistle) before someone is reminded to
+# settle a market, and how often the nudge repeats until they do. One ignorable ping isn't
+# enough when other people's coins are stuck behind it.
+#
+# Note this fires while a football match (~1h50-2h05) is often still being played — which is
+# why claim_settle_reminders takes `exclude_ids` and the providers report a "pending" status.
+# Raising the window would paper over that; a longer format would just move the same bug.
 RESOLVE_REMINDER_AFTER = datetime.timedelta(hours=2)
 RESOLVE_REMINDER_REPEAT = datetime.timedelta(hours=24)
 
@@ -201,6 +205,76 @@ def outcomes_for_market(market: Mapping) -> list[tuple[str, str]]:
         outcomes.append(("draw", "Draw"))
     outcomes.append(("away", market["away_name"]))
     return outcomes
+
+
+# ---------------------------------------------------------------------------
+# Routing: which channel a card belongs in
+# ---------------------------------------------------------------------------
+
+CATEGORY_FOOT = "foot"
+CATEGORY_LEC = "lec"
+CATEGORY_INTER = "inter"
+CATEGORY_LCK = "lck"
+CATEGORY_CUSTOM = "custom"
+
+CATEGORIES = (CATEGORY_FOOT, CATEGORY_LEC, CATEGORY_INTER, CATEGORY_LCK, CATEGORY_CUSTOM)
+
+CATEGORY_LABELS = {
+    CATEGORY_FOOT: "Foot",
+    CATEGORY_LEC: "LEC & LFL",
+    CATEGORY_INTER: "International",
+    CATEGORY_LCK: "LCK",
+    CATEGORY_CUSTOM: "Paris perso",
+}
+
+# LoL splits by league; football deliberately does not — one board for the lot. The key is the
+# league's exact PandaScore name, the same string that lands in betting_markets.competition.
+#
+# Every name in pandascore.LEAGUES must appear here, or a newly-followed league silently pools
+# into International. tests/test_betting_routing.py locks that: the mapping and the poller's
+# league list are two halves of one decision and drift apart the moment nobody is watching.
+_LOL_CATEGORIES = {
+    "LEC": CATEGORY_LEC,
+    # The LFL shares the LEC's channel: both are European, and one board saying "LEC · LFL"
+    # beats a sixth channel nobody asked for.
+    "LFL": CATEGORY_LEC,
+    "LCK": CATEGORY_LCK,
+    "World Championship": CATEGORY_INTER,
+    "Mid-Season Invitational": CATEGORY_INTER,
+    "Esports World Cup": CATEGORY_INTER,
+    "Esports Nations Cup": CATEGORY_INTER,
+}
+
+
+def category_for(sport: str, competition: str) -> str:
+    """Which betting channel a market belongs in. Pure — the routing decision, in one place.
+
+    An unrecognised LoL league falls into International rather than erroring: a card in a
+    slightly odd channel is a nuisance, a card that never posts loses a market.
+    """
+    if sport == "custom":
+        return CATEGORY_CUSTOM
+    if sport == "football":
+        return CATEGORY_FOOT
+    return _LOL_CATEGORIES.get(competition, CATEGORY_INTER)
+
+
+def category_of_market(market: Mapping) -> str:
+    return category_for(market["sport"], market["competition"])
+
+
+def competitions_in_category(category: str) -> list[str]:
+    """What the pinned board announces as followed in a channel."""
+    if category == CATEGORY_FOOT:
+        return list(_FOOTBALL_COMPETITION_LABELS)
+    if category == CATEGORY_CUSTOM:
+        return []
+    return [name for name, cat in _LOL_CATEGORIES.items() if cat == category]
+
+
+# Display names for the football competitions the poller follows. The API's own name is what
+# ends up on a card; this is only for the board, which has to name them before any fixture lands.
+_FOOTBALL_COMPETITION_LABELS = ("Coupe du Monde", "Ligue des Champions", "Ligue 1")
 
 
 async def seed_market(market_id: int) -> bool:
@@ -405,6 +479,60 @@ async def get_staff_channel(guild_id: int) -> int | None:
     return row["staff_channel_id"] if row else None
 
 
+async def set_category_channels(guild_id: int, channels: Mapping[str, int]) -> None:
+    """Replace this guild's per-category routing wholesale.
+
+    Replace, not merge: /setup is re-runnable and its arguments are the whole truth, so a
+    category left out of a re-run is one the admin dropped. Merging would strand cards in a
+    channel nobody meant to keep routing to — the same reason set_betting_channel clears a
+    staff channel it wasn't given.
+    """
+    pool = get_pool()
+    async with pool.acquire() as conn, conn.transaction():
+        await conn.execute("DELETE FROM betting_channels WHERE guild_id = $1", guild_id)
+        for category, channel_id in channels.items():
+            await conn.execute(
+                "INSERT INTO betting_channels (guild_id, category, channel_id) VALUES ($1, $2, $3)",
+                guild_id,
+                category,
+                channel_id,
+            )
+
+
+async def get_category_channels(guild_id: int) -> dict[str, asyncpg.Record]:
+    pool = get_pool()
+    rows = await pool.fetch("SELECT * FROM betting_channels WHERE guild_id = $1", guild_id)
+    return {row["category"]: row for row in rows}
+
+
+async def get_channel_for_category(guild_id: int, category: str) -> int | None:
+    """Where a card of this category goes, falling back to the one betting channel.
+
+    The fallback is what keeps routing optional: a guild that never runs the new /setup form
+    behaves exactly as it did before, and a category with no channel of its own still posts
+    somewhere rather than dropping the market.
+    """
+    pool = get_pool()
+    row = await pool.fetchrow(
+        "SELECT channel_id FROM betting_channels WHERE guild_id = $1 AND category = $2",
+        guild_id,
+        category,
+    )
+    if row:
+        return row["channel_id"]
+    return await get_betting_channel(guild_id)
+
+
+async def set_board_message(guild_id: int, category: str, message_id: int | None) -> None:
+    pool = get_pool()
+    await pool.execute(
+        "UPDATE betting_channels SET board_message_id = $1 WHERE guild_id = $2 AND category = $3",
+        message_id,
+        guild_id,
+        category,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Market CRUD
 # ---------------------------------------------------------------------------
@@ -539,7 +667,7 @@ async def betting_pnl(guild_id: int, limit: int = 100) -> list[asyncpg.Record]:
     )
 
 
-async def claim_settle_reminders(guild_id: int) -> list[asyncpg.Record]:
+async def claim_settle_reminders(guild_id: int, exclude_ids: Sequence[int] = ()) -> list[asyncpg.Record]:
     """Markets stuck at 'locked' that someone needs to settle. Claims them as it returns.
 
     A community bet has no provider, so nothing settles it automatically: it sits at 'locked'
@@ -550,6 +678,15 @@ async def claim_settle_reminders(guild_id: int) -> list[asyncpg.Record]:
     sat locked with a member's coins in it and the bot never said a word. The resolution
     ticker retries such a market forever in silence; if the API never reports a usable result,
     silence is all anyone ever gets. A market nobody can settle has to be *visible*.
+
+    `exclude_ids` is how the caller says "the provider told me this match is still being
+    played". The window measures from **kickoff**, not from the final whistle — a market locks
+    at kickoff and the reminder is due 2h later, which for a football match (~1h50-2h05) lands
+    while it is still in play. Without this the bot announced "le résultat n'est jamais arrivé"
+    about a match that then settled itself five minutes later: one false alarm per match, which
+    is plenty to make everyone stop believing the real ones. Excluding from the *claim* rather
+    than filtering the result is deliberate — the claim stamps `resolve_reminded_at`, so a
+    claimed-then-discarded market would go quiet for 24h if the result really never arrived.
 
     The claim and the send cannot be two steps, or a slow tick would ping twice. Stamping
     `resolve_reminded_at` inside the same UPDATE also makes the reminder repeat on a slow
@@ -564,11 +701,13 @@ async def claim_settle_reminders(guild_id: int) -> list[asyncpg.Record]:
           AND status = 'locked'
           AND start_time < NOW() - $2::interval
           AND (resolve_reminded_at IS NULL OR resolve_reminded_at < NOW() - $3::interval)
+          AND NOT (id = ANY($4::bigint[]))
         RETURNING *
         """,
         guild_id,
         RESOLVE_REMINDER_AFTER,
         RESOLVE_REMINDER_REPEAT,
+        list(exclude_ids),
     )
 
 

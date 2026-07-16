@@ -9,8 +9,8 @@ from discord.ext import commands, tasks
 from loguru import logger
 
 from bot.cogs.betting import service
-from bot.cogs.betting.embeds import build_market_embed
-from bot.cogs.betting.providers import Provider
+from bot.cogs.betting.embeds import build_board_embed, build_market_embed
+from bot.cogs.betting.providers import Provider, ResultDTO
 from bot.cogs.betting.providers.football_data import FootballDataProvider
 from bot.cogs.betting.providers.pandascore import PandaScoreProvider
 from bot.cogs.betting.service import CREATE_FEE
@@ -22,6 +22,7 @@ from bot.cogs.betting.views import (
     remind_to_settle,
 )
 from bot.cogs.currency.leaderboard import mark_dirty
+from bot.core.discord_utils import pin
 
 FIXTURE_LOOKAHEAD_DAYS = 7
 MAX_CUSTOM_BET_HOURS = 24 * 14  # two weeks
@@ -225,8 +226,9 @@ class BettingCog(commands.Cog):
             return
         mark_dirty(self.bot)  # the fee was just debited
 
-        # Post into the betting channel if one is configured, otherwise right here.
-        channel_id = await service.get_betting_channel(interaction.guild_id)
+        # Post into the community-bet channel if one is configured (falling back to the one
+        # betting channel), otherwise right here.
+        channel_id = await service.get_channel_for_category(interaction.guild_id, service.CATEGORY_CUSTOM)
         channel = interaction.guild.get_channel(channel_id) if channel_id else None
         channel = channel or interaction.channel
 
@@ -393,19 +395,27 @@ class BettingCog(commands.Cog):
         guild = self.bot.get_guild(guild_id)
         if not guild:
             return stats
-        channel_id = await service.get_betting_channel(guild_id)
-        if not channel_id:
+
+        # Read the routing table once per poll, not once per fixture: a matchday is dozens of
+        # cards and this is otherwise two queries each for an answer that cannot change mid-poll.
+        routes = {cat: row["channel_id"] for cat, row in (await service.get_category_channels(guild_id)).items()}
+        default_id = await service.get_betting_channel(guild_id)
+        if not default_id and not routes:
             return stats  # /setup betting hasn't been run yet
-        channel = guild.get_channel(channel_id)
-        if not channel:
-            return stats
+
+        def channel_for(category: str):
+            # An unrouted category falls back to the one betting channel, so a guild that never
+            # ran the new /setup form behaves exactly as it did before routing existed.
+            channel_id = routes.get(category, default_id)
+            return guild.get_channel(channel_id) if channel_id else None
 
         # An open market whose card was deleted (or whose channel moved) is unbettable but
         # still blocks re-creation, since the fixture already exists. Re-post it.
         for market in await service.get_open_markets(guild_id):
             stat = stats.setdefault(market["provider"], PollStats())
             try:
-                if await self._ensure_card(channel, market):
+                channel = channel_for(service.category_of_market(market))
+                if channel and await self._ensure_card(channel, market):
                     stat.restored += 1
             except Exception:
                 logger.exception(f"Failed to restore card for market {market['id']}")
@@ -421,13 +431,56 @@ class BettingCog(commands.Cog):
 
             for fixture in fixtures:
                 try:
+                    channel = channel_for(service.category_for(fixture.sport, fixture.competition))
+                    if channel is None:
+                        continue
                     if await self._post_fixture(channel, provider.name, fixture):
                         stat.created += 1
                     else:
                         stat.existing += 1
                 except Exception:
                     logger.exception(f"Failed to post fixture {provider.name}:{fixture.external_id}; skipping it")
+
+        await self._refresh_boards(guild)
         return stats
+
+    async def _refresh_boards(self, guild) -> None:
+        """Redraw the pinned board in every routed channel.
+
+        Only *routed* categories get one. The fallback channel is shared by everything that
+        isn't routed, so a board there would claim to speak for a channel it doesn't own.
+        """
+        rows = await service.get_category_channels(guild.id)
+        if not rows:
+            return
+
+        by_category: dict[str, list] = {}
+        for market in sorted(await service.get_open_markets(guild.id), key=lambda m: m["start_time"]):
+            by_category.setdefault(service.category_of_market(market), []).append(market)
+
+        for category, row in rows.items():
+            channel = guild.get_channel(row["channel_id"])
+            if channel is None:
+                continue
+            # One unwritable channel must not cost the other boards their refresh.
+            try:
+                await self._refresh_board(channel, category, row["board_message_id"], by_category.get(category, []))
+            except discord.HTTPException as e:
+                logger.warning(f"Could not refresh the {category} betting board: {e}")
+
+    async def _refresh_board(self, channel, category: str, board_message_id: int | None, markets) -> None:
+        embed = build_board_embed(category, markets)
+        if board_message_id:
+            try:
+                message = await channel.fetch_message(board_message_id)
+                await message.edit(embed=embed)
+                return
+            except discord.NotFound:
+                pass  # someone deleted it — fall through and post a fresh one
+
+        message = await channel.send(embed=embed)
+        await service.set_board_message(channel.guild.id, category, message.id)
+        await pin(message)
 
     async def _ensure_card(self, channel, market) -> bool:
         """Re-post a market's card if its message is gone. Returns True if it was re-posted.
@@ -518,21 +571,38 @@ class BettingCog(commands.Cog):
     @tasks.loop(minutes=5)
     async def resolution_ticker(self) -> None:
         guild_id = self.bot.config.guild_id  # type: ignore[attr-defined]
-        for market in await service.get_locked_markets(guild_id):
-            # Custom bets have no provider and are settled by hand — skip them here.
-            provider = self._provider_for(market["provider"])
-            if provider is None:
+        locked = await service.get_locked_markets(guild_id)
+        still_running: list[int] = []
+
+        # One request per provider, not per market. Custom bets are settled by hand and have no
+        # provider, so filtering by name skips them for free.
+        for provider in self.providers:
+            markets = [m for m in locked if m["provider"] == provider.name]
+            if not markets:
                 continue
-            # One market failing to settle must not block every other market behind it.
             try:
-                await self._settle_from_provider(provider, market)
+                results = await provider.get_results([m["external_id"] for m in markets])
             except Exception:
-                logger.exception(f"Failed to settle market {market['id']}; will retry next tick")
+                logger.exception(f"Provider {provider.name} failed to fetch results; will retry next tick")
+                continue
+
+            for market in markets:
+                # One market failing to settle must not block every other market behind it.
+                try:
+                    if await self._settle_market(provider, market, results.get(market["external_id"])):
+                        still_running.append(market["id"])
+                except Exception:
+                    logger.exception(f"Failed to settle market {market['id']}; will retry next tick")
 
         # A locked market that nothing settles freezes everyone's stakes in silence — a
         # community bet whose creator forgot, or a real match whose provider never reported a
         # usable result. Chase both. The claim is atomic, so this can't double-ping.
-        for market in await service.claim_settle_reminders(guild_id):
+        #
+        # Except a match still being played: it locks at kickoff and the reminder fires 2h later,
+        # which for football lands mid-match. Excluding them from the *claim* (rather than
+        # claiming and discarding) matters — the claim stamps resolve_reminded_at, which would
+        # push the real reminder back 24h if the result never did arrive.
+        for market in await service.claim_settle_reminders(guild_id, exclude_ids=still_running):
             try:
                 await remind_to_settle(self.bot, market)
             except Exception:
@@ -564,26 +634,41 @@ class BettingCog(commands.Cog):
             settled_by=f"auto-void — aucun résultat après {service.STUCK_VOID_AFTER.days} jours",
         )
 
-    async def _settle_from_provider(self, provider: Provider, market) -> None:
-        result = await provider.get_result(market["external_id"])
+    async def _settle_market(self, provider: Provider, market, result: ResultDTO | None) -> bool:
+        """Settle one market from an already-fetched result. See resolution_ticker for the batch.
+
+        Returns True only while the provider says the match is *still being played*. The caller
+        uses that to hold the settle reminder back: a result that isn't due yet is not a result
+        that is late, and a football match is routinely still on the clock at the 2h mark the
+        reminder fires on. Every other case returns False — including the two that look like
+        "no result" but aren't the same thing at all (see below).
+        """
         if result is None:
-            return  # not finished yet, retry next tick
+            # Unreachable API, a rate-limited request, or a status we don't know. We genuinely
+            # don't know whether a result is late, and a provider that has stopped answering is
+            # exactly what the reminder exists to surface. Don't hold it back.
+            return False
+        if result.status == "pending":
+            return True
 
         if result.status == "finished":
             if result.winner is None:
+                # Finished, but the winner is unreadable — the MSI case. This *is* the stuck
+                # market the reminder exists for: only a mod can call it now. Don't hold it back.
                 logger.warning(f"Market {market['id']} finished with no winner reported, will retry")
-                return
+                return False
             settled = await service.resolve_market(market["id"], result.winner)
         else:
             settled = (await service.void_market(market["id"])).voided
         if not settled:
             # Lost the race to a mod's /bet resolve or /bet cancel — they already sent the
             # DMs and the recap.
-            return
+            return False
         mark_dirty(self.bot)
         await refresh_market_message(self.bot, market["id"])
         await dm_bettors(self.bot, market["id"])
         await announce_result_to_staff(self.bot, market["id"], settled_by=f"ticker `{provider.name}` (auto)")
+        return False  # settled — it is no longer locked, so there is nothing to remind about
 
     @resolution_ticker.before_loop
     async def before_resolution_ticker(self) -> None:

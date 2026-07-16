@@ -1,19 +1,36 @@
 from __future__ import annotations
 
 import datetime
+from collections.abc import Sequence
 
 import aiohttp
 from loguru import logger
 
-from bot.cogs.betting.providers import FixtureDTO, ResultDTO
+from bot.cogs.betting.providers import FixtureDTO, ResultDTO, chunks
 
 BASE_URL = "https://api.pandascore.co"
 
 # PandaScore's `filter[...]` is strict equality, so these must be the league's exact name.
-# "Worlds", "MSI" and "EWC" are the colloquial names and match nothing.
-LEAGUES = ["LEC", "World Championship", "Mid-Season Invitational", "Esports World Cup"]
+# "Worlds", "MSI" and "EWC" are the colloquial names and match nothing. A name that matches
+# nothing is dropped silently by the filter — _resolve_league_ids logs it rather than let a
+# tournament quietly never get a market.
+LEAGUES = [
+    "LEC",
+    "LFL",
+    "LCK",
+    "World Championship",
+    "Mid-Season Invitational",
+    "Esports World Cup",
+    "Esports Nations Cup",
+]
 
 _VOID_STATUSES = {"canceled", "postponed"}
+# Still on the clock — told apart from get_result returning None (unreachable / unknown status)
+# so the settle reminder chases a missing result and not a match that is simply still being played.
+_PENDING_STATUSES = {"not_started", "running"}
+
+# PandaScore caps per_page at 100; 50 keeps the URL sane and is far above any real matchday.
+_MAX_IDS_PER_REQUEST = 50
 
 
 class PandaScoreProvider:
@@ -151,12 +168,31 @@ class PandaScoreProvider:
             return None
         return self._side_of(match, best.get("team_id"))
 
-    async def get_result(self, external_id: str) -> ResultDTO | None:
-        async with aiohttp.ClientSession() as session:
-            match = await self._get(session, f"/lol/matches/{external_id}")
-        if not match:
-            return None
+    async def get_results(self, external_ids: Sequence[str]) -> dict[str, ResultDTO]:
+        """Every requested match's result in as few requests as possible. See Provider.
 
+        PandaScore's quota is far roomier than football-data's, but the same shape of bug is
+        available here and one code path beats two.
+        """
+        if not external_ids:
+            return {}
+
+        results: dict[str, ResultDTO] = {}
+        async with aiohttp.ClientSession() as session:
+            for chunk in chunks(list(external_ids), _MAX_IDS_PER_REQUEST):
+                matches = await self._get(
+                    session,
+                    "/lol/matches",
+                    {"filter[id]": ",".join(chunk), "per_page": str(_MAX_IDS_PER_REQUEST)},
+                )
+                for match in matches or []:
+                    result = self._to_result(match)
+                    if result is not None:
+                        results[str(match["id"])] = result
+        return results
+
+    def _to_result(self, match: dict) -> ResultDTO | None:
+        external_id = match.get("id")
         status = match.get("status")
         if status == "finished":
             winner = self._side_of(match, match.get("winner_id")) or self._winner_from_scores(match)
@@ -172,4 +208,8 @@ class PandaScoreProvider:
             return ResultDTO(status="finished", winner=winner)
         if status in _VOID_STATUSES:
             return ResultDTO(status="postponed" if status == "postponed" else "cancelled", winner=None)
+        if status in _PENDING_STATUSES:
+            return ResultDTO(status="pending", winner=None)
+        # An unknown status is not "still running" — we genuinely don't know, same as an
+        # unreachable API. Say nothing rather than vouch for a match we can't read.
         return None

@@ -3,6 +3,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from bot.cogs.betting import service
+from bot.cogs.betting.cog import BettingCog
+from bot.cogs.betting.providers import ResultDTO
 from bot.cogs.currency.service import HOUSE_USER_ID
 
 
@@ -33,6 +35,22 @@ async def test_provider_markets_are_chased_too():
     # never say a word: a provider that stops reporting results leaves stakes frozen exactly
     # like a forgetful creator does, and neither may be silent.
     assert "provider = 'custom'" not in sql
+
+
+@pytest.mark.asyncio
+async def test_a_match_still_being_played_is_not_claimed():
+    # The window measures from kickoff, and a football match runs ~1h50-2h05 — so at the 2h
+    # reminder mark it is routinely still in play. Excluding from the CLAIM (not filtering the
+    # result) is the point: the claim stamps resolve_reminded_at, so a claimed-then-discarded
+    # market would go quiet for 24h if the result really never arrived.
+    pool = MagicMock()
+    pool.fetch = AsyncMock(return_value=[])
+    with patch("bot.cogs.betting.service.get_pool", return_value=pool):
+        await service.claim_settle_reminders(guild_id=1, exclude_ids=[7, 9])
+
+    sql, args = pool.fetch.call_args[0][0], pool.fetch.call_args[0]
+    assert "NOT (id = ANY(" in sql
+    assert [7, 9] in args
 
 
 @pytest.mark.asyncio
@@ -147,11 +165,11 @@ async def test_the_reminder_names_the_creator_the_stake_and_the_way_out():
 
 @pytest.mark.asyncio
 async def test_a_stuck_match_names_the_teams_and_the_deadline():
-    # A provider market has no creator to ping, so the channel has to be told instead —
+    # A provider market has no creator to ping, so the staff channel has to be told instead —
     # this is the message that was missing when the MSI match froze.
     from bot.cogs.betting.views import remind_to_settle
 
-    channel = _channel()
+    channel = _channel(channel_id=99)
     client = MagicMock()
     client.get_channel = MagicMock(return_value=channel)
 
@@ -159,7 +177,7 @@ async def test_a_stuck_match_names_the_teams_and_the_deadline():
     bets = [{"user_id": 1, "amount": 100, "outcome": "away"}]
     with (
         patch("bot.cogs.betting.views.service.get_bets", new=AsyncMock(return_value=bets)),
-        patch("bot.cogs.betting.views.service.get_staff_channel", new=AsyncMock(return_value=None)),
+        patch("bot.cogs.betting.views.service.get_staff_channel", new=AsyncMock(return_value=99)),
     ):
         await remind_to_settle(client, market)
 
@@ -236,15 +254,168 @@ async def test_the_reminder_still_replies_under_the_card_in_its_own_channel():
     assert channel.send.call_args.kwargs["reference"] is channel.fetch_message.return_value
 
 
+# --- The reminder must not race the auto-resolution -------------------------
+#
+# A market locks at kickoff and the reminder is due 2h later, but a football match runs
+# ~1h50-2h05. Every case below is a locked market past that mark: only one of them is a match
+# that is genuinely still being played, and only that one may mute the reminder.
+
+
+def _cog() -> BettingCog:
+    bot = MagicMock()
+    bot.config = MagicMock(football_data_api_key=None, pandascore_api_key=None, guild_id=1)
+    return BettingCog(bot)
+
+
+def _provider(results):
+    provider = MagicMock()
+    provider.name = "pandascore"
+    provider.get_results = AsyncMock(return_value=results)
+    return provider
+
+
 @pytest.mark.asyncio
-async def test_with_no_staff_channel_the_reminder_still_lands_in_the_betting_channel():
-    # A frozen market must never be silent. Falling back is worse than the staff channel, and
-    # far better than nothing.
+async def test_a_match_still_on_the_clock_holds_the_reminder_back():
+    cog = _cog()
+    result = ResultDTO(status="pending", winner=None)
+
+    assert await cog._settle_market(MagicMock(), _market(external_id="x"), result) is True
+
+
+@pytest.mark.asyncio
+async def test_a_finished_match_with_no_readable_winner_still_rings():
+    # The MSI case: finished, but the winner is unmappable. This IS the stuck market the
+    # reminder exists for — only a mod can call it now, so it must not be muted.
+    cog = _cog()
+    result = ResultDTO(status="finished", winner=None)
+
+    assert await cog._settle_market(MagicMock(), _market(external_id="x"), result) is False
+
+
+@pytest.mark.asyncio
+async def test_a_result_the_provider_could_not_give_us_still_rings():
+    # None means we genuinely don't know: unreachable, rate-limited, or absent from the batch.
+    # A provider that stopped answering is precisely what the reminder exists to surface —
+    # silence here would be the old MSI bug all over again.
+    cog = _cog()
+
+    assert await cog._settle_market(MagicMock(), _market(external_id="x"), None) is False
+
+
+def _ticker_patches(locked):
+    return (
+        patch("bot.cogs.betting.cog.service.get_locked_markets", new=AsyncMock(return_value=locked)),
+        patch("bot.cogs.betting.cog.service.claim_settle_reminders", new=AsyncMock(return_value=[])),
+        patch("bot.cogs.betting.cog.service.get_stuck_markets", new=AsyncMock(return_value=[])),
+    )
+
+
+@pytest.mark.asyncio
+async def test_the_ticker_excludes_only_the_matches_still_being_played():
+    cog = _cog()
+    running = _market(id=5, provider="pandascore", external_id="x")
+    stuck = _market(id=6, provider="pandascore", external_id="y")
+    # "x" is still on the clock; "y" came back absent from the batch — the provider had nothing
+    # for it. Only "x" may be muted.
+    cog.providers = [_provider({"x": ResultDTO(status="pending", winner=None)})]
+
+    locked_p, claim_p, stuck_p = _ticker_patches([running, stuck])
+    with locked_p, claim_p as claim, stuck_p:
+        await cog.resolution_ticker()
+
+    assert claim.await_args.kwargs["exclude_ids"] == [5]  # the stuck one is still chased
+
+
+@pytest.mark.asyncio
+async def test_the_ticker_asks_each_provider_once_for_every_match():
+    # The rate-limit fix at the call site: one request per provider per tick, not per market.
+    # football-data's free tier allows 10 a minute and a Champions League matchday locks 18.
+    cog = _cog()
+    markets = [_market(id=i, provider="pandascore", external_id=f"x{i}") for i in range(18)]
+    provider = _provider({})
+    cog.providers = [provider]
+
+    locked_p, claim_p, stuck_p = _ticker_patches(markets)
+    with locked_p, claim_p, stuck_p:
+        await cog.resolution_ticker()
+
+    provider.get_results.assert_awaited_once()
+    assert list(provider.get_results.await_args[0][0]) == [f"x{i}" for i in range(18)]
+
+
+@pytest.mark.asyncio
+async def test_the_ticker_never_asks_a_provider_about_another_providers_markets():
+    # Custom bets have no provider and are settled by hand; filtering by name skips them free.
+    cog = _cog()
+    locked = [
+        _market(id=1, provider="pandascore", external_id="lol"),
+        _market(id=2, provider="football_data", external_id="foot"),
+        _market(id=3, provider="custom", external_id="nope"),
+    ]
+    provider = _provider({})
+    cog.providers = [provider]
+
+    locked_p, claim_p, stuck_p = _ticker_patches(locked)
+    with locked_p, claim_p, stuck_p:
+        await cog.resolution_ticker()
+
+    assert list(provider.get_results.await_args[0][0]) == ["lol"]
+
+
+def _mod(user_id, *, is_mod=True, is_bot=False):
+    member = MagicMock()
+    member.id = user_id
+    member.bot = is_bot
+    member.guild_permissions.manage_messages = is_mod
+    member.send = AsyncMock()
+    return member
+
+
+def _guild_with(members):
+    guild = MagicMock()
+    guild.members = members
+    return guild
+
+
+@pytest.mark.asyncio
+async def test_with_no_staff_channel_the_reminder_is_dmed_to_the_mods_not_the_channel():
+    # The old behaviour dumped this in the public betting channel and polluted it. With no staff
+    # channel, chase the mods (anyone with Manage Messages) in private instead — the public
+    # channel is the last resort, only when not one mod is reachable.
     from bot.cogs.betting.views import remind_to_settle
 
     channel = _channel()
+    mod, not_a_mod = _mod(7), _mod(8, is_mod=False)
     client = MagicMock()
     client.get_channel = MagicMock(return_value=channel)
+    client.get_guild = MagicMock(return_value=_guild_with([mod, not_a_mod]))
+
+    bets = [{"user_id": 42, "amount": 100, "outcome": "home"}]  # the creator bet, gavel is gone
+    with (
+        patch("bot.cogs.betting.views.service.get_bets", new=AsyncMock(return_value=bets)),
+        patch("bot.cogs.betting.views.service.get_staff_channel", new=AsyncMock(return_value=None)),
+    ):
+        await remind_to_settle(client, _market())
+
+    mod.send.assert_awaited_once()
+    not_a_mod.send.assert_not_awaited()  # Manage Messages is the gate
+    channel.send.assert_not_awaited()  # the point: the public channel is left clean
+
+
+@pytest.mark.asyncio
+async def test_the_reminder_falls_back_to_the_public_channel_when_no_mod_is_reachable():
+    # A frozen market must never be silent. If the only mod has DMs closed, the public channel
+    # is worse than a DM and far better than nothing.
+    import discord
+
+    from bot.cogs.betting.views import remind_to_settle
+
+    channel = _channel()
+    mod = _mod(7)
+    mod.send.side_effect = discord.Forbidden(MagicMock(), "closed")
+    client = MagicMock()
+    client.get_channel = MagicMock(return_value=channel)
+    client.get_guild = MagicMock(return_value=_guild_with([mod]))
 
     bets = [{"user_id": 42, "amount": 100, "outcome": "home"}]  # the creator bet, gavel is gone
     with (
@@ -254,3 +425,29 @@ async def test_with_no_staff_channel_the_reminder_still_lands_in_the_betting_cha
         await remind_to_settle(client, _market())
 
     channel.send.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_one_mod_with_closed_dms_does_not_cost_the_others_theirs():
+    # Isolated per send like dm_bettors — a blocked mod is a choice, not a failure that swallows
+    # the rest. And since a mod was reached, nothing spills into the public channel.
+    import discord
+
+    from bot.cogs.betting.views import remind_to_settle
+
+    channel = _channel()
+    blocked, reachable = _mod(7), _mod(8)
+    blocked.send.side_effect = discord.Forbidden(MagicMock(), "closed")
+    client = MagicMock()
+    client.get_channel = MagicMock(return_value=channel)
+    client.get_guild = MagicMock(return_value=_guild_with([blocked, reachable]))
+
+    bets = [{"user_id": 42, "amount": 100, "outcome": "home"}]  # the creator bet, gavel is gone
+    with (
+        patch("bot.cogs.betting.views.service.get_bets", new=AsyncMock(return_value=bets)),
+        patch("bot.cogs.betting.views.service.get_staff_channel", new=AsyncMock(return_value=None)),
+    ):
+        await remind_to_settle(client, _market())
+
+    reachable.send.assert_awaited_once()
+    channel.send.assert_not_awaited()

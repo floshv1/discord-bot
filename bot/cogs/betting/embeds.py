@@ -5,6 +5,9 @@ from collections.abc import Mapping, Sequence
 import discord
 
 from bot.cogs.betting.service import (
+    CATEGORY_CUSTOM,
+    CATEGORY_LABELS,
+    competitions_in_category,
     creator_holds_gavel,
     house_pnl,
     house_stakes,
@@ -17,6 +20,39 @@ from bot.cogs.betting.service import (
 
 BAR_WIDTH = 12
 PNL_SIDE_COUNT = 5  # how many winners, and how many losers, to name
+BOARD_FIXTURE_COUNT = 10  # how many upcoming matches the pinned board lists
+
+
+def build_board_embed(category: str, markets: Sequence[Mapping]) -> discord.Embed:
+    """The pinned "what's followed here, and what's coming" message for one betting channel.
+
+    `markets` are that category's open fixtures, soonest first. Kept separate from the cards:
+    a channel has to say what it is for before any fixture lands in it, and an empty channel
+    with no board reads as broken rather than as out-of-season.
+    """
+    label = CATEGORY_LABELS.get(category, category)
+    embed = discord.Embed(title=f"📌 Paris — {label}", color=discord.Color.blurple())
+
+    if category == CATEGORY_CUSTOM:
+        embed.description = "Les paris créés avec `/bet create` atterrissent ici."
+        return embed
+
+    followed = competitions_in_category(category)
+    if followed:
+        embed.add_field(name="Compétitions suivies", value=" · ".join(followed), inline=False)
+
+    if not markets:
+        embed.add_field(name="Prochains matchs", value="*Rien de prévu pour l'instant.*", inline=False)
+        return embed
+
+    lines = []
+    for market in markets[:BOARD_FIXTURE_COUNT]:
+        # A Discord timestamp renders in each reader's own timezone, which a formatted date
+        # cannot do — and this board is read by people who are not all in the same one.
+        when = int(market["start_time"].timestamp())
+        lines.append(f"• **{market['home_name']}** vs **{market['away_name']}** — <t:{when}:R>")
+    embed.add_field(name="Prochains matchs", value="\n".join(lines), inline=False)
+    return embed
 
 
 def _pnl_line(rank: int, row: Mapping, names: Mapping[int, str]) -> str:

@@ -21,6 +21,7 @@ from bot.cogs.queue.embeds import build_panel_embed
 from bot.cogs.queue.views import PanelView
 from bot.cogs.suggestions.cog import SetupView
 from bot.cogs.voice.cog import VoiceCog
+from bot.core.discord_utils import pin
 from bot.db.client import get_pool
 
 PARIS_TZ = ZoneInfo("Europe/Paris")
@@ -57,19 +58,6 @@ async def delete_setup_messages(
         except discord.HTTPException as exc:
             logger.warning(f"Could not delete old setup message {message_id}: {exc}")
     return deleted
-
-
-async def pin(message: discord.Message) -> None:
-    """Pin a setup message, so the panel stays reachable once the channel scrolls.
-
-    Everything called these "pinned" — the command descriptions, the docs — but nothing
-    ever pinned them. Best-effort: missing Manage Messages, or a channel already at
-    Discord's 50-pin cap, must not fail the whole setup.
-    """
-    try:
-        await message.pin()
-    except discord.HTTPException as exc:
-        logger.warning(f"Could not pin setup message {message.id}: {exc}")
 
 
 def status_line(name: str, command: str, channel_mention: str | None, missing_messages: int) -> str:
@@ -400,8 +388,13 @@ class SetupCog(commands.Cog):
 
     @setup.command(name="betting", description="Set the channel where betting cards are posted.")
     @app_commands.describe(
-        channel="Channel that will host the betting cards",
+        channel="Default channel for betting cards, and the fallback for any category left unset",
         staff_channel="Private channel where settlement recaps are posted (optional)",
+        foot="Channel for football cards — World Cup, Champions League, Ligue 1 (optional)",
+        lec="Channel for European LoL cards — LEC, LFL (optional)",
+        inter="Channel for international LoL cards — Worlds, MSI, EWC, ENC (optional)",
+        lck="Channel for LCK cards (optional)",
+        perso="Channel for community bets made with /bet create (optional)",
     )
     @app_commands.default_permissions(manage_guild=True)
     async def setup_betting(
@@ -409,11 +402,36 @@ class SetupCog(commands.Cog):
         interaction: discord.Interaction,
         channel: discord.TextChannel,
         staff_channel: discord.TextChannel | None = None,
+        foot: discord.TextChannel | None = None,
+        lec: discord.TextChannel | None = None,
+        inter: discord.TextChannel | None = None,
+        lck: discord.TextChannel | None = None,
+        perso: discord.TextChannel | None = None,
     ) -> None:
         await interaction.response.defer(ephemeral=True)
         cog: BettingCog | None = self.bot.cogs.get("BettingCog")  # type: ignore[assignment]
         await betting_service.set_betting_channel(
             interaction.guild_id, channel.id, staff_channel.id if staff_channel else None
+        )
+
+        # Drop the boards the last run pinned, before the rows that point at them are replaced.
+        # Otherwise a re-route leaves a stale board pinned in a channel that no longer receives
+        # those cards, still listing fixtures it will never be updated with again.
+        for old in (await betting_service.get_category_channels(interaction.guild_id)).values():
+            await delete_setup_messages(self.bot, old["channel_id"], [old["board_message_id"]])
+
+        # A category left out of a re-run is one the admin dropped: set_category_channels
+        # replaces the lot, so its cards fall back to `channel` rather than keep landing in a
+        # channel nobody asked for any more. Same rule as staff_channel.
+        routed = {
+            betting_service.CATEGORY_FOOT: foot,
+            betting_service.CATEGORY_LEC: lec,
+            betting_service.CATEGORY_INTER: inter,
+            betting_service.CATEGORY_LCK: lck,
+            betting_service.CATEGORY_CUSTOM: perso,
+        }
+        await betting_service.set_category_channels(
+            interaction.guild_id, {cat: ch.id for cat, ch in routed.items() if ch is not None}
         )
         stats = await cog.poll_fixtures_now() if cog else {}
 
@@ -430,8 +448,16 @@ class SetupCog(commands.Cog):
             if staff_channel
             else "\n📋 Aucun salon staff : les parieurs recevront leurs MP, mais aucun récap ne sera posté."
         )
+        routed_line = (
+            "\n🗂️ "
+            + " · ".join(
+                f"{betting_service.CATEGORY_LABELS[cat]} → {ch.mention}" for cat, ch in routed.items() if ch is not None
+            )
+            if any(routed.values())
+            else f"\n🗂️ Aucun salon par catégorie : tout atterrit dans {channel.mention}."
+        )
         await interaction.followup.send(
-            f"✅ Salon de paris : {channel.mention}.{staff_line}\n\n{detail}",
+            f"✅ Salon de paris : {channel.mention}.{staff_line}{routed_line}\n\n{detail}",
             ephemeral=True,
         )
 

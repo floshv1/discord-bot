@@ -8,21 +8,33 @@ from bot.cogs.betting.providers.football_data import FootballDataProvider
 from bot.cogs.betting.providers.pandascore import PandaScoreProvider
 
 
+def _resp(payload, status=200):
+    resp = MagicMock()
+    resp.status = status
+    resp.json = AsyncMock(return_value=payload)
+    resp.text = AsyncMock(return_value="")
+    return AsyncMock(__aenter__=AsyncMock(return_value=resp), __aexit__=AsyncMock(return_value=False))
+
+
 def _mock_session(*payloads):
-    """Mock aiohttp.ClientSession, returning each payload in turn for successive GETs."""
+    """Mock aiohttp.ClientSession, returning each payload in turn for successive GETs.
 
-    def _resp(payload):
-        resp = MagicMock()
-        resp.status = 200
-        resp.json = AsyncMock(return_value=payload)
-        resp.text = AsyncMock(return_value="")
-        return AsyncMock(__aenter__=AsyncMock(return_value=resp), __aexit__=AsyncMock(return_value=False))
-
+    A payload may be a `_resp(...)` to control the HTTP status; anything else is a 200 body.
+    """
     session = MagicMock()
-    session.get = MagicMock(side_effect=[_resp(p) for p in payloads])
+    session.get = MagicMock(side_effect=[p if isinstance(p, AsyncMock) else _resp(p) for p in payloads])
     return MagicMock(
         return_value=AsyncMock(__aenter__=AsyncMock(return_value=session), __aexit__=AsyncMock(return_value=False))
     )
+
+
+def _one_competition():
+    """Pin the football provider to a single competition.
+
+    Tests about parsing one fixture shouldn't have to feed a payload per competition, and
+    shouldn't break the day COMPETITIONS grows. The loop itself is covered separately.
+    """
+    return patch("bot.cogs.betting.providers.football_data.COMPETITIONS", ["WC"])
 
 
 # PandaScore matches carry a league_id but no league_name, so the provider resolves ids first.
@@ -55,7 +67,7 @@ async def test_football_skips_fixtures_with_undecided_teams():
             },
         ]
     }
-    with patch("aiohttp.ClientSession", _mock_session(payload)):
+    with _one_competition(), patch("aiohttp.ClientSession", _mock_session(payload)):
         fixtures = await FootballDataProvider("key").list_upcoming(7)
 
     assert [f.external_id for f in fixtures] == ["1"]
@@ -75,10 +87,63 @@ async def test_football_skips_fixture_with_missing_team_object():
             }
         ]
     }
-    with patch("aiohttp.ClientSession", _mock_session(payload)):
+    with _one_competition(), patch("aiohttp.ClientSession", _mock_session(payload)):
         fixtures = await FootballDataProvider("key").list_upcoming(7)
 
     assert fixtures == []
+
+
+@pytest.mark.asyncio
+async def test_football_polls_every_competition():
+    def _match(match_id, competition):
+        return {
+            "id": match_id,
+            "utcDate": _soon(),
+            "competition": {"name": competition},
+            "homeTeam": {"name": "A"},
+            "awayTeam": {"name": "B"},
+        }
+
+    session_factory = _mock_session(
+        {"matches": [_match(1, "FIFA World Cup")]},
+        {"matches": [_match(2, "UEFA Champions League")]},
+        {"matches": [_match(3, "Ligue 1")]},
+    )
+    with patch("bot.cogs.betting.providers.football_data.COMPETITIONS", ["WC", "CL", "FL1"]):
+        with patch("aiohttp.ClientSession", session_factory):
+            fixtures = await FootballDataProvider("key").list_upcoming(7)
+
+    session = session_factory.return_value.__aenter__.return_value
+    assert [c[0][0].split("/competitions/")[1] for c in session.get.call_args_list] == [
+        "WC/matches",
+        "CL/matches",
+        "FL1/matches",
+    ]
+    assert [f.competition for f in fixtures] == ["FIFA World Cup", "UEFA Champions League", "Ligue 1"]
+
+
+@pytest.mark.asyncio
+async def test_football_keeps_the_other_competitions_when_one_is_forbidden():
+    # The free tier covers some competitions and not others: a 403 on the Champions League must
+    # still leave Ligue 1 on the board, or one unavailable league empties the whole sport.
+    ligue1 = {
+        "matches": [
+            {
+                "id": 3,
+                "utcDate": _soon(),
+                "competition": {"name": "Ligue 1"},
+                "homeTeam": {"name": "PSG"},
+                "awayTeam": {"name": "OM"},
+            }
+        ]
+    }
+    session_factory = _mock_session(_resp({}, status=403), ligue1)
+    with patch("bot.cogs.betting.providers.football_data.COMPETITIONS", ["CL", "FL1"]):
+        with patch("aiohttp.ClientSession", session_factory):
+            fixtures = await FootballDataProvider("key").list_upcoming(7)
+
+    assert [f.external_id for f in fixtures] == ["3"]
+    assert fixtures[0].competition == "Ligue 1"
 
 
 @pytest.mark.asyncio
@@ -176,8 +241,10 @@ def _finished(winner_id, results=None, **kw):
 
 
 async def _result(payload):
-    with patch("aiohttp.ClientSession", _mock_session(payload)):
-        return await PandaScoreProvider("key").get_result("1")
+    # /lol/matches?filter[id]= returns a list, and get_results keys it by external_id.
+    with patch("aiohttp.ClientSession", _mock_session([payload])):
+        results = await PandaScoreProvider("key").get_results(["1"])
+    return results.get("1")
 
 
 @pytest.mark.asyncio
@@ -219,5 +286,80 @@ async def test_pandascore_voids_a_cancelled_match():
 
 
 @pytest.mark.asyncio
-async def test_pandascore_says_nothing_about_a_match_still_running():
-    assert await _result({"id": 1, "status": "running"}) is None
+async def test_pandascore_says_a_running_match_is_pending_not_unknown():
+    # "pending" and None both used to be None, and that conflation is what made the bot announce
+    # "le résultat n'est jamais arrivé" about matches that were still being played. A result
+    # that isn't due yet is not a result that is late.
+    assert (await _result({"id": 1, "status": "running"})).status == "pending"
+    assert (await _result({"id": 1, "status": "not_started"})).status == "pending"
+
+
+@pytest.mark.asyncio
+async def test_pandascore_does_not_vouch_for_a_status_it_cannot_read():
+    # An unknown status is not "still running" — we genuinely don't know, exactly like an
+    # unreachable API. Claiming it's pending would mute the reminder on a market nobody settles.
+    assert await _result({"id": 1, "status": "who_knows"}) is None
+
+
+async def _football_result(payload):
+    with patch("aiohttp.ClientSession", _mock_session({"matches": [{"id": 1, **payload}]})):
+        results = await FootballDataProvider("key").get_results(["1"])
+    return results.get("1")
+
+
+@pytest.mark.asyncio
+async def test_football_fetches_every_result_in_one_request():
+    """The rate-limit fix: the free tier allows 10 requests a minute.
+
+    A Champions League matchday kicks off up to 18 games at once and they stay locked for ~2h,
+    so one request per match meant an 18-request burst every 5 minutes, for 24 ticks. Worse, a
+    throttled request is indistinguishable from a silent provider — it would have fired the
+    "le résultat n'est jamais arrivé" reminder about matches that were merely rate-limited.
+    """
+    ids = [str(i) for i in range(18)]
+    payload = {"matches": [{"id": i, "status": "IN_PLAY"} for i in range(18)]}
+    session_factory = _mock_session(payload)
+    with patch("aiohttp.ClientSession", session_factory):
+        results = await FootballDataProvider("key").get_results(ids)
+
+    session = session_factory.return_value.__aenter__.return_value
+    assert session.get.call_count == 1  # not 18
+    assert session.get.call_args[1]["params"]["ids"] == ",".join(ids)
+    assert len(results) == 18
+
+
+@pytest.mark.asyncio
+async def test_a_throttled_batch_reports_nothing_rather_than_guessing():
+    # HTTP 429 lands in the same branch as any non-200: absence means "we don't know", which
+    # lets the settle reminder still ring for a provider that has genuinely gone quiet.
+    with patch("aiohttp.ClientSession", _mock_session(_resp({}, status=429))):
+        assert await FootballDataProvider("key").get_results(["1", "2"]) == {}
+
+
+@pytest.mark.asyncio
+async def test_asking_for_no_results_costs_no_request():
+    session_factory = _mock_session()
+    with patch("aiohttp.ClientSession", session_factory):
+        assert await FootballDataProvider("key").get_results([]) == {}
+        assert await PandaScoreProvider("key").get_results([]) == {}
+
+
+@pytest.mark.asyncio
+async def test_football_says_a_match_on_the_clock_is_pending():
+    # The bug that started this: a football match runs ~1h50-2h05 and the settle reminder is due
+    # 2h after kickoff, so IN_PLAY/PAUSED at reminder time is the normal case, not the odd one.
+    for status in ("SCHEDULED", "TIMED", "IN_PLAY", "PAUSED"):
+        assert (await _football_result({"status": status})).status == "pending", status
+
+
+@pytest.mark.asyncio
+async def test_football_still_reports_a_finished_match_and_a_void_one():
+    finished = await _football_result({"status": "FINISHED", "score": {"winner": "AWAY_TEAM"}})
+    assert (finished.status, finished.winner) == ("finished", "away")
+    assert (await _football_result({"status": "POSTPONED"})).status == "postponed"
+    assert (await _football_result({"status": "CANCELLED"})).status == "cancelled"
+
+
+@pytest.mark.asyncio
+async def test_football_does_not_vouch_for_a_status_it_cannot_read():
+    assert await _football_result({"status": "WHO_KNOWS"}) is None
