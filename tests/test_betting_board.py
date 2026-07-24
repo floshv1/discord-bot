@@ -35,7 +35,7 @@ def test_the_foot_board_names_every_football_competition():
 
 
 def test_an_empty_board_says_so_rather_than_looking_broken():
-    text = _text(build_board_embed(service.CATEGORY_LCK, []))
+    text = _text(build_board_embed(service.CATEGORY_INTER, []))
 
     assert "Rien de prévu" in text
 

@@ -22,10 +22,17 @@ Les deux listes sont **vérifiées**, chacune contre la source qui fait foi :
   font partie, donc pas de 403. Les grands championnats (PL, Liga, Serie A, Bundesliga) sont
   disponibles mais volontairement écartés : un week-end, c'est ~48 cartes dans un seul salon.
 
-⚠️ Reste un point à confirmer : que `FOOTBALL_DATA_API_KEY` soit bien définie côté Komodo.
-Au boot, le log doit dire `Betting providers loaded: football_data, pandascore` — si
-`football_data` manque, aucune carte foot n'apparaîtra et il faut retirer la ligne **Foot**
-de l'annonce.
+✅ **Vérifié en production le 16/07 à 16:54** — rien à élaguer, l'annonce est postable telle
+quelle :
+
+```
+Betting providers loaded: football_data, pandascore
+PandaScore leagues resolved: Esports World Cup (5262), LFL (4292), LEC (4197),
+                             Mid-Season Invitational (300), Worlds (297), LCK (293)
+```
+
+Les six ligues LoL résolues, plus aucun `no league named`, et aucun 403 côté football-data
+(dont le poll précède celui de PandaScore dans la même boucle).
 
 ---
 

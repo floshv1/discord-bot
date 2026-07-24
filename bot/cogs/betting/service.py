@@ -214,16 +214,14 @@ def outcomes_for_market(market: Mapping) -> list[tuple[str, str]]:
 CATEGORY_FOOT = "foot"
 CATEGORY_LEC = "lec"
 CATEGORY_INTER = "inter"
-CATEGORY_LCK = "lck"
 CATEGORY_CUSTOM = "custom"
 
-CATEGORIES = (CATEGORY_FOOT, CATEGORY_LEC, CATEGORY_INTER, CATEGORY_LCK, CATEGORY_CUSTOM)
+CATEGORIES = (CATEGORY_FOOT, CATEGORY_LEC, CATEGORY_INTER, CATEGORY_CUSTOM)
 
 CATEGORY_LABELS = {
     CATEGORY_FOOT: "Foot",
-    CATEGORY_LEC: "LEC & LFL",
+    CATEGORY_LEC: "LEC",
     CATEGORY_INTER: "International",
-    CATEGORY_LCK: "LCK",
     CATEGORY_CUSTOM: "Paris perso",
 }
 
@@ -235,10 +233,6 @@ CATEGORY_LABELS = {
 # league list are two halves of one decision and drift apart the moment nobody is watching.
 _LOL_CATEGORIES = {
     "LEC": CATEGORY_LEC,
-    # The LFL shares the LEC's channel: both are European, and one board saying "LEC · LFL"
-    # beats a sixth channel nobody asked for.
-    "LFL": CATEGORY_LEC,
-    "LCK": CATEGORY_LCK,
     "Worlds": CATEGORY_INTER,
     "Mid-Season Invitational": CATEGORY_INTER,
     "Esports World Cup": CATEGORY_INTER,

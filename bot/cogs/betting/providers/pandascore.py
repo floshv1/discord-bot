@@ -20,8 +20,6 @@ BASE_URL = "https://api.pandascore.co"
 # in this list.
 LEAGUES = [
     "LEC",
-    "LFL",
-    "LCK",
     "Worlds",
     "Mid-Season Invitational",  # "MSI" really is colloquial and matches nothing
     "Esports World Cup",  # ...as is "EWC"

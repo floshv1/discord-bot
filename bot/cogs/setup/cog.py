@@ -391,9 +391,8 @@ class SetupCog(commands.Cog):
         channel="Default channel for betting cards, and the fallback for any category left unset",
         staff_channel="Private channel where settlement recaps are posted (optional)",
         foot="Channel for football cards — World Cup, Champions League, Ligue 1 (optional)",
-        lec="Channel for European LoL cards — LEC, LFL (optional)",
+        lec="Channel for European LoL cards — LEC (optional)",
         inter="Channel for international LoL cards — Worlds, MSI, EWC (optional)",
-        lck="Channel for LCK cards (optional)",
         perso="Channel for community bets made with /bet create (optional)",
     )
     @app_commands.default_permissions(manage_guild=True)
@@ -405,7 +404,6 @@ class SetupCog(commands.Cog):
         foot: discord.TextChannel | None = None,
         lec: discord.TextChannel | None = None,
         inter: discord.TextChannel | None = None,
-        lck: discord.TextChannel | None = None,
         perso: discord.TextChannel | None = None,
     ) -> None:
         await interaction.response.defer(ephemeral=True)
@@ -427,7 +425,6 @@ class SetupCog(commands.Cog):
             betting_service.CATEGORY_FOOT: foot,
             betting_service.CATEGORY_LEC: lec,
             betting_service.CATEGORY_INTER: inter,
-            betting_service.CATEGORY_LCK: lck,
             betting_service.CATEGORY_CUSTOM: perso,
         }
         await betting_service.set_category_channels(

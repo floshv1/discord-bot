@@ -37,15 +37,8 @@ def test_football_is_one_category_whatever_the_competition():
 
 def test_lol_splits_by_league():
     assert service.category_for("lol", "LEC") == service.CATEGORY_LEC
-    assert service.category_for("lol", "LCK") == service.CATEGORY_LCK
     assert service.category_for("lol", "Worlds") == service.CATEGORY_INTER
     assert service.category_for("lol", "Mid-Season Invitational") == service.CATEGORY_INTER
-
-
-def test_the_lfl_shares_the_lec_channel():
-    # Both European: one channel whose board says "LEC · LFL", rather than a sixth channel.
-    assert service.category_for("lol", "LFL") == service.CATEGORY_LEC
-    assert set(service.competitions_in_category(service.CATEGORY_LEC)) == {"LEC", "LFL"}
 
 
 def test_community_bets_have_their_own_category():
@@ -70,7 +63,7 @@ async def test_a_category_with_no_channel_falls_back_to_the_betting_channel():
     pool = MagicMock()
     pool.fetchrow = AsyncMock(side_effect=[None, {"channel_id": 500}])
     with patch("bot.cogs.betting.service.get_pool", return_value=pool):
-        assert await service.get_channel_for_category(1, service.CATEGORY_LCK) == 500
+        assert await service.get_channel_for_category(1, service.CATEGORY_INTER) == 500
 
 
 @pytest.mark.asyncio
@@ -78,7 +71,7 @@ async def test_a_routed_category_does_not_hit_the_fallback():
     pool = MagicMock()
     pool.fetchrow = AsyncMock(return_value={"channel_id": 77})
     with patch("bot.cogs.betting.service.get_pool", return_value=pool):
-        assert await service.get_channel_for_category(1, service.CATEGORY_LCK) == 77
+        assert await service.get_channel_for_category(1, service.CATEGORY_INTER) == 77
 
     assert pool.fetchrow.await_count == 1  # no second query for the default
 
