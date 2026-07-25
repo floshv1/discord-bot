@@ -238,6 +238,13 @@ _LOL_CATEGORIES = {
     "Esports World Cup": CATEGORY_INTER,
 }
 
+# Leagues we used to follow and have since dropped. Removing a name from LEAGUES/_LOL_CATEGORIES
+# stops *new* markets, but any already in betting_markets keep pooling into CATEGORY_INTER via the
+# fallback in category_for — see the cog's startup purge (_purge_retired_leagues). Kept here in the
+# pure module so tests/test_betting_routing.py can lock that a retired league is never also a
+# followed one.
+RETIRED_LEAGUES = ("LCK", "LFL")
+
 
 def category_for(sport: str, competition: str) -> str:
     """Which betting channel a market belongs in. Pure — the routing decision, in one place.
@@ -735,6 +742,18 @@ async def get_stuck_markets(guild_id: int) -> list[asyncpg.Record]:
 async def get_locked_markets(guild_id: int) -> list[asyncpg.Record]:
     pool = get_pool()
     return await pool.fetch("SELECT * FROM betting_markets WHERE guild_id = $1 AND status = 'locked'", guild_id)
+
+
+async def get_unsettled_markets_for_competitions(guild_id: int, competitions: Sequence[str]) -> list[asyncpg.Record]:
+    """Open or locked markets whose competition is in the given set — what the retired-league
+    purge voids. An empty `competitions`, or none matching, returns []."""
+    pool = get_pool()
+    return await pool.fetch(
+        "SELECT * FROM betting_markets WHERE guild_id = $1 "
+        "AND status IN ('open', 'locked') AND competition = ANY($2::text[])",
+        guild_id,
+        list(competitions),
+    )
 
 
 # ---------------------------------------------------------------------------

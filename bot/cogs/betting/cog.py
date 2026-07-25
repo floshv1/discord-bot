@@ -117,6 +117,7 @@ class BettingCog(commands.Cog):
         self._dirty_cards.add(market_id)
 
     async def cog_load(self) -> None:
+        await self._purge_retired_leagues()
         await self._reregister_open_views()
         await self._seed_unseeded_markets()
         # Say which providers are live, out loud. A provider with no key is skipped in __init__
@@ -135,6 +136,44 @@ class BettingCog(commands.Cog):
         self.lock_ticker.start()
         self.resolution_ticker.start()
         self.card_refresh_ticker.start()
+
+    async def _purge_retired_leagues(self) -> None:
+        """Void and delete any market left over from a league we no longer follow.
+
+        Dropping a league from pandascore.LEAGUES / service._LOL_CATEGORIES stops *new* markets,
+        but ones already in betting_markets keep pooling into CATEGORY_INTER via the fallback in
+        category_for — so their cards land in the inter channel and their fixtures show on its
+        board. Void refunds every stake (ledger-safe, via the same path as _void_stuck), then the
+        card is deleted so the market is gone for good. Idempotent: a voided market no longer
+        matches, so re-runs at boot are no-ops.
+        """
+        guild_id = self.bot.config.guild_id  # type: ignore[attr-defined]
+        for market in await service.get_unsettled_markets_for_competitions(guild_id, service.RETIRED_LEAGUES):
+            try:
+                if not (await service.void_market(market["id"])).voided:
+                    continue  # already settled by a racing ticker — it sent the DMs/recap
+                logger.warning(
+                    f"Purged retired-league market {market['id']} ({_market_label(market)}) — refunded every stake"
+                )
+                mark_dirty(self.bot)
+                await dm_bettors(self.bot, market["id"])
+                await announce_result_to_staff(self.bot, market["id"], settled_by="retrait des ligues LCK/LFL")
+                await self._delete_card(market)
+            except Exception:
+                logger.exception(f"Failed to purge retired-league market {market['id']}")
+
+    async def _delete_card(self, market) -> None:
+        """Best-effort deletion of a market's card message. The market is voided regardless."""
+        if not (market["channel_id"] and market["message_id"]):
+            return
+        channel = self.bot.get_channel(market["channel_id"])
+        if channel is None:
+            return
+        try:
+            msg = await channel.fetch_message(market["message_id"])
+            await msg.delete()
+        except discord.HTTPException:
+            pass  # already gone, or Manage Messages missing — nothing else to do
 
     async def _seed_unseeded_markets(self) -> None:
         """Give the markets already on the board a house line too.

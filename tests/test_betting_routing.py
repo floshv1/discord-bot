@@ -18,6 +18,17 @@ def test_every_followed_league_has_a_channel():
     assert unrouted == [], f"leagues followed but not routed: {unrouted}"
 
 
+def test_retired_leagues_are_not_followed():
+    """A retired league must be gone from both halves, or it quietly comes back.
+
+    Left in LEAGUES it gets fetched again; left in _LOL_CATEGORIES it keeps a routing entry.
+    Either way the startup purge would be fighting code that re-creates what it deletes.
+    """
+    for name in service.RETIRED_LEAGUES:
+        assert name not in LEAGUES, f"{name} is retired but still followed by the poller"
+        assert name not in service._LOL_CATEGORIES, f"{name} is retired but still routed"
+
+
 def test_every_followed_competition_is_named_on_the_board():
     """Same split, football side: the poller's codes and the board's labels.
 
@@ -95,3 +106,18 @@ async def test_setup_replaces_the_routing_rather_than_merging_it():
     statements = [call[0][0] for call in conn.execute.await_args_list]
     assert statements[0].strip().startswith("DELETE")
     assert "INSERT INTO betting_channels" in statements[1]
+
+
+@pytest.mark.asyncio
+async def test_purge_query_targets_the_given_competitions_and_unsettled_markets():
+    # The retired-league purge only touches open/locked markets of the named competitions.
+    pool = MagicMock()
+    pool.fetch = AsyncMock(return_value=[])
+    with patch("bot.cogs.betting.service.get_pool", return_value=pool):
+        await service.get_unsettled_markets_for_competitions(1, service.RETIRED_LEAGUES)
+
+    sql, guild_id, competitions = pool.fetch.await_args[0]
+    assert "status IN ('open', 'locked')" in sql
+    assert "competition = ANY" in sql
+    assert guild_id == 1
+    assert competitions == list(service.RETIRED_LEAGUES)

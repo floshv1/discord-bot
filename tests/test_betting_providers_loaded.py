@@ -18,6 +18,7 @@ async def _boot(cog) -> list[str]:
     sink_id = logger.add(lambda m: lines.append(m.record["message"]), level="INFO")
     try:
         with (
+            patch.object(cog, "_purge_retired_leagues", new=AsyncMock()),
             patch.object(cog, "_reregister_open_views", new=AsyncMock()),
             patch.object(cog, "_seed_unseeded_markets", new=AsyncMock()),
         ):
