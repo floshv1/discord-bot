@@ -12,6 +12,8 @@ services:
       PANDASCORE_API_KEY: ${PANDASCORE_API_KEY:-}
       LAVALINK_URI: http://lavalink:2333
       LAVALINK_PASSWORD: ${LAVALINK_PASSWORD:-youshallnotpass}
+      # Presence only — the secret stays on the lavalink service, which does the resolving.
+      SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID:-}
     depends_on:
       db:
         condition: service_healthy

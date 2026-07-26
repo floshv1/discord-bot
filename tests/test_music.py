@@ -2,14 +2,19 @@ from collections import deque
 from unittest.mock import AsyncMock, MagicMock
 
 import discord
+import wavelink
 
 from bot.cogs.music.player import MusicPlayer
 from bot.cogs.music.utils import (
+    LOAD_FAILED,
+    SPOTIFY_UNCONFIGURED,
     _fmt_ms,
     calculate_eta,
     clean_title,
     format_progress_bar,
     is_filtered_autoplay_track,
+    is_spotify_query,
+    search_failure_message,
     titles_similar,
 )
 from bot.cogs.music.views import NowPlayingView, QueueView
@@ -236,6 +241,57 @@ def test_not_filtered_official_video():
     track = MagicMock()
     track.title = "Blinding Lights (Official Video)"
     assert is_filtered_autoplay_track(track) is False
+
+
+# --- search failure messages ---
+
+
+def test_lavalink_load_exception_is_not_a_lavalink_exception():
+    """The whole reason /play answered with the generic apology.
+
+    `Playable.search` raises `LavalinkLoadException` on a failed load, and it does NOT
+    inherit from `LavalinkException` — so `except LavalinkException` never fired. If a
+    wavelink upgrade ever merges the two, this test says so instead of the change passing
+    unnoticed and leaving a redundant handler behind.
+    """
+    assert not issubclass(wavelink.LavalinkLoadException, wavelink.LavalinkException)
+
+
+def test_is_spotify_query_playlist_url():
+    assert is_spotify_query("https://open.spotify.com/playlist/1M04ZNwgqaBtEQdseITeG6?si=abc") is True
+
+
+def test_is_spotify_query_short_link():
+    assert is_spotify_query("https://spotify.link/abc123") is True
+
+
+def test_is_spotify_query_search_prefix():
+    assert is_spotify_query("spsearch:blinding lights") is True
+
+
+def test_is_spotify_query_youtube_url():
+    assert is_spotify_query("https://www.youtube.com/watch?v=KDxJlW6cxRk") is False
+
+
+def test_is_spotify_query_plain_text_mentioning_spotify():
+    # A member searching for the words is not asking LavaSrc for anything.
+    assert is_spotify_query("my spotify playlist song") is False
+
+
+def test_search_failure_spotify_url_unconfigured_names_spotify():
+    msg = search_failure_message("https://open.spotify.com/playlist/abc", spotify_configured=False)
+    assert msg == SPOTIFY_UNCONFIGURED
+
+
+def test_search_failure_spotify_url_configured_is_generic():
+    # Credentials are set, so this is a real load failure — not a setup gap.
+    msg = search_failure_message("https://open.spotify.com/playlist/abc", spotify_configured=True)
+    assert msg == LOAD_FAILED
+
+
+def test_search_failure_text_query_never_mentions_spotify():
+    assert search_failure_message("blinding lights", spotify_configured=False) == LOAD_FAILED
+    assert search_failure_message("blinding lights", spotify_configured=True) == LOAD_FAILED
 
 
 # --- MusicPlayer._progress_task attribute ---

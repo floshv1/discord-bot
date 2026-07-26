@@ -107,3 +107,24 @@ uv run python main.py
 
 > Music needs Lavalink, which is only started by the full compose stack — running the bot directly is
 > best for non-music work.
+
+### Spotify links
+
+`/play` accepts `open.spotify.com` links, but only if Lavalink's LavaSrc plugin can talk to the
+Spotify API. Create an app at <https://developer.spotify.com/dashboard> and set **both**:
+
+```
+SPOTIFY_CLIENT_ID=...
+SPOTIFY_CLIENT_SECRET=...
+```
+
+Leave them blank and *every* Spotify link fails to load — LavaSrc is enabled either way
+(`lavalink/application.yml` → `sources.spotify: true`), it just can't authenticate. The bot logs
+`SPOTIFY_CLIENT_ID unset — Spotify links will not resolve.` at startup, and tells members so
+rather than showing a generic error. LavaSrc reads the credentials once at plugin init, so
+recreate the container after changing them:
+`docker compose up -d --force-recreate lavalink`.
+
+Spotify tracks are not streamed from Spotify — LavaSrc looks each one up on YouTube (by ISRC
+first, then by name). Playlists and albums are capped at 6 pages (~600 tracks) by
+`playlistLoadLimit` / `albumLoadLimit`.

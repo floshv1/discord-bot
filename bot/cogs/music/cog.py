@@ -12,11 +12,13 @@ from loguru import logger
 from bot.cogs.music import db_sync
 from bot.cogs.music.player import MusicPlayer
 from bot.cogs.music.utils import (
+    NODE_UNAVAILABLE,
     _fmt_ms,
     calculate_eta,
     fetch_lyrics,
     format_progress_bar,
     is_filtered_autoplay_track,
+    search_failure_message,
     titles_similar,
 )
 from bot.cogs.music.views import LyricsView, NowPlayingView, QueueView
@@ -149,10 +151,44 @@ class MusicCog(commands.Cog):
         except Exception:
             logger.exception("Could not connect to Lavalink — music commands will be unavailable.")
 
+        # LavaSrc is loaded either way, so a keyless deploy looks identical to a working one
+        # from here: every Spotify link just fails at load time, one member at a time. Say it
+        # once, at boot, like the betting providers do.
+        if self.config.spotify_configured:
+            logger.info("Spotify links enabled.")
+        else:
+            logger.warning("SPOTIFY_CLIENT_ID unset — Spotify links will not resolve.")
+
         self._cmd_task = asyncio.create_task(self._command_poll_loop())
 
     def _player(self, interaction: discord.Interaction) -> MusicPlayer | None:
         return cast("MusicPlayer | None", interaction.guild.voice_client)
+
+    async def _search_or_report(self, interaction: discord.Interaction, query: str) -> wavelink.Search | None:
+        """Search, or tell the member why we couldn't. ``None`` means already reported.
+
+        Note ``None`` is not the same as an empty result: a search that found nothing has its
+        own message at the call site, so callers must test ``is None``, not falsiness.
+
+        `LavalinkLoadException` is **not** a subclass of `LavalinkException` — it is what
+        `Playable.search` actually raises when Lavalink answers 200 with `loadType: "error"`
+        (a dead link, a region block, an unauthenticated LavaSrc). Catching only the latter
+        meant every real load failure escaped to `errors.py` and the member got the generic
+        apology. The exception's own text never reaches them — it carries provider internals.
+        """
+        try:
+            return await wavelink.Playable.search(query)
+        except wavelink.LavalinkLoadException as exc:
+            logger.warning(
+                "Track load failed for {!r}: {} (severity={}, cause={})", query, exc.error, exc.severity, exc.cause
+            )
+            message = search_failure_message(query, spotify_configured=self.config.spotify_configured)
+        except (wavelink.InvalidNodeException, wavelink.NodeException, wavelink.LavalinkException):
+            # cog_load swallows a failed connection, so "no node at all" reaches here.
+            logger.exception("Lavalink unavailable while searching {!r}", query)
+            message = NODE_UNAVAILABLE
+        await interaction.followup.send(message, ephemeral=True)
+        return None
 
     @app_commands.command(name="play", description="Play a song or playlist from YouTube or Spotify.")
     @app_commands.describe(query="Song name, YouTube URL, or Spotify URL")
@@ -177,10 +213,12 @@ class MusicCog(commands.Cog):
                 return
             player.text_channel = interaction.channel
 
-        try:
-            tracks: wavelink.Search = await wavelink.Playable.search(query)
-        except wavelink.LavalinkException:
-            await interaction.followup.send("Couldn't load that track. Try a different search or URL.", ephemeral=True)
+        tracks = await self._search_or_report(interaction, query)
+        if tracks is None:
+            # We may have just joined for a query that turned out to be unplayable — don't
+            # leave the bot parked in the channel with nothing to say.
+            if not player.playing and player.queue.is_empty:
+                await player.disconnect()
             return
 
         if not tracks:
@@ -244,10 +282,8 @@ class MusicCog(commands.Cog):
             await interaction.followup.send("Join my voice channel first.", ephemeral=True)
             return
 
-        try:
-            tracks: wavelink.Search = await wavelink.Playable.search(query)
-        except wavelink.LavalinkException:
-            await interaction.followup.send("Couldn't load that track. Try a different search or URL.", ephemeral=True)
+        tracks = await self._search_or_report(interaction, query)
+        if tracks is None:
             return
 
         if not tracks:

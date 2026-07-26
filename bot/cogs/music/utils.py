@@ -30,6 +30,12 @@ _TOPIC = re.compile(r"\s*[-–]\s*topic$", re.IGNORECASE)
 # empty message, which made the debug log look blank rather than damning.
 LYRICS_TIMEOUT = 15
 
+_SPOTIFY = re.compile(r"^\s*(?:spsearch:|(?:https?://)?(?:open\.spotify\.com|spotify\.link)/)", re.IGNORECASE)
+
+NODE_UNAVAILABLE = "The music server isn't reachable right now — try again in a minute."
+LOAD_FAILED = "Couldn't load that. Try a different search or URL."
+SPOTIFY_UNCONFIGURED = "Spotify links aren't set up on this bot yet. Paste a YouTube link, or just search by name."
+
 
 def _fmt_ms(ms: int) -> str:
     s = ms // 1000
@@ -67,6 +73,28 @@ def calculate_eta(player: object, queue_insert_index: int) -> int:
         remaining = max(0, current.length - getattr(player, "position", 0))
     queue_tracks = list(getattr(player, "queue", []))
     return remaining + sum(t.length for t in queue_tracks[:queue_insert_index])
+
+
+def is_spotify_query(query: str) -> bool:
+    """True only for something Lavalink would hand to LavaSrc — a link or the `spsearch:` prefix.
+
+    The word "spotify" typed inside an ordinary search is not one of those, and must not be
+    answered with a setup message.
+    """
+    return bool(_SPOTIFY.match(query))
+
+
+def search_failure_message(query: str, *, spotify_configured: bool) -> str:
+    """What to tell the member when Lavalink refuses to load a query.
+
+    A Spotify link on a bot with no `SPOTIFY_CLIENT_ID` is the one failure we can name
+    exactly — LavaSrc cannot authenticate, so *every* Spotify link fails and retrying is
+    pointless. Anything else could be a dead link, a region block or a bad day at YouTube,
+    so it gets the generic nudge rather than a guess.
+    """
+    if not spotify_configured and is_spotify_query(query):
+        return SPOTIFY_UNCONFIGURED
+    return LOAD_FAILED
 
 
 def is_filtered_autoplay_track(track: object) -> bool:

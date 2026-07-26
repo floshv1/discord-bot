@@ -24,6 +24,10 @@ class Config:
         self.log_muted_events: set[str] = self._optional_str_set("LOG_MUTED_EVENTS", DEFAULT_MUTED_LOG_EVENTS)
         self.lavalink_uri: str = self._optional_str("LAVALINK_URI", "http://lavalink:2333")
         self.lavalink_password: str = self._optional_str("LAVALINK_PASSWORD", "youshallnotpass")
+        # Spotify itself is resolved by Lavalink's LavaSrc plugin, which holds the secret.
+        # The bot only needs to know *whether* it was set up, so it can say so at boot and
+        # explain a failed Spotify link instead of shrugging at the member.
+        self.spotify_configured: bool = bool(self._optional_str_or_none("SPOTIFY_CLIENT_ID"))
         self.football_data_api_key: str | None = self._optional_str_or_none("FOOTBALL_DATA_API_KEY")
         self.pandascore_api_key: str | None = self._optional_str_or_none("PANDASCORE_API_KEY")
 

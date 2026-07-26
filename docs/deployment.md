@@ -136,7 +136,8 @@ Pushing `dev` does not trigger CI (CI runs on `main` only), so no image is ever 
    | `LOG_CHANNEL_ID` | A channel ID in the **test** server |
 
    Optional: `LOG_IGNORED_CHANNEL_IDS`, `LOG_MUTED_EVENTS`, `FOOTBALL_DATA_API_KEY`,
-   `PANDASCORE_API_KEY`, `LAVALINK_PASSWORD`. `DATABASE_URL` is built inside the compose file.
+   `PANDASCORE_API_KEY`, `LAVALINK_PASSWORD`, `SPOTIFY_CLIENT_ID` + `SPOTIFY_CLIENT_SECRET`
+   (both, or Spotify links don't resolve — see below). `DATABASE_URL` is built inside the compose file.
    Feature channels (voice, birthday, currency, betting, queue, suggestions) are set in Discord
    with `/setup <feature> <channel>`, not in the environment.
 

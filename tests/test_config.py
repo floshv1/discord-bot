@@ -102,6 +102,37 @@ def test_lavalink_password_default(monkeypatch):
     assert cfg.lavalink_password == "youshallnotpass"
 
 
+def test_spotify_configured_false_when_unset(monkeypatch):
+    monkeypatch.setenv("DISCORD_TOKEN", "token")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://localhost/test")
+    monkeypatch.setenv("GUILD_ID", "1")
+    monkeypatch.setenv("LOG_CHANNEL_ID", "2")
+    monkeypatch.delenv("SPOTIFY_CLIENT_ID", raising=False)
+
+    assert Config().spotify_configured is False
+
+
+def test_spotify_configured_false_when_empty(monkeypatch):
+    # compose passes ${SPOTIFY_CLIENT_ID:-}, so "unset" arrives as an empty string.
+    monkeypatch.setenv("DISCORD_TOKEN", "token")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://localhost/test")
+    monkeypatch.setenv("GUILD_ID", "1")
+    monkeypatch.setenv("LOG_CHANNEL_ID", "2")
+    monkeypatch.setenv("SPOTIFY_CLIENT_ID", "")
+
+    assert Config().spotify_configured is False
+
+
+def test_spotify_configured_true_when_set(monkeypatch):
+    monkeypatch.setenv("DISCORD_TOKEN", "token")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://localhost/test")
+    monkeypatch.setenv("GUILD_ID", "1")
+    monkeypatch.setenv("LOG_CHANNEL_ID", "2")
+    monkeypatch.setenv("SPOTIFY_CLIENT_ID", "abc123")
+
+    assert Config().spotify_configured is True
+
+
 def _set_required(monkeypatch):
     monkeypatch.setenv("DISCORD_TOKEN", "token")
     monkeypatch.setenv("DATABASE_URL", "postgresql://localhost/test")
