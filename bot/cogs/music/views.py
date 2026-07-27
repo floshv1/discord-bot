@@ -72,9 +72,13 @@ class NowPlayingView(discord.ui.View):
 
     The player is therefore resolved from the guild at click time rather than captured:
     a card that outlives its player must be able to say so.
+
+    ``idle=True`` renders every button greyed out, for the resting state of the *pinned*
+    card. It is a render-time flag only — the persistent view registered at boot still
+    dispatches, so a click that races the redraw is answered rather than dropped.
     """
 
-    def __init__(self, player: MusicPlayer | None = None) -> None:
+    def __init__(self, player: MusicPlayer | None = None, *, idle: bool = False) -> None:
         super().__init__(timeout=None)
         self.player = player
         self.message: discord.Message | None = None
@@ -117,7 +121,10 @@ class NowPlayingView(discord.ui.View):
         self.add_item(self._autoplay_btn)
         self.add_item(self._lyrics_btn)
         self.add_item(self._queue_btn)
-        if self.player:
+        if idle:
+            for item in self.children:
+                item.disabled = True  # type: ignore[attr-defined]
+        elif self.player:
             self._sync()
 
     def _resolve(self, interaction: discord.Interaction) -> MusicPlayer | None:

@@ -16,6 +16,7 @@ FEATURE_TABLES: dict[str, tuple[str, str | None]] = {
     "betting": ("betting_config", None),
     "queue": ("queue_config", None),
     "suggestions": ("suggestion_config", None),
+    "music": ("music_config", None),
     "tribunal": ("reprimand_config", "judge_role_id"),
 }
 

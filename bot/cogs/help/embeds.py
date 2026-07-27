@@ -41,8 +41,12 @@ CONFIGURABLE = [
     ),
 ]
 
-ALWAYS = [
+# Features that work whether or not an admin has run a /setup. The first item is an
+# optional feature key: music commands work everywhere, but once `/setup music` has run
+# all the output lands in one channel, and the member needs to be told which.
+ALWAYS: list[tuple[str | None, str, list[str]]] = [
     (
+        None,
         "🎂 Birthdays",
         [
             "`/birthday set` — register yours so the server can wish you",
@@ -51,6 +55,7 @@ ALWAYS = [
         ],
     ),
     (
+        "music",
         "🎵 Music",
         [
             "`/play` — queue a track (join a voice channel first)",
@@ -87,8 +92,10 @@ def build_help_embed(channels: dict[str, str | None], is_mod: bool) -> discord.E
             continue
         embed.add_field(name=title, value="\n".join([*lines, f"→ {mention}"]), inline=False)
 
-    for title, lines in ALWAYS:
-        embed.add_field(name=title, value="\n".join(lines), inline=False)
+    for key, title, lines in ALWAYS:
+        mention = channels.get(key) if key else None
+        value = "\n".join([*lines, f"→ {mention}"]) if mention else "\n".join(lines)
+        embed.add_field(name=title, value=value, inline=False)
 
     if is_mod:
         embed.add_field(name="🛠️ Moderator", value="\n".join(MODERATION), inline=False)

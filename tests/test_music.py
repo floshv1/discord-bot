@@ -60,7 +60,7 @@ def _make_music_player_mock(*, autoplay_enabled: bool = False) -> MagicMock:
 async def test_track_start_records_in_history():
     from bot.cogs.music.cog import MusicCog
 
-    cog = object.__new__(MusicCog)
+    cog = MusicCog(MagicMock())
     player = _make_music_player_mock()
     player.__class__ = MusicPlayer
 
@@ -294,14 +294,6 @@ def test_search_failure_text_query_never_mentions_spotify():
     assert search_failure_message("blinding lights", spotify_configured=True) == LOAD_FAILED
 
 
-# --- MusicPlayer._progress_task attribute ---
-
-
-def test_player_has_progress_task_attribute():
-    player = _make_player()
-    assert player._progress_task is None
-
-
 # --- now playing embed ---
 
 
@@ -317,32 +309,32 @@ def _make_player_for_embed(*, position_ms: int = 0, queue_tracks=None, autoplay_
 
 
 def test_now_playing_embed_has_progress_bar():
-    from bot.cogs.music.cog import _build_now_playing_embed
+    from bot.cogs.music.embeds import build_now_playing_embed
 
     track = _make_track("My Song", 180_000)
     player = _make_player_for_embed(position_ms=60_000)
-    embed = _build_now_playing_embed(track, player)
+    embed = build_now_playing_embed(track, player)
     field_names = [f.name for f in embed.fields]
     assert "Progress" in field_names
 
 
 def test_now_playing_embed_has_no_duration_field():
-    from bot.cogs.music.cog import _build_now_playing_embed
+    from bot.cogs.music.embeds import build_now_playing_embed
 
     track = _make_track("My Song", 180_000)
     player = _make_player_for_embed()
-    embed = _build_now_playing_embed(track, player)
+    embed = build_now_playing_embed(track, player)
     field_names = [f.name for f in embed.fields]
     assert "Duration" not in field_names
 
 
 def test_now_playing_embed_shows_next_track():
-    from bot.cogs.music.cog import _build_now_playing_embed
+    from bot.cogs.music.embeds import build_now_playing_embed
 
     track = _make_track("My Song", 180_000)
     next_track = _make_track("Next Song", 120_000)
     player = _make_player_for_embed(queue_tracks=[next_track])
-    embed = _build_now_playing_embed(track, player)
+    embed = build_now_playing_embed(track, player)
     field_names = [f.name for f in embed.fields]
     assert "Next song" in field_names
     next_field = next(f for f in embed.fields if f.name == "Next song")
@@ -350,22 +342,22 @@ def test_now_playing_embed_shows_next_track():
 
 
 def test_now_playing_embed_shows_autoplay_when_empty_and_enabled():
-    from bot.cogs.music.cog import _build_now_playing_embed
+    from bot.cogs.music.embeds import build_now_playing_embed
 
     track = _make_track("My Song", 180_000)
     player = _make_player_for_embed(queue_tracks=[], autoplay_enabled=True)
-    embed = _build_now_playing_embed(track, player)
+    embed = build_now_playing_embed(track, player)
     next_field = next((f for f in embed.fields if f.name == "Next song"), None)
     assert next_field is not None
     assert "Autoplay" in next_field.value
 
 
 def test_now_playing_embed_no_prochain_when_empty_and_autoplay_off():
-    from bot.cogs.music.cog import _build_now_playing_embed
+    from bot.cogs.music.embeds import build_now_playing_embed
 
     track = _make_track("My Song", 180_000)
     player = _make_player_for_embed(queue_tracks=[], autoplay_enabled=False)
-    embed = _build_now_playing_embed(track, player)
+    embed = build_now_playing_embed(track, player)
     field_names = [f.name for f in embed.fields]
     assert "Next song" not in field_names
 
@@ -376,7 +368,7 @@ def test_now_playing_embed_no_prochain_when_empty_and_autoplay_off():
 async def test_track_start_skips_filtered_autoplay_track():
     from bot.cogs.music.cog import MusicCog
 
-    cog = object.__new__(MusicCog)
+    cog = MusicCog(MagicMock())
     player = _make_music_player_mock(autoplay_enabled=True)
     player.__class__ = MusicPlayer
     player.stop = AsyncMock()
@@ -399,7 +391,7 @@ async def test_track_start_skips_filtered_autoplay_track():
 async def test_track_start_does_not_skip_user_requested_track():
     from bot.cogs.music.cog import MusicCog
 
-    cog = object.__new__(MusicCog)
+    cog = MusicCog(MagicMock())
     player = _make_music_player_mock(autoplay_enabled=True)
     player.__class__ = MusicPlayer
     player.stop = AsyncMock()

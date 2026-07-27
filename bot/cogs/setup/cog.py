@@ -16,6 +16,10 @@ from bot.cogs.currency import service as currency_service
 from bot.cogs.currency.cog import CurrencyCog
 from bot.cogs.currency.embeds import build_panel_embed as build_currency_panel_embed
 from bot.cogs.currency.views import CurrencyPanelView
+from bot.cogs.music import service as music_service
+from bot.cogs.music.cog import MusicCog
+from bot.cogs.music.embeds import build_history_embed, build_idle_embed
+from bot.cogs.music.views import NowPlayingView
 from bot.cogs.queue import service as queue_service
 from bot.cogs.queue.embeds import build_panel_embed
 from bot.cogs.queue.views import PanelView
@@ -81,6 +85,7 @@ FEATURES: list[tuple[str, str, list[str], str]] = [
     ("Currency", "currency_leaderboard", ["message_id", "panel_message_id", "pnl_message_id"], "/setup currency"),
     ("Queue", "queue_config", ["panel_message_id"], "/setup queue"),
     ("Suggestions", "suggestion_config", ["message_id"], "/setup suggestions"),
+    ("Music", "music_config", ["now_playing_message_id", "history_message_id"], "/setup music"),
     ("Betting", "betting_config", [], "/setup betting"),
     ("Announcements", "announce_config", [], "/setup announce"),
     ("Reprimand", "reprimand_config", [], "/setup reprimand"),
@@ -455,6 +460,32 @@ class SetupCog(commands.Cog):
         )
         await interaction.followup.send(
             f"✅ Salon de paris : {channel.mention}.{staff_line}{routed_line}\n\n{detail}",
+            ephemeral=True,
+        )
+
+    @setup.command(name="music", description="Post the pinned Now-Playing card and play history in a channel.")
+    @app_commands.describe(channel="Channel that will host the two pinned music cards, and all music output")
+    @app_commands.default_permissions(manage_guild=True)
+    async def setup_music(self, interaction: discord.Interaction, channel: discord.TextChannel) -> None:
+        await interaction.response.defer(ephemeral=True)
+        await _clear_previous(
+            self.bot, interaction.guild_id, "music_config", ["now_playing_message_id", "history_message_id"]
+        )
+
+        # History first, Now Playing second: new messages land at the bottom, so the card
+        # that actually changes stays the one nearest the conversation.
+        history_message = await channel.send(embed=build_history_embed([]))
+        await pin(history_message)
+        now_playing_message = await channel.send(embed=build_idle_embed(), view=NowPlayingView(idle=True))
+        await pin(now_playing_message)
+
+        await music_service.set_config(interaction.guild_id, channel.id, now_playing_message.id, history_message.id)
+        cog: MusicCog | None = self.bot.cogs.get("MusicCog")  # type: ignore[assignment]
+        if cog:
+            await cog.refresh_cards(interaction.guild_id)
+        await interaction.followup.send(
+            f"✅ Music cards posted in {channel.mention}. All music output — the Now-Playing card, "
+            "the history, and why the bot left — now lands there, wherever `/play` is typed.",
             ephemeral=True,
         )
 

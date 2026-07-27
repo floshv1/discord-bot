@@ -26,6 +26,19 @@ def test_betting_surfaces_bet_mine():
     assert "/bet mine" in _text(embed)
 
 
+def test_music_is_listed_even_when_it_has_no_channel():
+    # The commands work anywhere — only the *output* moves once /setup music has run.
+    text = _text(build_help_embed(channels={"music": None}, is_mod=False))
+    assert "/play" in text
+
+
+def test_music_names_its_channel_once_configured():
+    # Otherwise a member types /play in one channel and the card silently appears in another.
+    text = _text(build_help_embed(channels={"music": "#musique"}, is_mod=False))
+    assert "/play" in text
+    assert "#musique" in text
+
+
 def test_members_do_not_see_the_moderation_section():
     embed = build_help_embed(channels={}, is_mod=False)
     assert "/warn" not in _text(embed)

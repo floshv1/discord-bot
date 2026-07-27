@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 import discord
 import pytest
 
-from bot.cogs.setup.cog import delete_setup_messages, pin, status_line
+from bot.cogs.setup.cog import FEATURES, delete_setup_messages, pin, status_line
 
 
 class _FakeResponse:
@@ -87,6 +87,15 @@ async def test_missing_pin_permission_does_not_break_setup():
     message = AsyncMock()
     message.pin.side_effect = discord.Forbidden(_FakeResponse(), "Missing Permissions")
     await pin(message)  # must not raise
+
+
+def test_music_is_visible_to_setup_status():
+    # A /setup subcommand that posts messages and isn't in FEATURES is invisible to
+    # /setup status — an admin would have no way to see its cards had been deleted.
+    entry = next(f for f in FEATURES if f[0] == "Music")
+    assert entry[1] == "music_config"
+    assert entry[2] == ["now_playing_message_id", "history_message_id"]
+    assert entry[3] == "/setup music"
 
 
 def test_status_line_flags_a_deleted_panel():

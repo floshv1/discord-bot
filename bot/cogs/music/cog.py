@@ -6,17 +6,22 @@ from typing import cast
 import discord
 import wavelink
 from discord import app_commands
-from discord.ext import commands
+from discord.ext import commands, tasks
 from loguru import logger
 
-from bot.cogs.music import db_sync
+from bot.cogs.music import db_sync, panel, service
+from bot.cogs.music.embeds import (
+    REASON_EVERYONE_LEFT,
+    REASON_INACTIVITY,
+    build_now_playing_embed,
+    stopped_by,
+)
 from bot.cogs.music.player import MusicPlayer
 from bot.cogs.music.utils import (
     NODE_UNAVAILABLE,
     _fmt_ms,
     calculate_eta,
     fetch_lyrics,
-    format_progress_bar,
     is_filtered_autoplay_track,
     search_failure_message,
     titles_similar,
@@ -34,13 +39,13 @@ async def _delete_after(msg: discord.Message, delay: float) -> None:
         pass
 
 
-async def _clear_now_playing(player: MusicPlayer) -> None:
-    """Remove the current Now-Playing card.
+async def _clear_transient_card(player: MusicPlayer) -> None:
+    """Remove the transient Now-Playing card of an *unconfigured* guild.
 
-    Every caller reaches here because the card has gone stale — the next track is about to
-    be announced, playback stopped, or everyone left. It used to only strip the buttons,
-    which left one dead embed per track behind: a 30-track playlist littered the channel
-    with 30 of them, and their buttons stop working after a restart anyway (no custom_id).
+    Only reachable when `/setup music` has never run: with a pinned card there is nothing
+    transient to clean up. It deletes rather than strips the buttons, because stripping
+    left one dead embed per track behind — a 30-track playlist littered the channel with 30
+    of them, and their buttons stop working after a restart anyway (no custom_id).
     """
     if player.now_playing_message:
         try:
@@ -50,75 +55,23 @@ async def _clear_now_playing(player: MusicPlayer) -> None:
         player.now_playing_message = None
 
 
-def _build_now_playing_embed(track: wavelink.Playable, player: MusicPlayer) -> discord.Embed:
-    requester_id = getattr(track.extras, "requester", None)
-    req = f"<@{requester_id}>" if requester_id else "Autoplay"
-    embed = discord.Embed(
-        title="Now Playing",
-        description=f"[{track.title}]({track.uri})",
-        color=discord.Color.green(),
-    )
-    embed.add_field(
-        name="Progress",
-        value=format_progress_bar(player.position, track.length),
-        inline=False,
-    )
-    embed.add_field(name="Artist", value=track.author or "—", inline=True)
-    album_name = getattr(track.album, "name", None)
-    if album_name:
-        embed.add_field(name="Album", value=album_name, inline=True)
-    embed.add_field(name="Requested by", value=req, inline=True)
-
-    queue_list = list(player.queue)
-    if queue_list:
-        next_track = queue_list[0]
-        embed.add_field(name="Next song", value=f"[{next_track.title}]({next_track.uri})", inline=True)
-    elif player.autoplay_enabled:
-        auto_list = list(player.auto_queue)
-        if auto_list:
-            next_auto = auto_list[0]
-            embed.add_field(name="Next song", value=f"🔀 [{next_auto.title}]({next_auto.uri})", inline=True)
-        else:
-            embed.add_field(name="Next song", value="🔀 Autoplay", inline=True)
-
-    if track.artwork:
-        embed.set_thumbnail(url=track.artwork)
-    return embed
-
-
-async def _cancel_progress_task(player: MusicPlayer) -> None:
-    if player._progress_task and not player._progress_task.done():
-        player._progress_task.cancel()
-        try:
-            await player._progress_task
-        except asyncio.CancelledError:
-            pass
-    player._progress_task = None
-
-
-async def _progress_loop(player: MusicPlayer) -> None:
-    try:
-        while True:
-            await asyncio.sleep(5)
-            if not player.current or not player.now_playing_message:
-                break
-            embed = _build_now_playing_embed(player.current, player)
-            try:
-                await player.now_playing_message.edit(embed=embed)
-            except discord.NotFound:
-                break
-            except (TimeoutError, discord.HTTPException):
-                pass
-    except asyncio.CancelledError:
-        pass
-
-
 class MusicCog(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
         self.config: Config = bot.config  # type: ignore[attr-defined]
+        # Guilds whose pinned card currently shows a track. The ticker uses it to notice a
+        # player that vanished through a path we don't hook — dragged out of the channel by
+        # an admin, a node that dropped — and flip the card back to idle. Without it such a
+        # card would advertise a song that stopped playing an hour ago.
+        self._card_playing: set[int] = set()
+        # Why playback ended, consumed by the next idle redraw. Deliberately in memory and
+        # not in the DB: it belongs to this session, and a restart is not a reason anyone
+        # needs to read about.
+        self._idle_reason: dict[int, str] = {}
+        self._history_dirty: set[int] = set()
 
     async def cog_unload(self) -> None:
+        self.panel_refresh_ticker.cancel()
         if hasattr(self, "_cmd_task"):
             self._cmd_task.cancel()
             try:
@@ -139,9 +92,9 @@ class MusicCog(commands.Cog):
                 logger.exception("Error in music command poll loop.")
 
     async def cog_load(self) -> None:
-        # Dispatches clicks on any Now-Playing card that outlived the last restart. The
-        # view resolves the live player itself, so a stale card says "nothing is playing
-        # anymore" instead of throwing "This interaction failed".
+        # Dispatches clicks on the pinned Now-Playing card, which outlives every restart.
+        # The view resolves the live player itself, so a card whose player is long gone says
+        # "nothing is playing anymore" instead of throwing "This interaction failed".
         self.bot.add_view(NowPlayingView())
 
         node = wavelink.Node(uri=self.config.lavalink_uri, password=self.config.lavalink_password)
@@ -160,6 +113,125 @@ class MusicCog(commands.Cog):
             logger.warning("SPOTIFY_CLIENT_ID unset — Spotify links will not resolve.")
 
         self._cmd_task = asyncio.create_task(self._command_poll_loop())
+        self.panel_refresh_ticker.start()
+
+    # ---------------------------------------------------------------- pinned card
+
+    @tasks.loop(seconds=5)
+    async def panel_refresh_ticker(self) -> None:
+        """One ticker for both pinned cards.
+
+        This replaces the per-player progress task that used to be spawned per track. The
+        Now-Playing card is redrawn every tick *while something is playing* — that was
+        already the progress bar's cadence, so it costs no extra API calls — and the history
+        is drained from a dirty flag, so a burst of skips is one edit rather than ten.
+        """
+        # Drain first: a track starting while we redraw must dirty the flag again rather
+        # than be swallowed by the refresh already in flight.
+        dirty, self._history_dirty = self._history_dirty, set()
+        for guild_id in dirty:
+            await panel.redraw_history(self.bot, guild_id)
+
+        for guild in self.bot.guilds:
+            player = cast("MusicPlayer | None", guild.voice_client)
+            if isinstance(player, MusicPlayer) and player.current:
+                self._card_playing.add(guild.id)
+                if not await panel.redraw_now_playing(self.bot, guild.id, player):
+                    await self._refresh_transient_card(player)
+            elif guild.id in self._card_playing:
+                self._card_playing.discard(guild.id)
+                await panel.redraw_now_playing(self.bot, guild.id, None, self._idle_reason.pop(guild.id, None))
+
+    @panel_refresh_ticker.before_loop
+    async def before_panel_refresh_ticker(self) -> None:
+        await self.bot.wait_until_ready()
+        await self._boot_reconcile()
+
+    @panel_refresh_ticker.error
+    async def panel_refresh_ticker_error(self, error: BaseException) -> None:
+        logger.warning(f"panel_refresh_ticker error (will retry next tick): {error}")
+
+    async def _boot_reconcile(self) -> None:
+        """Reset every configured guild's cards after a restart.
+
+        No wavelink player survives a restart, so a `music_state` row saying "playing" is a
+        lie — to the pinned card and to whatever reads `music_state` / `music_commands`
+        from outside. Runs after `wait_until_ready`, or `get_channel` would miss on a cache
+        that isn't populated yet and the redraw would silently do nothing.
+        """
+        try:
+            guild_ids = await service.get_configured_guild_ids()
+        except Exception:
+            logger.exception("Could not load music configs at boot.")
+            return
+        for guild_id in guild_ids:
+            try:
+                await db_sync.clear_state(get_pool(), guild_id)
+                await panel.redraw_now_playing(self.bot, guild_id, None)
+                await panel.redraw_history(self.bot, guild_id)
+            except Exception:
+                logger.exception("Failed to reset music cards for guild {}.", guild_id)
+
+    async def _refresh_transient_card(self, player: MusicPlayer) -> None:
+        """Progress-bar refresh for an unconfigured guild's throwaway card."""
+        if not player.now_playing_message or not player.current:
+            return
+        try:
+            await player.now_playing_message.edit(embed=build_now_playing_embed(player.current, player))
+        except discord.NotFound:
+            player.now_playing_message = None
+        except (TimeoutError, discord.HTTPException):
+            pass
+
+    async def refresh_cards(self, guild_id: int) -> None:
+        """Redraw both pinned cards now. Used by `/setup music` so they're never left 'Loading...'."""
+        player = None
+        guild = self.bot.get_guild(guild_id)
+        if guild and isinstance(guild.voice_client, MusicPlayer):
+            player = guild.voice_client
+            self._card_playing.add(guild_id)
+        await panel.redraw_now_playing(self.bot, guild_id, player)
+        await panel.redraw_history(self.bot, guild_id)
+
+    async def _end_playback(self, player: MusicPlayer, reason: str) -> None:
+        """Flip the card to idle with a reason, or say it out loud when there's no card.
+
+        The three ways playback ends — inactivity, an empty voice channel, `/stop` — used to
+        each post their own message and nothing ever cleaned them up. In a configured guild
+        the reason lands in the pinned card's footer and the channel stays silent.
+        """
+        guild_id = player.guild.id
+        self._card_playing.discard(guild_id)
+        self._idle_reason.pop(guild_id, None)
+        if await panel.redraw_now_playing(self.bot, guild_id, None, reason):
+            return
+        await _clear_transient_card(player)
+        if player.text_channel:
+            try:
+                await player.text_channel.send(reason)
+            except discord.HTTPException:
+                pass
+
+    async def _confirm(self, interaction: discord.Interaction, message: str) -> None:
+        """Post a queue confirmation, in the music channel when the guild has one.
+
+        These are the one thing members *want* to see land in the channel, so they stay
+        public — but they self-delete after 15s, which is what keeps the channel clean.
+        """
+        channel = await panel.resolve_channel(self.bot, interaction.guild_id)
+        if channel is not None and channel.id != interaction.channel_id:
+            try:
+                posted = await channel.send(message)
+            except discord.HTTPException:
+                logger.warning("Could not post the queue confirmation in #{}.", channel.name)
+            else:
+                asyncio.create_task(_delete_after(posted, 15))
+                await interaction.followup.send(f"✅ Added — see {channel.mention}.", ephemeral=True)
+                return
+        response = await interaction.followup.send(message)
+        asyncio.create_task(_delete_after(response, 15))
+
+    # ---------------------------------------------------------------- commands
 
     def _player(self, interaction: discord.Interaction) -> MusicPlayer | None:
         return cast("MusicPlayer | None", interaction.guild.voice_client)
@@ -211,7 +283,9 @@ class MusicCog(commands.Cog):
             except discord.ClientException:
                 await interaction.followup.send("Could not join your voice channel.", ephemeral=True)
                 return
-            player.text_channel = interaction.channel
+            # The configured channel wins over wherever /play was typed, so an unconfigured
+            # guild keeps the old behaviour and a configured one keeps its music in one place.
+            player.text_channel = await panel.resolve_channel(self.bot, interaction.guild_id) or interaction.channel
 
         tracks = await self._search_or_report(interaction, query)
         if tracks is None:
@@ -262,8 +336,7 @@ class MusicCog(commands.Cog):
             await db_sync.sync_queue(get_pool(), player)
         except Exception:
             logger.exception("Failed to sync music queue after play.")
-        response = await interaction.followup.send(msg)
-        asyncio.create_task(_delete_after(response, 15))
+        await self._confirm(interaction, msg)
 
     @app_commands.command(name="playnext", description="Insert a song right after the current track.")
     @app_commands.describe(query="Song name, YouTube URL, or Spotify URL")
@@ -299,10 +372,9 @@ class MusicCog(commands.Cog):
             await db_sync.sync_queue(get_pool(), player)
         except Exception:
             logger.exception("Failed to sync music queue after playnext.")
-        response = await interaction.followup.send(
-            f"**{track.title}** — {track.author} : `{_fmt_ms(track.length)}` will play next."
+        await self._confirm(
+            interaction, f"**{track.title}** — {track.author} : `{_fmt_ms(track.length)}` will play next."
         )
-        asyncio.create_task(_delete_after(response, 15))
 
     @app_commands.command(name="skip", description="Skip the current track.")
     async def skip(self, interaction: discord.Interaction) -> None:
@@ -326,10 +398,9 @@ class MusicCog(commands.Cog):
         if not player or player.channel != interaction.user.voice.channel:
             await interaction.response.send_message("Join my voice channel first.", ephemeral=True)
             return
-        await _cancel_progress_task(player)
-        await _clear_now_playing(player)
         player.queue.clear()
-        await interaction.response.send_message("Stopped and disconnected.")
+        await interaction.response.send_message("Stopped and disconnected.", ephemeral=True)
+        await self._end_playback(player, stopped_by(interaction.user.display_name))
         try:
             await db_sync.clear_state(get_pool(), player.guild.id)
         except Exception:
@@ -420,14 +491,22 @@ class MusicCog(commands.Cog):
         if not player or not player.current:
             await interaction.response.send_message("Nothing is currently playing.", ephemeral=True)
             return
-        await _cancel_progress_task(player)
-        await _clear_now_playing(player)
-        embed = _build_now_playing_embed(player.current, player)
+
+        # With a permanent pinned card, posting a second one would reintroduce exactly the
+        # churn it exists to remove — so point at it instead.
+        link = await panel.now_playing_link(self.bot, interaction.guild_id)
+        if link:
+            await interaction.response.send_message(
+                f"**{player.current.title}** — {player.current.author}\n{link}", ephemeral=True
+            )
+            return
+
+        await _clear_transient_card(player)
+        embed = build_now_playing_embed(player.current, player)
         view = NowPlayingView(player)
         await interaction.response.send_message(embed=embed, view=view)
         player.now_playing_message = await interaction.original_response()
         view.message = player.now_playing_message
-        player._progress_task = asyncio.create_task(_progress_loop(player))
 
     @app_commands.command(name="lyrics", description="Show lyrics for the current track.")
     async def lyrics(self, interaction: discord.Interaction) -> None:
@@ -446,6 +525,8 @@ class MusicCog(commands.Cog):
         view = LyricsView(track.title, lyrics)
         msg = await interaction.followup.send(embed=view.build_embed(), view=view, ephemeral=True)
         view.message = msg
+
+    # ---------------------------------------------------------------- listeners
 
     @commands.Cog.listener()
     async def on_wavelink_track_start(self, payload: wavelink.TrackStartEventPayload) -> None:
@@ -476,21 +557,37 @@ class MusicCog(commands.Cog):
                 await db_sync.sync_queue(pool, player)
             except Exception:
                 logger.exception("Failed to sync music queue on track start.")
+            try:
+                await service.record_play(
+                    player.guild.id,
+                    title=track.title,
+                    author=track.author,
+                    uri=track.uri,
+                    artwork=track.artwork,
+                    requester_id=requester_id,
+                )
+                self._history_dirty.add(player.guild.id)
+            except Exception:
+                logger.exception("Failed to record play history on track start.")
 
         if requester_id and player.autoplay_enabled:
             player.auto_queue.reset()
 
-        if not player.text_channel:
+        self._card_playing.add(player.guild.id)
+        if await panel.redraw_now_playing(self.bot, player.guild.id, player):
             return
 
-        await _cancel_progress_task(player)
-        await _clear_now_playing(player)
-        embed = _build_now_playing_embed(track, player)
+        # No `/setup music` in this guild: keep the old transient card, posted where /play
+        # was used. Degraded, not broken.
+        if not player.text_channel:
+            return
+        await _clear_transient_card(player)
         view = NowPlayingView(player)
         try:
-            player.now_playing_message = await player.text_channel.send(embed=embed, view=view)
+            player.now_playing_message = await player.text_channel.send(
+                embed=build_now_playing_embed(track, player), view=view
+            )
             view.message = player.now_playing_message
-            player._progress_task = asyncio.create_task(_progress_loop(player))
         except discord.HTTPException:
             pass
 
@@ -498,13 +595,7 @@ class MusicCog(commands.Cog):
     async def on_wavelink_inactive_player(self, player: wavelink.Player) -> None:
         if not isinstance(player, MusicPlayer):
             return
-        await _cancel_progress_task(player)
-        await _clear_now_playing(player)
-        if player.text_channel:
-            try:
-                await player.text_channel.send("Left the voice channel due to inactivity.")
-            except discord.HTTPException:
-                pass
+        await self._end_playback(player, REASON_INACTIVITY)
         try:
             await db_sync.clear_state(get_pool(), player.guild.id)
         except Exception:
@@ -523,13 +614,7 @@ class MusicCog(commands.Cog):
         if before.channel is None or before.channel != player.channel:
             return
         if not any(not m.bot for m in player.channel.members):
-            await _cancel_progress_task(player)
-            await _clear_now_playing(player)
-            if player.text_channel:
-                try:
-                    await player.text_channel.send("Everyone left — disconnecting.")
-                except discord.HTTPException:
-                    pass
+            await self._end_playback(player, REASON_EVERYONE_LEFT)
             player.queue.clear()
             try:
                 await db_sync.clear_state(get_pool(), player.guild.id)
