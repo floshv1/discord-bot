@@ -30,6 +30,19 @@ class Config:
         self.spotify_configured: bool = bool(self._optional_str_or_none("SPOTIFY_CLIENT_ID"))
         self.football_data_api_key: str | None = self._optional_str_or_none("FOOTBALL_DATA_API_KEY")
         self.pandascore_api_key: str | None = self._optional_str_or_none("PANDASCORE_API_KEY")
+        # Palworld panel. All optional, and they degrade in two distinct steps: without the
+        # Komodo trio the panel is inert, without the REST pair the buttons still work but
+        # nothing knows whether anyone is connected — so nothing shuts the server down
+        # either. The key belongs to a Komodo user scoped to the palworld stack alone.
+        self.komodo_url: str | None = self._optional_str_or_none("KOMODO_URL")
+        self.komodo_api_key: str | None = self._optional_str_or_none("KOMODO_API_KEY")
+        self.komodo_api_secret: str | None = self._optional_str_or_none("KOMODO_API_SECRET")
+        self.palworld_stack: str = self._optional_str("PALWORLD_STACK", "palworld")
+        self.palworld_rest_url: str | None = self._optional_str_or_none("PALWORLD_REST_URL")
+        self.palworld_admin_password: str | None = self._optional_str_or_none("PALWORLD_ADMIN_PASSWORD")
+        # Shown on the card so nobody has to ask for it again. Empty simply omits the line:
+        # a tailnet address has no business being a default baked into a public repo.
+        self.palworld_address: str | None = self._optional_str_or_none("PALWORLD_ADDRESS")
 
     @staticmethod
     def _require_str(key: str) -> str:

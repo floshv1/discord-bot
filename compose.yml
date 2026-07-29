@@ -14,6 +14,31 @@ services:
       LAVALINK_PASSWORD: ${LAVALINK_PASSWORD:-youshallnotpass}
       # Presence only — the secret stays on the lavalink service, which does the resolving.
       SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID:-}
+      # Palworld panel. Komodo starts/stops the stack; the game's REST API says who is
+      # connected. Unset any of them and the feature degrades instead of breaking.
+      KOMODO_URL: ${KOMODO_URL:-}
+      KOMODO_API_KEY: ${KOMODO_API_KEY:-}
+      KOMODO_API_SECRET: ${KOMODO_API_SECRET:-}
+      PALWORLD_STACK: ${PALWORLD_STACK:-palworld}
+      PALWORLD_REST_URL: ${PALWORLD_REST_URL:-}
+      PALWORLD_ADMIN_PASSWORD: ${PALWORLD_ADMIN_PASSWORD:-}
+      PALWORLD_ADDRESS: ${PALWORLD_ADDRESS:-}
+    # Komodo listens on the host, not on any of our networks.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      # `default` must be listed explicitly: naming any network here opts the service out
+      # of the implicit one, and the bot would lose the database and Lavalink.
+      #
+      # The priority is not decoration. It decides which gateway carries the *default
+      # route*, and palworld_net's gateway is covered by the PALWORLD-ISOLATION chain: if
+      # the bot left through 10.99.99.1, its own packets to Komodo would be dropped by the
+      # rules meant for the game. Docker would happen to pick `default` today (it breaks
+      # the tie alphabetically), which is not a thing to depend on.
+      default:
+        priority: 100
+      palworld:
+        priority: 10
     depends_on:
       db:
         condition: service_healthy
@@ -77,3 +102,15 @@ services:
 
 volumes:
   pg_data:
+
+networks:
+  default:
+  # Cree par la stack palworld. Le bot y entre uniquement pour lire l'API REST du jeu sur
+  # http://palworld-server:8212 — port qui reste publie sur 127.0.0.1 seulement, donc
+  # aucun autre conteneur de la machine (dont DVWA et Juice Shop) ne peut l'atteindre.
+  # Contrepartie a connaitre : la chaine iptables PALWORLD-ISOLATION filtre sur
+  # -s 10.99.99.0/24 et voit donc aussi les paquets du bot ; palworld-isolation.sh a
+  # deux regles pour ca.
+  palworld:
+    name: palworld_net
+    external: true

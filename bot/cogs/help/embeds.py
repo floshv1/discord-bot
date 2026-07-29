@@ -28,6 +28,16 @@ CONFIGURABLE = [
         ],
     ),
     ("queue", "🎮 Game queues", ["Use the panel to start or join a lobby."]),
+    (
+        "palworld",
+        "🌴 Serveur Palworld",
+        [
+            "Le panneau épinglé ouvre le serveur : **n'importe qui** peut cliquer sur **Démarrer**, "
+            "il est prêt en une minute trente.",
+            "Il s'éteint tout seul quand plus personne n'est connecté — le temps ne passe plus dans "
+            "le monde, donc vos pals ne meurent pas de faim pendant la nuit.",
+        ],
+    ),
     ("suggestions", "💡 Suggestions", ["Use the panel to suggest a feature or an improvement."]),
     (
         "tribunal",
