@@ -225,7 +225,7 @@ async def test_ticker_flips_the_card_back_to_idle_when_the_player_vanishes():
 
 @pytest.mark.asyncio
 async def test_ticker_leaves_an_idle_guild_alone():
-    # An idle card must not be re-edited every 5 seconds forever.
+    # An idle card must not be re-edited every tick forever.
     cog = _cog()
     guild = MagicMock()
     guild.id = 1
@@ -237,6 +237,39 @@ async def test_ticker_leaves_an_idle_guild_alone():
         await cog.panel_refresh_ticker()
 
     redraw.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_ticker_skips_a_tick_that_arrives_while_one_is_running():
+    # discord.ext.tasks schedules from the previous *scheduled* time, so a body that overruns
+    # its interval re-fires with zero delay and never catches up. Without this guard that
+    # compounds into the PATCH storm the whole fix exists to stop.
+    cog = _cog()
+    guild, player = _playing_guild()
+    cog.bot.guilds = [guild]
+
+    async def redraw_reentrantly(*_args, **_kwargs):
+        await cog.panel_refresh_ticker()  # the overrun tick, arriving mid-body
+        return True
+
+    with patch.object(panel, "redraw_now_playing", AsyncMock(side_effect=redraw_reentrantly)) as redraw:
+        await cog.panel_refresh_ticker()
+
+    redraw.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_ticker_clears_its_guard_when_the_body_raises():
+    # A guard left stuck on True would silently freeze both cards until the next restart.
+    cog = _cog()
+    guild, _player = _playing_guild()
+    cog.bot.guilds = [guild]
+
+    with patch.object(panel, "redraw_now_playing", AsyncMock(side_effect=RuntimeError("boom"))):
+        with pytest.raises(RuntimeError):
+            await cog.panel_refresh_ticker()
+
+    assert cog._ticking is False
 
 
 # --- the unconfigured fallback ----------------------------------------------

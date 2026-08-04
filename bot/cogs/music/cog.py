@@ -69,6 +69,10 @@ class MusicCog(commands.Cog):
         # needs to read about.
         self._idle_reason: dict[int, str] = {}
         self._history_dirty: set[int] = set()
+        # Guards against a tick starting while the previous one is still in flight — see
+        # `panel_refresh_ticker`.
+        self._ticking = False
+        self._boot_reconciled = False
 
     async def cog_unload(self) -> None:
         self.panel_refresh_ticker.cancel()
@@ -117,30 +121,45 @@ class MusicCog(commands.Cog):
 
     # ---------------------------------------------------------------- pinned card
 
-    @tasks.loop(seconds=5)
+    @tasks.loop(seconds=10)
     async def panel_refresh_ticker(self) -> None:
         """One ticker for both pinned cards.
 
         This replaces the per-player progress task that used to be spawned per track. The
-        Now-Playing card is redrawn every tick *while something is playing* — that was
-        already the progress bar's cadence, so it costs no extra API calls — and the history
-        is drained from a dirty flag, so a burst of skips is one edit rather than ten.
-        """
-        # Drain first: a track starting while we redraw must dirty the flag again rather
-        # than be swallowed by the refresh already in flight.
-        dirty, self._history_dirty = self._history_dirty, set()
-        for guild_id in dirty:
-            await panel.redraw_history(self.bot, guild_id)
+        Now-Playing card is *considered* for redraw every tick while something is playing,
+        and the history is drained from a dirty flag, so a burst of skips is one edit rather
+        than ten. `panel._edit` drops the redraw when the rendering hasn't actually moved —
+        without that, "redraw every tick" meant a guaranteed PATCH every tick, because the
+        progress bar makes every payload unique and Discord never no-ops it.
 
-        for guild in self.bot.guilds:
-            player = cast("MusicPlayer | None", guild.voice_client)
-            if isinstance(player, MusicPlayer) and player.current:
-                self._card_playing.add(guild.id)
-                if not await panel.redraw_now_playing(self.bot, guild.id, player):
-                    await self._refresh_transient_card(player)
-            elif guild.id in self._card_playing:
-                self._card_playing.discard(guild.id)
-                await panel.redraw_now_playing(self.bot, guild.id, None, self._idle_reason.pop(guild.id, None))
+        The interval is 10s rather than 5s for the same reason: the bar is quantised into
+        blocks, so 5s bought no visible smoothness and cost twice the requests.
+        """
+        # `discord.ext.tasks` schedules the next iteration from the previous *scheduled*
+        # time, not from when the body returned. A body that overruns its interval therefore
+        # re-fires with zero delay and never catches up. Skipping a tick that arrives while
+        # the previous one is still running is what stops that from compounding.
+        if self._ticking:
+            return
+        self._ticking = True
+        try:
+            # Drain first: a track starting while we redraw must dirty the flag again rather
+            # than be swallowed by the refresh already in flight.
+            dirty, self._history_dirty = self._history_dirty, set()
+            for guild_id in dirty:
+                await panel.redraw_history(self.bot, guild_id)
+
+            for guild in self.bot.guilds:
+                player = cast("MusicPlayer | None", guild.voice_client)
+                if isinstance(player, MusicPlayer) and player.current:
+                    self._card_playing.add(guild.id)
+                    if not await panel.redraw_now_playing(self.bot, guild.id, player):
+                        await self._refresh_transient_card(player)
+                elif guild.id in self._card_playing:
+                    self._card_playing.discard(guild.id)
+                    await panel.redraw_now_playing(self.bot, guild.id, None, self._idle_reason.pop(guild.id, None))
+        finally:
+            self._ticking = False
 
     @panel_refresh_ticker.before_loop
     async def before_panel_refresh_ticker(self) -> None:
@@ -149,7 +168,12 @@ class MusicCog(commands.Cog):
 
     @panel_refresh_ticker.error
     async def panel_refresh_ticker_error(self, error: BaseException) -> None:
-        logger.warning(f"panel_refresh_ticker error (will retry next tick): {error}")
+        # This does *not* retry on its own: in discord.py a triggered error handler is the end
+        # of the loop, so the old "will retry next tick" was wrong and the cards would have
+        # silently frozen until the next restart. Restart it explicitly.
+        logger.warning(f"panel_refresh_ticker error — restarting the ticker: {error}")
+        self._ticking = False
+        self.panel_refresh_ticker.restart()
 
     async def _boot_reconcile(self) -> None:
         """Reset every configured guild's cards after a restart.
@@ -158,7 +182,15 @@ class MusicCog(commands.Cog):
         lie — to the pinned card and to whatever reads `music_state` / `music_commands`
         from outside. Runs after `wait_until_ready`, or `get_channel` would miss on a cache
         that isn't populated yet and the redraw would silently do nothing.
+
+        Once per *process*, not once per loop start. `before_loop` runs again whenever the
+        ticker is restarted after an error, and clearing `music_state` mid-playback would
+        wipe rows the dashboard is reading and reset a live card to idle over a transient
+        blip.
         """
+        if self._boot_reconciled:
+            return
+        self._boot_reconciled = True
         try:
             guild_ids = await service.get_configured_guild_ids()
         except Exception:

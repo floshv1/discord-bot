@@ -8,6 +8,7 @@ from loguru import logger
 from bot.cogs.music import service
 from bot.cogs.music.embeds import build_history_embed, build_idle_embed, build_now_playing_embed
 from bot.cogs.music.views import NowPlayingView
+from bot.core.discord_utils import edit_if_changed
 
 
 async def _partial(
@@ -38,18 +39,14 @@ async def _partial(
 
 
 async def _edit(message: discord.PartialMessage, **kwargs: Any) -> None:
-    """Edit a pinned card, tolerating an admin who deleted it by hand.
+    """Edit a pinned card, skipping the request when nothing would change.
 
-    `/setup status` is what surfaces a missing message (it counts them), so swallowing
-    NotFound here doesn't hide the problem — it just keeps a deleted card from taking the
-    ticker down with it on every tick from now on.
+    Delegates to `edit_if_changed`, which owns the content guard, the deleted-card tolerance
+    and the 429 back-off. The Now-Playing card is redrawn on every tick while a track plays,
+    so without the guard this was one unconditional PATCH per tick, forever, on a single
+    message id — see the docstring there.
     """
-    try:
-        await message.edit(**kwargs)
-    except discord.NotFound:
-        logger.debug("Music card {} is gone — re-run /setup music.", message.id)
-    except discord.HTTPException as exc:
-        logger.warning(f"Could not edit music card {message.id}: {exc}")
+    await edit_if_changed(message, label="music", **kwargs)
 
 
 async def is_configured(guild_id: int) -> bool:

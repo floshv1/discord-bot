@@ -126,24 +126,37 @@ class PalworldCog(commands.Cog):
 
     @tasks.loop(seconds=POLL_SECONDS)
     async def status_ticker(self) -> None:
+        # `_auto_stop` has to be inside the guard too. It talks to Komodo over the network,
+        # so it raises `aiohttp.ClientError`/`TimeoutError` like anything else — and those
+        # are exactly the exceptions `tasks.loop(reconnect=True)` treats as "connection
+        # blip", restarting the loop on an ExponentialBackoff of a second or two instead of
+        # the 30s interval. A Komodo outage would have turned this panel into an edit storm.
         try:
             status = await self._refresh()
+
+            if self._rest is None:
+                return  # no player count, so "empty" is not something we actually know
+            if self._watch.observe(status.status, status.player_count, time.monotonic()):
+                await self._auto_stop()
         except Exception:
             # A ticker that dies takes the whole panel with it, silently, until the next
             # restart — and the auto-shutdown with it.
             logger.exception("Palworld status tick failed.")
-            return
-
-        if self._rest is None:
-            return  # no player count, so "empty" is not something we actually know
-        if self._watch.observe(status.status, status.player_count, time.monotonic()):
-            await self._auto_stop()
 
     @status_ticker.before_loop
     async def _before_ticker(self) -> None:
         # The channel cache is empty inside setup_hook, so a redraw attempted from
         # cog_load would silently find no channel and do nothing.
         await self.bot.wait_until_ready()
+
+    @status_ticker.error
+    async def _status_ticker_error(self, error: BaseException) -> None:
+        # The body swallows its own exceptions, so reaching here means something escaped the
+        # loop machinery itself. Without a handler discord.py logs it and the ticker is over:
+        # the panel freezes and, worse, the automatic shutdown stops running — the server
+        # would then stay up and populated-looking until someone noticed by hand.
+        logger.warning(f"palworld status_ticker error — restarting the ticker: {error}")
+        self.status_ticker.restart()
 
     async def refresh_cards(self, guild_id: int) -> None:
         """Repaint one guild's panel — what `/setup palworld` calls after posting it."""

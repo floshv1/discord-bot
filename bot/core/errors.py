@@ -29,6 +29,12 @@ def user_facing_message(error: BaseException) -> str:
         return "❌ I'm missing the permissions (or the role position) to do that. Ask an admin to check my role."
     if isinstance(error, discord.NotFound):
         return "❌ That no longer exists — it may have been deleted."
+    if isinstance(error, TimeoutError):
+        # asyncpg raises this on `command_timeout` (asyncio.TimeoutError *is* the builtin on
+        # 3.11+), which in practice means a query stuck behind someone else's row lock. Saying
+        # so beats the generic apology: "try again" is genuinely the right advice here, and a
+        # database that stopped answering is exactly what an admin needs to hear about.
+        return "⏳ The database isn't responding right now. Try again in a moment."
     return GENERIC
 
 
@@ -44,5 +50,9 @@ async def handle_app_command_error(interaction: discord.Interaction, error: Base
             await interaction.followup.send(message, ephemeral=True)
         else:
             await interaction.response.send_message(message, ephemeral=True)
-    except discord.HTTPException as exc:
+    except (discord.HTTPException, discord.ClientException, TimeoutError) as exc:
+        # `discord.py` calls this from a bare `finally` and only catches AppCommandError above
+        # it, so anything escaping here reaches nobody and the member is left on the spinner.
+        # HTTPException alone wasn't enough: InteractionResponded (lost race against another
+        # coroutine answering first) is a ClientException, and a timeout is neither.
         logger.warning(f"Could not deliver error message for /{command}: {exc}")

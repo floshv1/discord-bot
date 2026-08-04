@@ -7,6 +7,7 @@ from bot.cogs.palworld import service
 from bot.cogs.palworld.embeds import build_panel_embed
 from bot.cogs.palworld.service import ServerStatus
 from bot.cogs.palworld.views import PalworldPanelView
+from bot.core.discord_utils import edit_if_changed
 
 
 async def _partial(bot: discord.Client, guild_id: int) -> discord.PartialMessage | None:
@@ -31,20 +32,24 @@ async def _partial(bot: discord.Client, guild_id: int) -> discord.PartialMessage
 
 
 async def redraw(bot: discord.Client, guild_id: int, status: ServerStatus, address: str | None) -> None:
-    """Repaint the panel. Tolerates an admin who deleted it by hand.
+    """Repaint the panel, skipping the request when nothing would change.
 
-    `/setup status` is what surfaces a missing panel, so swallowing NotFound here hides
-    nothing — it just stops a deleted message from failing every tick from now on.
+    The ticker polls every 30s whether or not anyone is playing, and the embed carries a
+    "Dernière vérification" timestamp — so every payload was unique and every tick spent a
+    real edit re-rendering an identical card with a newer clock on it, forever, including
+    on a server that has been off for a week. `edit_if_changed` excludes that timestamp
+    from its comparison precisely so this card can sit still; it also owns the deleted-panel
+    tolerance and the 429 back-off.
     """
     message = await _partial(bot, guild_id)
     if message is None:
         return
-    try:
-        await message.edit(embed=build_panel_embed(status, address), view=PalworldPanelView(status.status))
-    except discord.NotFound:
-        logger.debug("Palworld panel {} is gone — re-run /setup palworld.", message.id)
-    except discord.HTTPException as exc:
-        logger.warning("Could not edit the Palworld panel {}: {}", message.id, exc)
+    await edit_if_changed(
+        message,
+        label="Palworld",
+        embed=build_panel_embed(status, address),
+        view=PalworldPanelView(status.status),
+    )
 
 
 async def announce(bot: discord.Client, guild_id: int, text: str) -> None:
