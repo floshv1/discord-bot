@@ -41,12 +41,21 @@ UPDATE voice_sessions SET guild_id = :new WHERE guild_id = :old;
 -- lockés puis auto-voidés par _void_stuck, ce qui rembourse via adjust() — ledger intact.
 UPDATE betting_markets SET guild_id = :new WHERE guild_id = :old;
 
--- Presets de queue, historique modération et tribunal.
-UPDATE game_presets       SET guild_id = :new WHERE guild_id = :old;
-UPDATE game_subscriptions SET guild_id = :new WHERE guild_id = :old;
-UPDATE mod_actions        SET guild_id = :new WHERE guild_id = :old;
-UPDATE reprimands         SET guild_id = :new WHERE guild_id = :old;
-UPDATE tribunal_trials    SET guild_id = :new WHERE guild_id = :old;
+-- Historique modération et tribunal. Aucune contrainte scopée par guilde là-dedans.
+UPDATE mod_actions     SET guild_id = :new WHERE guild_id = :old;
+UPDATE reprimands      SET guild_id = :new WHERE guild_id = :old;
+UPDATE tribunal_trials SET guild_id = :new WHERE guild_id = :old;
+
+-- Presets de queue : VOLONTAIREMENT EXCLUS. `game_presets` porte UNIQUE (guild_id, name),
+-- et refaire ses presets sur le nouveau serveur est la première chose qu'on fait — l'UPDATE
+-- se cognerait alors à la contrainte et ferait rollback de TOUT le reste, portefeuilles
+-- compris. Un preset se recrée en dix secondes avec /queue add ; ça ne vaut pas ce risque.
+-- Si tu y tiens, vérifie d'abord que rien ne se chevauche :
+--   SELECT name FROM game_presets GROUP BY name HAVING count(DISTINCT guild_id) > 1;
+-- et migre game_presets AVANT game_subscriptions (qui pend de preset_id).
+--
+-- betting_markets n'a pas ce problème : son UNIQUE (provider, external_id) n'est pas scopé
+-- par guilde, donc le poller du nouveau serveur n'a jamais pu recréer un match déjà en base.
 
 -- Pur historique — décommenter si tu veux le garder consultable.
 -- UPDATE suggestions     SET guild_id = :new WHERE guild_id = :old;
