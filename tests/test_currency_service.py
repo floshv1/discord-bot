@@ -136,12 +136,12 @@ async def test_grant_allows_debit_down_to_zero():
 @pytest.mark.asyncio
 async def test_backfill_wallets_returns_count_created():
     conn = AsyncMock()
-    conn.fetch.return_value = [{"user_id": 1}, {"user_id": 2}]
+    conn.fetch.return_value = [{"user_id": 1, "created": True}, {"user_id": 2, "created": True}]
 
     with patch("bot.cogs.currency.service.get_pool", return_value=_mock_pool_with_conn(conn)):
         created = await service.backfill_wallets(guild_id=9, user_ids=[1, 2, 3])
 
-    # Only two rows came back (user 3 already had a wallet), so only two were created.
+    # Only two rows came back (user 3 already had a wallet on this guild), so only two were created.
     assert created == 2
     assert conn.fetch.call_args[0][1] == [1, 2, 3]
     assert conn.fetch.call_args[0][3] == service.STARTING_BALANCE
@@ -151,6 +151,34 @@ async def test_backfill_wallets_returns_count_created():
     openings = [c for c in conn.execute.call_args_list if "currency_transactions" in str(c)]
     assert len(openings) == 2
     assert all(c[0][4] == "initial" for c in openings)
+
+
+@pytest.mark.asyncio
+async def test_backfill_wallets_restamps_the_guild_without_minting_coins():
+    """A wallet left on the guild the bot moved away from is re-pointed, not re-opened.
+
+    The re-stamp comes back from the same RETURNING as a creation, and paying it an opening
+    balance would mint 1000 🪙 per member per /setup currency — the ledger would never
+    reconcile again. `xmax = 0` is the whole difference.
+    """
+    conn = AsyncMock()
+    conn.fetch.return_value = [
+        {"user_id": 1, "created": True},  # genuinely new member
+        {"user_id": 2, "created": False},  # came from the old guild — re-stamped only
+    ]
+
+    with patch("bot.cogs.currency.service.get_pool", return_value=_mock_pool_with_conn(conn)):
+        created = await service.backfill_wallets(guild_id=9, user_ids=[1, 2])
+
+    assert created == 1
+    openings = [c for c in conn.execute.call_args_list if "currency_transactions" in str(c)]
+    assert len(openings) == 1
+    assert openings[0][0][1] == 1  # user_id — the new one, never the re-stamped one
+
+    # And the write really is conditional, or every /balance would churn a row version.
+    sql = conn.fetch.call_args[0][0]
+    assert "SET guild_id = EXCLUDED.guild_id" in sql
+    assert "IS DISTINCT FROM" in sql
 
 
 @pytest.mark.asyncio
@@ -182,7 +210,7 @@ async def test_top_balances_queries_by_guild():
 @pytest.mark.asyncio
 async def test_get_or_create_wallet_reports_a_freshly_created_wallet():
     conn = AsyncMock()
-    conn.fetchval.return_value = 7  # the INSERT returned a row -> it created one
+    conn.fetchval.return_value = True  # xmax = 0 -> the row was inserted
     conn.fetchrow.return_value = {"balance": 1000}
 
     with patch("bot.cogs.currency.service.get_pool", return_value=_mock_pool_with_conn(conn)):
@@ -190,12 +218,14 @@ async def test_get_or_create_wallet_reports_a_freshly_created_wallet():
 
     assert created is True
     assert wallet["balance"] == 1000
+    # The opening balance goes in the ledger with it.
+    assert any("currency_transactions" in str(c) for c in conn.execute.call_args_list)
 
 
 @pytest.mark.asyncio
 async def test_get_or_create_wallet_reports_an_existing_wallet():
-    # ON CONFLICT DO NOTHING returns no row -> the wallet already existed, so the
-    # leaderboard has nothing new to show and must not be redrawn.
+    # The conflict branch's WHERE found nothing to change -> no row returned. The wallet
+    # already existed on this guild, so the leaderboard has nothing new and must not be redrawn.
     conn = AsyncMock()
     conn.fetchval.return_value = None
     conn.fetchrow.return_value = {"balance": 250}
@@ -205,3 +235,23 @@ async def test_get_or_create_wallet_reports_an_existing_wallet():
 
     assert created is False
     assert wallet["balance"] == 250
+    assert not any("currency_transactions" in str(c) for c in conn.execute.call_args_list)
+
+
+@pytest.mark.asyncio
+async def test_get_or_create_wallet_restamped_wallet_is_not_a_creation():
+    """A wallet dragged over from the old guild returns False from `xmax = 0`, not None.
+
+    It is an *existing* wallet either way — crediting it an opening balance here would be
+    the same phantom 1000 🪙 the backfill guards against.
+    """
+    conn = AsyncMock()
+    conn.fetchval.return_value = False  # conflict branch fired: guild_id re-stamped
+    conn.fetchrow.return_value = {"balance": 4200}
+
+    with patch("bot.cogs.currency.service.get_pool", return_value=_mock_pool_with_conn(conn)):
+        wallet, created = await service.get_or_create_wallet(guild_id=1, user_id=7)
+
+    assert created is False
+    assert wallet["balance"] == 4200  # its balance survived the move
+    assert not any("currency_transactions" in str(c) for c in conn.execute.call_args_list)

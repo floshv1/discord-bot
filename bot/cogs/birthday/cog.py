@@ -269,8 +269,14 @@ class BirthdayCog(commands.Cog):
             """
             INSERT INTO birthdays (user_id, guild_id, username, day, month, year)
             VALUES ($1, $2, $3, $4, $5, $6)
+            -- guild_id is re-stamped like the rest: the row is keyed on user_id alone, but
+            -- every read filters on the guild (see _update_upcoming_embed). Without it, a
+            -- member whose birthday was registered on a server the bot has since left stays
+            -- invisible in the embeds *even after re-running this command* — the upsert
+            -- would update the date and leave the stale guild in place.
             ON CONFLICT (user_id) DO UPDATE
-              SET username = EXCLUDED.username,
+              SET guild_id = EXCLUDED.guild_id,
+                  username = EXCLUDED.username,
                   day = EXCLUDED.day,
                   month = EXCLUDED.month,
                   year = EXCLUDED.year,

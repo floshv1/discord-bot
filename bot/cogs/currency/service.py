@@ -25,28 +25,41 @@ async def get_or_create_wallet(guild_id: int, user_id: int) -> tuple[asyncpg.Rec
     Callers use the flag to decide whether the leaderboard actually needs redrawing:
     merely *looking* at a balance changes nothing, and redrawing on every /balance meant
     someone repeatedly checking their coins kept re-editing the leaderboard message.
+
+    The wallet is keyed on `user_id` alone — `guild_id` is a stamp, not part of the key,
+    because the bot serves one guild (GUILD_ID + guild-only sync). So the conflict branch
+    *re-stamps* it: move the bot to another guild and a wallet left pointing at the old one
+    is invisible to every read that filters on guild (`top_balances`, `get_history`), while
+    `/balance` still answers from the same row. The `WHERE ... IS DISTINCT FROM` keeps this
+    a read on the hot path — without it every `/balance` would write a new row version.
     """
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
+            # Three outcomes, and only the first is a creation:
+            #   True  — inserted (xmax = 0 on a fresh tuple)
+            #   False — existed with a stale guild_id, now re-stamped (see below)
+            #   None  — existed and already pointed at this guild; the WHERE skipped the write
             created = await conn.fetchval(
                 """
                 INSERT INTO currency_wallets (user_id, guild_id, balance)
                 VALUES ($1, $2, $3)
-                ON CONFLICT (user_id) DO NOTHING
-                RETURNING user_id
+                ON CONFLICT (user_id) DO UPDATE
+                    SET guild_id = EXCLUDED.guild_id
+                    WHERE currency_wallets.guild_id IS DISTINCT FROM EXCLUDED.guild_id
+                RETURNING (xmax = 0)
                 """,
                 user_id,
                 guild_id,
                 STARTING_BALANCE,
             )
-            if created is not None:
+            if created is True:
                 await _record_opening_balance(conn, guild_id=guild_id, user_id=user_id)
             wallet = await conn.fetchrow(
                 "SELECT * FROM currency_wallets WHERE user_id = $1",
                 user_id,
             )
-            return wallet, created is not None
+            return wallet, created is True
 
 
 async def _record_opening_balance(conn, *, guild_id: int, user_id: int) -> None:
@@ -245,9 +258,13 @@ async def claim_cooldown_remaining(guild_id: int, user_id: int) -> float | None:
 
 
 async def backfill_wallets(guild_id: int, user_ids: Sequence[int]) -> int:
-    """Give every listed member a starting wallet. Members who already have one are left untouched.
+    """Give every listed member a starting wallet, and re-stamp the guild on the ones that exist.
 
-    Returns the number of wallets actually created.
+    Returns the number of wallets actually *created* — an existing wallet keeps its balance
+    and its history untouched, it only gets pointed at the current guild (see
+    `get_or_create_wallet` for why that stamp moves). That makes re-running `/setup currency`
+    the repair for a bot that changed servers: the leaderboard filters on `guild_id`, so
+    wallets left behind on the old one had silently dropped out of it.
     """
     if not user_ids:
         return 0
@@ -258,17 +275,23 @@ async def backfill_wallets(guild_id: int, user_ids: Sequence[int]) -> int:
                 """
                 INSERT INTO currency_wallets (user_id, guild_id, balance)
                 SELECT unnest($1::BIGINT[]), $2, $3
-                ON CONFLICT (user_id) DO NOTHING
-                RETURNING user_id
+                ON CONFLICT (user_id) DO UPDATE
+                    SET guild_id = EXCLUDED.guild_id
+                    WHERE currency_wallets.guild_id IS DISTINCT FROM EXCLUDED.guild_id
+                RETURNING user_id, (xmax = 0) AS created
                 """,
                 list(user_ids),
                 guild_id,
                 STARTING_BALANCE,
             )
-            # The same opening balance, in the ledger, for exactly the wallets just created.
-            for row in rows:
+            # `xmax = 0` is the only thing separating an insert from a re-stamp here, and the
+            # distinction is the ledger's. Handing an *existing* wallet an opening balance
+            # would mint 1000 🪙 it never received, on every /setup currency, and
+            # SUM(amount) == balance would never reconcile again.
+            created = [row for row in rows if row["created"]]
+            for row in created:
                 await _record_opening_balance(conn, guild_id=guild_id, user_id=row["user_id"])
-    return len(rows)
+    return len(created)
 
 
 async def get_history(guild_id: int, user_id: int, limit: int = 15) -> list[asyncpg.Record]:

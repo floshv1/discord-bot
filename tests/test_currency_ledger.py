@@ -28,7 +28,7 @@ def _txn_inserts(conn):
 async def test_a_new_wallet_records_its_opening_balance():
     # Without this the ledger is short by 1000 per member and cannot rebuild a balance.
     conn = AsyncMock()
-    conn.fetchval.return_value = 7  # the INSERT created a wallet
+    conn.fetchval.return_value = True  # xmax = 0 -> the INSERT created a wallet
     conn.fetchrow.return_value = {"balance": service.STARTING_BALANCE}
 
     with patch("bot.cogs.currency.service.get_pool", return_value=_mock_pool_with_conn(conn)):
@@ -43,7 +43,7 @@ async def test_a_new_wallet_records_its_opening_balance():
 @pytest.mark.asyncio
 async def test_an_existing_wallet_records_nothing():
     conn = AsyncMock()
-    conn.fetchval.return_value = None  # ON CONFLICT DO NOTHING -> already existed
+    conn.fetchval.return_value = None  # the conflict branch had nothing to change -> already existed
     conn.fetchrow.return_value = {"balance": 250}
 
     with patch("bot.cogs.currency.service.get_pool", return_value=_mock_pool_with_conn(conn)):
