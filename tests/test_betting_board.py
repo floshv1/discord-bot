@@ -31,7 +31,8 @@ def test_the_foot_board_names_every_football_competition():
     assert "Coupe du Monde" in text
     assert "Euro" in text
     assert "Ligue des Champions" in text
-    assert "Ligue 1" in text
+    # Dropped from COMPETITIONS — the board must not advertise a competition nothing polls.
+    assert "Ligue 1" not in text
 
 
 def test_an_empty_board_says_so_rather_than_looking_broken():

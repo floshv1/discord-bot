@@ -36,6 +36,12 @@ NODE_UNAVAILABLE = "The music server isn't reachable right now — try again in 
 LOAD_FAILED = "Couldn't load that. Try a different search or URL."
 SPOTIFY_UNCONFIGURED = "Spotify links aren't set up on this bot yet. Paste a YouTube link, or just search by name."
 
+# Said out loud when Lavalink fails a track it had already accepted. The exception's own text
+# never goes in here — same rule as `search_failure_message`: provider internals are not for
+# members, and wavelink has already logged the full stacktrace for us.
+PLAYBACK_FAILED = "⚠️ Couldn't play **{title}** — skipping it."
+PLAYBACK_STUCK = "⚠️ **{title}** stalled with no audio — skipping it."
+
 
 def _fmt_ms(ms: int) -> str:
     s = ms // 1000

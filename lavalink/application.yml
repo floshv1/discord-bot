@@ -4,7 +4,7 @@ server:
 
 lavalink:
   plugins:
-    - dependency: "dev.lavalink.youtube:youtube-plugin:1.18.1"
+    - dependency: "dev.lavalink.youtube:youtube-plugin:1.18.2"
       repository: "https://maven.lavalink.dev/releases"
     - dependency: "com.github.topi314.lavasrc:lavasrc-plugin:4.3.0"
       repository: "https://maven.lavalink.dev/releases"
@@ -28,10 +28,36 @@ plugins:
     allowSearch: true
     allowDirectVideoIds: true
     allowDirectPlaylistIds: true
+    # Tried in order; the first client that returns a playable format wins. MUSIC is
+    # *search-only* (it backs `ytmsearch:` and loads no formats at all), so it counts for
+    # nothing here — a list of MUSIC + two players is a list of two players. That is exactly
+    # how this ended up with no fallback at all when YouTube broke both of them at once.
+    #
+    # Deliberately absent: TV (requires an OAuth sign-in), ANDROID (upstream calls it
+    # "heavily restricted, frequently dysfunctional"), IOS (returns no Opus format, so every
+    # track would be transcoded on a box that also runs a game server).
     clients:
       - MUSIC
-      - ANDROID_VR
       - WEB
+      - WEBEMBEDDED
+      - MWEB
+      - TVHTML5_SIMPLY
+      - ANDROID_VR
+    # Signature deciphering, resolved by the `ytcipher` service instead of in-process.
+    #
+    # This is not a tuning knob — it is what makes YouTube play at all. YouTube's player
+    # script changes faster than youtube-source's local extractor can follow, and a miss is
+    # fatal: "Must find sig function from script: .../base.js", every client, every track.
+    # Upstream closed that report as not planned and points at a remote cipher server
+    # instead ("a remote cipher resolving server will likely replace youtube-source's own
+    # internal cipher extraction and resolving logic going forward"), so a plugin bump is
+    # not the fix and never will be.
+    #
+    # `password` is the server's API_TOKEN, sent as an Authorization header.
+    remoteCipher:
+      url: "http://ytcipher:8001"
+      password: "${YTCIPHER_TOKEN:}"
+      userAgent: "floshy-discord-bot"
   lavasrc:
     providers:
       - 'ytsearch:"%ISRC%"'

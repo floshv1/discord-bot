@@ -274,15 +274,16 @@ def competitions_in_category(category: str) -> list[str]:
 
 # Display names for the football competitions the poller follows, keyed by the football-data
 # code so the two can't drift: a code added to `football_data.COMPETITIONS` without a label
-# here would leave the board quietly claiming to follow less than it does. Keyed rather than a
-# bare list precisely so tests/test_betting_routing.py can lock it, the same way the LoL
-# categories are locked against pandascore.LEAGUES. The API's own name is what ends up on a
-# card; this is only for the board, which has to name them before any fixture lands.
+# here would leave the board quietly claiming to follow less than it does, and a label left
+# behind after its code is dropped makes the board advertise a competition no fixture will ever
+# arrive for. Keyed rather than a bare list precisely so tests/test_betting_routing.py can lock
+# both directions, the same way the LoL categories are locked against pandascore.LEAGUES. The
+# API's own name is what ends up on a card; this is only for the board, which has to name them
+# before any fixture lands.
 _FOOTBALL_COMPETITION_LABELS = {
     "WC": "Coupe du Monde",
     "EC": "Euro",
     "CL": "Ligue des Champions",
-    "FL1": "Ligue 1",
 }
 
 

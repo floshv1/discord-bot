@@ -401,7 +401,7 @@ class SetupCog(commands.Cog):
     @app_commands.describe(
         channel="Default channel for betting cards, and the fallback for any category left unset",
         staff_channel="Private channel where settlement recaps are posted (optional)",
-        foot="Channel for football cards — World Cup, Champions League, Ligue 1 (optional)",
+        foot="Channel for football cards — World Cup, Euro, Champions League (optional)",
         lec="Channel for European LoL cards — LEC (optional)",
         inter="Channel for international LoL cards — Worlds, MSI, EWC (optional)",
         perso="Channel for community bets made with /bet create (optional)",

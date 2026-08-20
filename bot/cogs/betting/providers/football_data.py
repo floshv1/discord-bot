@@ -9,14 +9,19 @@ from loguru import logger
 from bot.cogs.betting.providers import FixtureDTO, ResultDTO, chunks
 
 BASE_URL = "https://api.football-data.org/v4"
-# football-data.org competition codes, all four confirmed in the free plan's 12. Each is
+# football-data.org competition codes, all three confirmed in the free plan's 12. Each is
 # fetched independently anyway: the plan could change, and a 403 on one must not cost us the
 # others (see _fetch_matches).
 #
-# Deliberately not the big domestic leagues (PL, PD, SA, BL1 are all available): one weekend of
-# those is ~48 cards, and football shares a single channel by design — it would bury the
-# Champions League. The API cost isn't the constraint since results are batched; the channel is.
-COMPETITIONS = ["WC", "EC", "CL", "FL1"]  # World Cup, Euro, UEFA Champions League, Ligue 1
+# No domestic league is followed — Ligue 1 (FL1) was dropped for the same reason PL, PD, SA and
+# BL1 were never added, despite all being available: football shares a single channel by design,
+# and a league matchday is 9 more cards that bury the Champions League. The API cost isn't the
+# constraint since results are batched; the channel is.
+#
+# Dropping a code only stops *new* markets. Results are fetched by match id, not by competition
+# (see get_results), so any Ligue 1 market still open or locked settles normally on its own —
+# which is why it is deliberately not in service.RETIRED_LEAGUES: nobody's live bet is refunded.
+COMPETITIONS = ["WC", "EC", "CL"]  # World Cup, Euro, UEFA Champions League
 
 _WINNER_MAP = {"HOME_TEAM": "home", "AWAY_TEAM": "away", "DRAW": "draw"}
 _FINISHED_STATUSES = {"FINISHED", "AWARDED"}
@@ -55,7 +60,7 @@ class FootballDataProvider:
         """One competition's scheduled matches, or [] if it couldn't be read.
 
         Isolated per competition on purpose: the free tier covers some and not others, so a 403
-        on the Champions League must still leave Ligue 1 and the World Cup on the board.
+        on the Champions League must still leave the Euro and the World Cup on the board.
         """
         try:
             async with session.get(

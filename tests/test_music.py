@@ -464,3 +464,131 @@ def test_build_queue_embed_with_tracks():
     assert "Song A" in embed.description
     assert "Song B" in embed.description
     assert "<@123>" in embed.description
+
+
+# --- playback failures must not be silent (on_wavelink_track_exception / _stuck) ---
+
+
+def _make_failing_payload(player: MagicMock, *, identifier: str = "abc123", title: str = "Some Song"):
+    track = MagicMock()
+    track.identifier = identifier
+    track.title = title
+    payload = MagicMock()
+    payload.player = player
+    payload.track = track
+    payload.threshold = 10_000
+    payload.exception = {"message": "All clients failed", "severity": "suspicious", "cause": "boom"}
+    return payload
+
+
+def _patch_reporting(monkeypatch) -> AsyncMock:
+    """Silence the two IO calls `_report_playback_failure` makes and hand back the channel."""
+    from bot.cogs.music import cog as music_cog
+
+    channel = MagicMock()
+    channel.send = AsyncMock(return_value=MagicMock())
+    monkeypatch.setattr(music_cog.panel, "resolve_channel", AsyncMock(return_value=channel))
+    monkeypatch.setattr(music_cog, "_delete_after", AsyncMock())
+    return channel
+
+
+async def test_track_exception_names_the_track_in_the_channel(monkeypatch):
+    from bot.cogs.music.cog import MusicCog
+
+    channel = _patch_reporting(monkeypatch)
+    cog = MusicCog(MagicMock())
+    player = _make_music_player_mock()
+    player.__class__ = MusicPlayer
+
+    await cog.on_wavelink_track_exception(_make_failing_payload(player, title="Never Gonna Give You Up"))
+
+    channel.send.assert_awaited_once()
+    assert "Never Gonna Give You Up" in channel.send.await_args.args[0]
+
+
+async def test_track_exception_never_leaks_the_provider_error(monkeypatch):
+    """The exception text carries provider internals — same rule as `_search_or_report`."""
+    from bot.cogs.music.cog import MusicCog
+
+    channel = _patch_reporting(monkeypatch)
+    cog = MusicCog(MagicMock())
+    player = _make_music_player_mock()
+    player.__class__ = MusicPlayer
+
+    await cog.on_wavelink_track_exception(_make_failing_payload(player))
+
+    sent = channel.send.await_args.args[0]
+    assert "All clients failed" not in sent
+    assert "boom" not in sent
+
+
+async def test_track_exception_does_not_advance_the_queue(monkeypatch):
+    """Lavalink's own TrackEndEvent already advances it — skipping here would eat a track."""
+    from bot.cogs.music.cog import MusicCog
+
+    _patch_reporting(monkeypatch)
+    cog = MusicCog(MagicMock())
+    player = _make_music_player_mock()
+    player.__class__ = MusicPlayer
+    player.skip = AsyncMock()
+    player.play = AsyncMock()
+    player.stop = AsyncMock()
+
+    await cog.on_wavelink_track_exception(_make_failing_payload(player))
+
+    player.skip.assert_not_awaited()
+    player.play.assert_not_awaited()
+    player.stop.assert_not_awaited()
+
+
+async def test_track_stuck_skips_the_stuck_track(monkeypatch):
+    """Nothing else will: a stuck track gets no TrackEndEvent, so the player would sit forever."""
+    from bot.cogs.music.cog import MusicCog
+
+    _patch_reporting(monkeypatch)
+    cog = MusicCog(MagicMock())
+    player = _make_music_player_mock()
+    player.__class__ = MusicPlayer
+    player.skip = AsyncMock()
+
+    payload = _make_failing_payload(player, identifier="stuck1")
+    player.current = payload.track
+
+    await cog.on_wavelink_track_stuck(payload)
+
+    player.skip.assert_awaited_once_with(force=True)
+
+
+async def test_track_stuck_does_not_skip_when_lavalink_already_moved_on(monkeypatch):
+    from bot.cogs.music.cog import MusicCog
+
+    _patch_reporting(monkeypatch)
+    cog = MusicCog(MagicMock())
+    player = _make_music_player_mock()
+    player.__class__ = MusicPlayer
+    player.skip = AsyncMock()
+    player.current = None
+
+    await cog.on_wavelink_track_stuck(_make_failing_payload(player, identifier="stuck1"))
+
+    player.skip.assert_not_awaited()
+
+
+async def test_playback_failure_falls_back_to_the_play_channel(monkeypatch):
+    """No `/setup music` row is a supported state — the message still has to land somewhere."""
+    from bot.cogs.music import cog as music_cog
+    from bot.cogs.music.cog import MusicCog
+
+    monkeypatch.setattr(music_cog.panel, "resolve_channel", AsyncMock(return_value=None))
+    monkeypatch.setattr(music_cog, "_delete_after", AsyncMock())
+
+    cog = MusicCog(MagicMock())
+    player = _make_music_player_mock()
+    player.__class__ = MusicPlayer
+    player.text_channel = MagicMock()
+    player.text_channel.send = AsyncMock(return_value=MagicMock())
+
+    await cog.on_wavelink_track_exception(_make_failing_payload(player, title="Fallback Song"))
+
+    player.text_channel.send.assert_awaited_once()
+    assert "Fallback Song" in player.text_channel.send.await_args.args[0]

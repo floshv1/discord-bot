@@ -11,7 +11,7 @@ services:
       FOOTBALL_DATA_API_KEY: ${FOOTBALL_DATA_API_KEY:-}
       PANDASCORE_API_KEY: ${PANDASCORE_API_KEY:-}
       LAVALINK_URI: http://lavalink:2333
-      LAVALINK_PASSWORD: ${LAVALINK_PASSWORD:-youshallnotpass}
+      LAVALINK_PASSWORD: ${LAVALINK_PASSWORD:?set LAVALINK_PASSWORD in the stack env (openssl rand -hex 32)}
       # Presence only — the secret stays on the lavalink service, which does the resolving.
       SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID:-}
       # Palworld panel. Komodo starts/stops the stack; the game's REST API says who is
@@ -51,14 +51,33 @@ services:
     volumes:
       - ./lavalink/application.yml:/opt/Lavalink/application.yml
     environment:
-      - LAVALINK_SERVER_PASSWORD=${LAVALINK_PASSWORD:-youshallnotpass}
+      - LAVALINK_SERVER_PASSWORD=${LAVALINK_PASSWORD:?set LAVALINK_PASSWORD in the stack env (openssl rand -hex 32)}
       - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID:-}
       - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET:-}
+      # Read by `plugins.youtube.remoteCipher.password` — must match ytcipher's API_TOKEN.
+      - YTCIPHER_TOKEN=${YTCIPHER_TOKEN:?set YTCIPHER_TOKEN in the stack env (openssl rand -hex 32)}
+    depends_on:
+      # Plain `depends_on`, not `service_healthy`: the image publishes no health endpoint, and
+      # the youtube plugin falls back to its own (broken) local extraction rather than erroring
+      # if the cipher server isn't up yet. Degraded for a few seconds, not broken.
+      - ytcipher
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:2333/v4/info -H 'Authorization: ${LAVALINK_PASSWORD:-youshallnotpass}' || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:2333/v4/info -H 'Authorization: ${LAVALINK_PASSWORD:?set LAVALINK_PASSWORD in the stack env (openssl rand -hex 32)}' || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 12
+
+  # Resolves YouTube's signature ciphers for the Lavalink youtube plugin. Without it every
+  # track dies on "Must find sig function from script" — see lavalink/application.yml.
+  # No `ports:`: only lavalink talks to it, over the default network. Publishing it would put
+  # an open deciphering service on the host.
+  ytcipher:
+    image: ghcr.io/kikkia/yt-cipher:master
+    restart: unless-stopped
+    environment:
+      - API_TOKEN=${YTCIPHER_TOKEN:?set YTCIPHER_TOKEN in the stack env (openssl rand -hex 32)}
+      # Pin the player script variant the service resolves against, as upstream recommends.
+      - OVERRIDE_PLAYER_VARIANT=IAS
 
   db:
     image: postgres:16-alpine

@@ -19,6 +19,8 @@ from bot.cogs.music.embeds import (
 from bot.cogs.music.player import MusicPlayer
 from bot.cogs.music.utils import (
     NODE_UNAVAILABLE,
+    PLAYBACK_FAILED,
+    PLAYBACK_STUCK,
     _fmt_ms,
     calculate_eta,
     fetch_lyrics,
@@ -262,6 +264,29 @@ class MusicCog(commands.Cog):
                 return
         response = await interaction.followup.send(message)
         asyncio.create_task(_delete_after(response, 15))
+
+    async def _report_playback_failure(self, player: MusicPlayer, message: str) -> None:
+        """Post a playback failure where the member is actually looking, then get out of the way.
+
+        Routed like every other music output: the configured channel first, the channel `/play`
+        was typed in as the fallback, nothing at all if there is neither — degraded, not broken.
+        Self-deletes after 15s like the queue confirmations, because a channel papered with old
+        failures is its own problem.
+        """
+        channel: discord.abc.Messageable | None = None
+        try:
+            channel = await panel.resolve_channel(self.bot, player.guild.id)
+        except Exception:
+            logger.exception("Could not resolve the music channel to report a playback failure.")
+        if channel is None:
+            channel = player.text_channel
+        if channel is None:
+            return
+        try:
+            posted = await channel.send(message)
+        except discord.HTTPException:
+            return
+        asyncio.create_task(_delete_after(posted, 15))
 
     # ---------------------------------------------------------------- commands
 
@@ -622,6 +647,51 @@ class MusicCog(commands.Cog):
             view.message = player.now_playing_message
         except discord.HTTPException:
             pass
+
+    @commands.Cog.listener()
+    async def on_wavelink_track_exception(self, payload: wavelink.TrackExceptionEventPayload) -> None:
+        """Say out loud that a track Lavalink had accepted then failed to actually play.
+
+        The search path has `_search_or_report`; this is the same rule one step later, and it
+        was missing. A track that dies at *format loading* — a YouTube client that broke, a
+        dead link, a region block — only ever showed up in the container's logs, so "the bot
+        won't play music" was a thing you diagnosed with `docker logs` instead of reading the
+        channel.
+
+        **It must not skip.** Lavalink follows `TrackExceptionEvent` with a `TrackEndEvent`,
+        and wavelink already schedules `player._auto_play_event` off that one, so the queue
+        advances on its own. Calling `skip()` here would eat the *next* track as well.
+        """
+        player = cast("MusicPlayer | None", payload.player)
+        if not isinstance(player, MusicPlayer):
+            return
+        exception = payload.exception or {}
+        logger.warning(
+            "Lavalink could not play {!r}: {} (severity={}, cause={})",
+            payload.track.title,
+            exception.get("message", ""),
+            exception.get("severity", "?"),
+            exception.get("cause", "?"),
+        )
+        await self._report_playback_failure(player, PLAYBACK_FAILED.format(title=payload.track.title))
+
+    @commands.Cog.listener()
+    async def on_wavelink_track_stuck(self, payload: wavelink.TrackStuckEventPayload) -> None:
+        """A track that stopped producing audio frames without ever ending.
+
+        Unlike an exception, this is *not* followed by a `TrackEndEvent`, so nothing advances
+        the queue — left alone the player sits on a silent track forever. Hence the explicit
+        skip, guarded on the stuck track still being the current one: if Lavalink did end it
+        after all, `player.current` is already `None` and we must not advance twice.
+        """
+        player = cast("MusicPlayer | None", payload.player)
+        if not isinstance(player, MusicPlayer):
+            return
+        logger.warning("Track {!r} stuck for {}ms — skipping.", payload.track.title, payload.threshold)
+        await self._report_playback_failure(player, PLAYBACK_STUCK.format(title=payload.track.title))
+        current = player.current
+        if current is not None and current.identifier == payload.track.identifier:
+            await player.skip(force=True)
 
     @commands.Cog.listener()
     async def on_wavelink_inactive_player(self, player: wavelink.Player) -> None:

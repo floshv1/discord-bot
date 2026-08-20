@@ -40,8 +40,22 @@ def test_every_followed_competition_is_named_on_the_board():
     assert unlabelled == [], f"competitions followed but not named on the board: {unlabelled}"
 
 
+def test_the_board_names_nothing_the_poller_stopped_following():
+    """The other direction, and the one dropping a competition gets wrong.
+
+    A label left behind after its code leaves COMPETITIONS makes the board advertise a
+    competition no fixture will ever arrive for — an empty section that reads as a broken bot
+    rather than as an out-of-season one, which is the exact confusion the board exists to prevent.
+    """
+    stale = [code for code in service._FOOTBALL_COMPETITION_LABELS if code not in COMPETITIONS]
+    assert stale == [], f"named on the board but no longer followed: {stale}"
+
+
 def test_football_is_one_category_whatever_the_competition():
-    # Deliberately unlike LoL: one board for the lot.
+    # Deliberately unlike LoL: one board for the lot. Ligue 1 is no longer followed and is kept
+    # here on purpose — it is why dropping a football competition needs no RETIRED_LEAGUES entry.
+    # A leftover market still routes to the foot channel instead of pooling into inter the way a
+    # dropped LoL league would, so it can simply be left to settle rather than voided and refunded.
     for competition in ("FIFA World Cup", "UEFA Champions League", "Ligue 1"):
         assert service.category_for("football", competition) == service.CATEGORY_FOOT
 

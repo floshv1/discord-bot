@@ -86,6 +86,13 @@ Komodo manages the production deployment. It reads `compose.yml` directly from t
    | `POSTGRES_PASSWORD` | A strong random password |
    | `GUILD_ID` | Your Discord server ID |
    | `LOG_CHANNEL_ID` | Your log channel ID |
+   | `LAVALINK_PASSWORD` | `openssl rand -hex 32` |
+   | `YTCIPHER_TOKEN` | `openssl rand -hex 32` |
+
+   The last two are **required** — `compose.yml` uses `${VAR:?}` for both, so the stack refuses
+   to come up without them rather than shipping a default secret. `YTCIPHER_TOKEN` is shared
+   between the `lavalink` and `ytcipher` services; YouTube playback goes through that cipher
+   server, so a mismatch means no music at all.
 
    Komodo injects these at deploy time. `DATABASE_URL` is built automatically inside `compose.yml` — you do not need to set it separately.
 
@@ -136,7 +143,7 @@ Pushing `dev` does not trigger CI (CI runs on `main` only), so no image is ever 
    | `LOG_CHANNEL_ID` | A channel ID in the **test** server |
 
    Optional: `LOG_IGNORED_CHANNEL_IDS`, `LOG_MUTED_EVENTS`, `FOOTBALL_DATA_API_KEY`,
-   `PANDASCORE_API_KEY`, `LAVALINK_PASSWORD`, `SPOTIFY_CLIENT_ID` + `SPOTIFY_CLIENT_SECRET`
+   `PANDASCORE_API_KEY`, `LAVALINK_PASSWORD`, `YTCIPHER_TOKEN`, `SPOTIFY_CLIENT_ID` + `SPOTIFY_CLIENT_SECRET`
    (both, or Spotify links don't resolve — see below). `DATABASE_URL` is built inside the compose file.
    Feature channels (voice, birthday, currency, betting, queue, suggestions) are set in Discord
    with `/setup <feature> <channel>`, not in the environment.
