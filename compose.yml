@@ -46,7 +46,11 @@ services:
         condition: service_healthy
 
   lavalink:
-    image: ghcr.io/lavalink-devs/lavalink:4
+    # Built, not pulled: the image is stock Lavalink plus a yt-dlp binary, which LavaSrc's
+    # `ytdlp` source executes. A rebuild is also how yt-dlp gets updated — see
+    # lavalink/Dockerfile for why we don't use the ready-made image upstream publishes.
+    build:
+      context: ./lavalink
     restart: unless-stopped
     volumes:
       - ./lavalink/application.yml:/opt/Lavalink/application.yml
@@ -54,35 +58,11 @@ services:
       - LAVALINK_SERVER_PASSWORD=${LAVALINK_PASSWORD:?set LAVALINK_PASSWORD in the stack env (openssl rand -hex 32)}
       - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID:-}
       - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET:-}
-      # Read by `plugins.youtube.remoteCipher.password` — must match ytcipher's API_TOKEN.
-      - YTCIPHER_TOKEN=${YTCIPHER_TOKEN:?set YTCIPHER_TOKEN in the stack env (openssl rand -hex 32)}
-      # Empty on the very first boot, and that is the supported state: the youtube plugin
-      # treats an empty token like a missing one and runs the device-code flow, printing the
-      # URL, the code and then the token itself into this service's logs. Paste it back here
-      # afterwards. Never `:?` — requiring it would make the first boot impossible.
-      - YOUTUBE_OAUTH_REFRESH_TOKEN=${YOUTUBE_OAUTH_REFRESH_TOKEN:-}
-    depends_on:
-      # Plain `depends_on`, not `service_healthy`: the image publishes no health endpoint, and
-      # the youtube plugin falls back to its own (broken) local extraction rather than erroring
-      # if the cipher server isn't up yet. Degraded for a few seconds, not broken.
-      - ytcipher
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:2333/v4/info -H 'Authorization: ${LAVALINK_PASSWORD:?set LAVALINK_PASSWORD in the stack env (openssl rand -hex 32)}' || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 12
-
-  # Resolves YouTube's signature ciphers for the Lavalink youtube plugin. Without it every
-  # track dies on "Must find sig function from script" — see lavalink/application.yml.
-  # No `ports:`: only lavalink talks to it, over the default network. Publishing it would put
-  # an open deciphering service on the host.
-  ytcipher:
-    image: ghcr.io/kikkia/yt-cipher:master
-    restart: unless-stopped
-    environment:
-      - API_TOKEN=${YTCIPHER_TOKEN:?set YTCIPHER_TOKEN in the stack env (openssl rand -hex 32)}
-      # Pin the player script variant the service resolves against, as upstream recommends.
-      - OVERRIDE_PLAYER_VARIANT=IAS
 
   db:
     image: postgres:16-alpine

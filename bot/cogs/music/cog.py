@@ -306,7 +306,10 @@ class MusicCog(commands.Cog):
         apology. The exception's own text never reaches them — it carries provider internals.
         """
         try:
-            return await wavelink.Playable.search(query)
+            # `ytsearch:`, not wavelink's `ytmsearch:` default. YouTube is served by LavaSrc's
+            # yt-dlp source, which registers `ytsearch:` and nothing else — a ytmsearch query
+            # would find no source manager at all now that youtube-plugin is gone.
+            return await wavelink.Playable.search(query, source=wavelink.TrackSource.YouTube)
         except wavelink.LavalinkLoadException as exc:
             logger.warning(
                 "Track load failed for {!r}: {} (severity={}, cause={})", query, exc.error, exc.severity, exc.cause

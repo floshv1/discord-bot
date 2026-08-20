@@ -4,13 +4,23 @@ server:
 
 lavalink:
   plugins:
-    - dependency: "dev.lavalink.youtube:youtube-plugin:1.18.2"
-      repository: "https://maven.lavalink.dev/releases"
-    - dependency: "com.github.topi314.lavasrc:lavasrc-plugin:4.3.0"
+    # YouTube is served by LavaSrc's `ytdlp` source, not by the `youtube-plugin`.
+    #
+    # That plugin was removed rather than kept as a fallback, and the reason is routing, not
+    # taste: both register the `ytsearch:` prefix and both claim youtube.com/youtu.be URLs, so
+    # loading the two leaves which one answers undefined. The failure mode of getting that
+    # wrong is the worst kind — yt-dlp would look broken while never actually being called.
+    #
+    # It is also not a fallback worth keeping. It failed 100% of tracks here: its local cipher
+    # extraction is a dead end upstream closed as *not planned*, and every one of its clients
+    # was refused by YouTube's anti-bot check wearing a different error. See CLAUDE.md.
+    - dependency: "com.github.topi314.lavasrc:lavasrc-plugin:4.8.3"
       repository: "https://maven.lavalink.dev/releases"
   server:
     password: "${LAVALINK_SERVER_PASSWORD:youshallnotpass}"
     sources:
+      # Lavalink's own YouTube source is deprecated upstream and must stay off — LavaSrc owns
+      # YouTube here.
       youtube: false
       bandcamp: false
       soundcloud: false
@@ -23,68 +33,22 @@ lavalink:
     opusEncodingQuality: 10
 
 plugins:
-  youtube:
-    enabled: true
-    allowSearch: true
-    allowDirectVideoIds: true
-    allowDirectPlaylistIds: true
-    # Tried in order; the first client that returns a playable format wins. MUSIC is
-    # *search-only* (it backs `ytmsearch:` and loads no formats at all), so it counts for
-    # nothing here — a list of MUSIC + two players is a list of two players. That is exactly
-    # how this ended up with no fallback at all when YouTube broke both of them at once.
-    #
-    # TV sits first among the playable ones because it is the only client OAuth applies to
-    # (`supportsOAuth()` is false everywhere else), so on a flagged IP it is the one with a
-    # real chance — trying it first saves five failed round-trips per track. It carries no
-    # metadata support at all, which is fine: MUSIC and WEB still do the searching.
-    #
-    # Deliberately absent: ANDROID (upstream calls it "heavily restricted, frequently
-    # dysfunctional"), IOS (returns no Opus format, so every track would be transcoded on a
-    # box that also runs a game server).
-    clients:
-      - MUSIC
-      - TV
-      - WEB
-      - WEBEMBEDDED
-      - MWEB
-      - TVHTML5_SIMPLY
-      - ANDROID_VR
-    # Signature deciphering, resolved by the `ytcipher` service instead of in-process.
-    #
-    # This is not a tuning knob — it is what makes YouTube play at all. YouTube's player
-    # script changes faster than youtube-source's local extractor can follow, and a miss is
-    # fatal: "Must find sig function from script: .../base.js", every client, every track.
-    # Upstream closed that report as not planned and points at a remote cipher server
-    # instead ("a remote cipher resolving server will likely replace youtube-source's own
-    # internal cipher extraction and resolving logic going forward"), so a plugin bump is
-    # not the fix and never will be.
-    #
-    # `password` is the server's API_TOKEN, sent as an Authorization header.
-    remoteCipher:
-      url: "http://ytcipher:8001"
-      password: "${YTCIPHER_TOKEN:}"
-      userAgent: "floshy-discord-bot"
-    # Signing in is what answers "Sign in to confirm you're not a bot" — YouTube flags this
-    # server's IP, and every unauthenticated client hits the same wall wearing a different
-    # error (a 403 on the stream, an empty format list, "this video requires login"). OAuth
-    # only ever applies to the TV client; poToken would only cover WEB/WEBEMBEDDED, and
-    # upstream says you don't need both.
-    #
-    # An empty refreshToken is treated exactly like a missing one (`isNullOrEmpty`), so the
-    # first boot runs the device-code flow: lavalink's logs print a URL and a code, and once
-    # entered they print the refresh token to paste into YOUTUBE_OAUTH_REFRESH_TOKEN. From
-    # then on the flow is skipped automatically. **Use a burner Google account** — upstream is
-    # blunt that the worst case is the account being terminated.
-    oauth:
-      enabled: true
-      refreshToken: "${YOUTUBE_OAUTH_REFRESH_TOKEN:}"
-      skipInitialization: false
   lavasrc:
+    # How a Spotify link is actually played: LavaSrc resolves it to a searchable query and
+    # replays it through `ytsearch:`, which is now yt-dlp. ISRC first — it identifies the exact
+    # recording rather than a cover or a live version — with the plain query as the fallback.
     providers:
       - 'ytsearch:"%ISRC%"'
       - "ytsearch:%QUERY%"
     sources:
       spotify: true
+      ytdlp: true
+    ytdlp:
+      # Resolved from PATH inside the image; see lavalink/Dockerfile. yt-dlp is the most
+      # actively maintained YouTube extractor there is — it ships fixes for YouTube's changes
+      # within days, which is the whole reason this replaced youtube-source.
+      path: "yt-dlp"
+      searchLimit: 10
     spotify:
       clientId: "${SPOTIFY_CLIENT_ID:}"
       clientSecret: "${SPOTIFY_CLIENT_SECRET:}"
@@ -96,7 +60,3 @@ logging:
   level:
     root: INFO
     lavalink: INFO
-    # Without this the device-code URL, the code itself and the resulting refresh token are
-    # all logged below the threshold — the OAuth flow becomes impossible to complete because
-    # you never see what to enter.
-    dev.lavalink.youtube.http.YoutubeOauth2Handler: INFO

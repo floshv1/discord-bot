@@ -592,3 +592,34 @@ async def test_playback_failure_falls_back_to_the_play_channel(monkeypatch):
 
     player.text_channel.send.assert_awaited_once()
     assert "Fallback Song" in player.text_channel.send.await_args.args[0]
+
+
+# --- the search prefix must match what Lavalink actually registers ---
+
+
+async def test_search_uses_ytsearch_not_ytmsearch(monkeypatch):
+    """YouTube is served by LavaSrc's yt-dlp source, which registers `ytsearch:` alone.
+
+    wavelink defaults to `ytmsearch:`, and nothing answers that any more now that
+    youtube-plugin is gone — every `/play` would come back empty. Locked here because the
+    failure is silent: a search that finds nothing looks exactly like a bad query.
+    """
+    from bot.cogs.music.cog import MusicCog
+
+    captured = {}
+
+    async def fake_search(query, /, **kwargs):
+        captured["query"] = query
+        captured["source"] = kwargs.get("source", "MISSING")
+        return []
+
+    monkeypatch.setattr(wavelink.Playable, "search", fake_search)
+
+    cog = MusicCog(MagicMock())
+    interaction = MagicMock()
+    interaction.followup.send = AsyncMock()
+
+    result = await cog._search_or_report(interaction, "some song")
+
+    assert result == []
+    assert captured["source"] is wavelink.TrackSource.YouTube, f"expected ytsearch:, got {captured['source']}"

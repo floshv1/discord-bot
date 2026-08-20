@@ -40,7 +40,8 @@ services:
       - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID:-}
 
   lavalink:
-    image: ghcr.io/lavalink-devs/lavalink:4
+    build:
+      context: ./lavalink
     restart: unless-stopped
     volumes:
       - ./lavalink/application.yml:/opt/Lavalink/application.yml
@@ -48,24 +49,11 @@ services:
       - LAVALINK_SERVER_PASSWORD=${LAVALINK_PASSWORD:-youshallnotpass}
       - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID:-}
       - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET:-}
-      - YTCIPHER_TOKEN=${YTCIPHER_TOKEN:-youshallnotpass}
-      - YOUTUBE_OAUTH_REFRESH_TOKEN=${YOUTUBE_OAUTH_REFRESH_TOKEN:-}
-    depends_on:
-      - ytcipher
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:2333/v4/info -H 'Authorization: ${LAVALINK_PASSWORD:-youshallnotpass}' || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 12
-
-  # Same application.yml as prod is mounted here, so this service is not optional: without
-  # it `remoteCipher.url` points at a host that doesn't exist and dev loses YouTube entirely.
-  ytcipher:
-    image: ghcr.io/kikkia/yt-cipher:master
-    restart: unless-stopped
-    environment:
-      - API_TOKEN=${YTCIPHER_TOKEN:-youshallnotpass}
-      - OVERRIDE_PLAYER_VARIANT=IAS
 
   db:
     image: postgres:16-alpine

@@ -87,37 +87,25 @@ Komodo manages the production deployment. It reads `compose.yml` directly from t
    | `GUILD_ID` | Your Discord server ID |
    | `LOG_CHANNEL_ID` | Your log channel ID |
    | `LAVALINK_PASSWORD` | `openssl rand -hex 32` |
-   | `YTCIPHER_TOKEN` | `openssl rand -hex 32` |
 
-   The last two are **required** — `compose.yml` uses `${VAR:?}` for both, so the stack refuses
-   to come up without them rather than shipping a default secret. `YTCIPHER_TOKEN` is shared
-   between the `lavalink` and `ytcipher` services; YouTube playback goes through that cipher
-   server, so a mismatch means no music at all.
-
-   `YOUTUBE_OAUTH_REFRESH_TOKEN` is **left unset on the first deploy**, on purpose — see
-   "YouTube sign-in" below.
+   `LAVALINK_PASSWORD` is **required** — `compose.yml` uses `${VAR:?}` for it, so the stack
+   refuses to come up rather than shipping a default secret.
 
    Komodo injects these at deploy time. `DATABASE_URL` is built automatically inside `compose.yml` — you do not need to set it separately.
 
 4. **Deploy** from Komodo's UI. On each new deploy, Komodo pulls the latest commit, rebuilds the bot image, and restarts the stack.
 
-### YouTube sign-in (one time)
 
-YouTube flags requests coming from an unauthenticated server: every client fails, each with a
-different message ("Sign in to confirm you're not a bot", a 403 on the stream, an empty format
-list). Signing in is the documented answer, and it only applies to the `TV` client — which is
-why `TV` is in `plugins.youtube.clients`.
+### YouTube (yt-dlp)
 
-1. Deploy with `YOUTUBE_OAUTH_REFRESH_TOKEN` **unset**. An empty token is treated as a missing
-   one, so the plugin starts the device-code flow instead of erroring.
-2. `docker compose logs lavalink` — it prints a `google.com/device` URL and a code.
-3. Enter the code there while signed into a **burner Google account**. Never the primary one:
-   upstream is explicit that the worst case is the account being terminated.
-4. Lavalink then prints the refresh token. Put it in the stack env as
-   `YOUTUBE_OAUTH_REFRESH_TOKEN` and redeploy — the flow is skipped from then on.
+The `lavalink` service is **built, not pulled**: it is stock Lavalink plus a `yt-dlp` binary,
+which LavaSrc's `ytdlp` source executes. There is no API key, no account and no token to
+rotate.
 
-If step 2 shows nothing, the log level for `dev.lavalink.youtube.http.YoutubeOauth2Handler` is
-too high; `lavalink/application.yml` pins it to `INFO` for exactly this reason.
+The one operational duty is keeping yt-dlp current. It is fetched at image build time, so a
+**rebuild is the update** — `docker compose build --no-cache lavalink && docker compose up -d
+lavalink`, or just redeploy from Komodo. If YouTube playback ever starts failing across the
+board, that rebuild is the first thing to try: yt-dlp usually ships a fix within days.
 
 ### Auto-deploy (GitOps)
 
@@ -164,7 +152,7 @@ Pushing `dev` does not trigger CI (CI runs on `main` only), so no image is ever 
    | `LOG_CHANNEL_ID` | A channel ID in the **test** server |
 
    Optional: `LOG_IGNORED_CHANNEL_IDS`, `LOG_MUTED_EVENTS`, `FOOTBALL_DATA_API_KEY`,
-   `PANDASCORE_API_KEY`, `LAVALINK_PASSWORD`, `YTCIPHER_TOKEN`, `SPOTIFY_CLIENT_ID` + `SPOTIFY_CLIENT_SECRET`
+   `PANDASCORE_API_KEY`, `LAVALINK_PASSWORD`, `SPOTIFY_CLIENT_ID` + `SPOTIFY_CLIENT_SECRET`
    (both, or Spotify links don't resolve — see below). `DATABASE_URL` is built inside the compose file.
    Feature channels (voice, birthday, currency, betting, queue, suggestions) are set in Discord
    with `/setup <feature> <channel>`, not in the environment.
