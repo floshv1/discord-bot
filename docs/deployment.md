@@ -94,9 +94,30 @@ Komodo manages the production deployment. It reads `compose.yml` directly from t
    between the `lavalink` and `ytcipher` services; YouTube playback goes through that cipher
    server, so a mismatch means no music at all.
 
+   `YOUTUBE_OAUTH_REFRESH_TOKEN` is **left unset on the first deploy**, on purpose — see
+   "YouTube sign-in" below.
+
    Komodo injects these at deploy time. `DATABASE_URL` is built automatically inside `compose.yml` — you do not need to set it separately.
 
 4. **Deploy** from Komodo's UI. On each new deploy, Komodo pulls the latest commit, rebuilds the bot image, and restarts the stack.
+
+### YouTube sign-in (one time)
+
+YouTube flags requests coming from an unauthenticated server: every client fails, each with a
+different message ("Sign in to confirm you're not a bot", a 403 on the stream, an empty format
+list). Signing in is the documented answer, and it only applies to the `TV` client — which is
+why `TV` is in `plugins.youtube.clients`.
+
+1. Deploy with `YOUTUBE_OAUTH_REFRESH_TOKEN` **unset**. An empty token is treated as a missing
+   one, so the plugin starts the device-code flow instead of erroring.
+2. `docker compose logs lavalink` — it prints a `google.com/device` URL and a code.
+3. Enter the code there while signed into a **burner Google account**. Never the primary one:
+   upstream is explicit that the worst case is the account being terminated.
+4. Lavalink then prints the refresh token. Put it in the stack env as
+   `YOUTUBE_OAUTH_REFRESH_TOKEN` and redeploy — the flow is skipped from then on.
+
+If step 2 shows nothing, the log level for `dev.lavalink.youtube.http.YoutubeOauth2Handler` is
+too high; `lavalink/application.yml` pins it to `INFO` for exactly this reason.
 
 ### Auto-deploy (GitOps)
 

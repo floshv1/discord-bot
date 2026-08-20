@@ -33,11 +33,17 @@ plugins:
     # nothing here — a list of MUSIC + two players is a list of two players. That is exactly
     # how this ended up with no fallback at all when YouTube broke both of them at once.
     #
-    # Deliberately absent: TV (requires an OAuth sign-in), ANDROID (upstream calls it
-    # "heavily restricted, frequently dysfunctional"), IOS (returns no Opus format, so every
-    # track would be transcoded on a box that also runs a game server).
+    # TV sits first among the playable ones because it is the only client OAuth applies to
+    # (`supportsOAuth()` is false everywhere else), so on a flagged IP it is the one with a
+    # real chance — trying it first saves five failed round-trips per track. It carries no
+    # metadata support at all, which is fine: MUSIC and WEB still do the searching.
+    #
+    # Deliberately absent: ANDROID (upstream calls it "heavily restricted, frequently
+    # dysfunctional"), IOS (returns no Opus format, so every track would be transcoded on a
+    # box that also runs a game server).
     clients:
       - MUSIC
+      - TV
       - WEB
       - WEBEMBEDDED
       - MWEB
@@ -58,6 +64,21 @@ plugins:
       url: "http://ytcipher:8001"
       password: "${YTCIPHER_TOKEN:}"
       userAgent: "floshy-discord-bot"
+    # Signing in is what answers "Sign in to confirm you're not a bot" — YouTube flags this
+    # server's IP, and every unauthenticated client hits the same wall wearing a different
+    # error (a 403 on the stream, an empty format list, "this video requires login"). OAuth
+    # only ever applies to the TV client; poToken would only cover WEB/WEBEMBEDDED, and
+    # upstream says you don't need both.
+    #
+    # An empty refreshToken is treated exactly like a missing one (`isNullOrEmpty`), so the
+    # first boot runs the device-code flow: lavalink's logs print a URL and a code, and once
+    # entered they print the refresh token to paste into YOUTUBE_OAUTH_REFRESH_TOKEN. From
+    # then on the flow is skipped automatically. **Use a burner Google account** — upstream is
+    # blunt that the worst case is the account being terminated.
+    oauth:
+      enabled: true
+      refreshToken: "${YOUTUBE_OAUTH_REFRESH_TOKEN:}"
+      skipInitialization: false
   lavasrc:
     providers:
       - 'ytsearch:"%ISRC%"'
@@ -75,3 +96,7 @@ logging:
   level:
     root: INFO
     lavalink: INFO
+    # Without this the device-code URL, the code itself and the resulting refresh token are
+    # all logged below the threshold — the OAuth flow becomes impossible to complete because
+    # you never see what to enter.
+    dev.lavalink.youtube.http.YoutubeOauth2Handler: INFO

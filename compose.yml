@@ -56,6 +56,11 @@ services:
       - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET:-}
       # Read by `plugins.youtube.remoteCipher.password` — must match ytcipher's API_TOKEN.
       - YTCIPHER_TOKEN=${YTCIPHER_TOKEN:?set YTCIPHER_TOKEN in the stack env (openssl rand -hex 32)}
+      # Empty on the very first boot, and that is the supported state: the youtube plugin
+      # treats an empty token like a missing one and runs the device-code flow, printing the
+      # URL, the code and then the token itself into this service's logs. Paste it back here
+      # afterwards. Never `:?` — requiring it would make the first boot impossible.
+      - YOUTUBE_OAUTH_REFRESH_TOKEN=${YOUTUBE_OAUTH_REFRESH_TOKEN:-}
     depends_on:
       # Plain `depends_on`, not `service_healthy`: the image publishes no health endpoint, and
       # the youtube plugin falls back to its own (broken) local extraction rather than erroring

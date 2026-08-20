@@ -49,6 +49,7 @@ services:
       - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID:-}
       - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET:-}
       - YTCIPHER_TOKEN=${YTCIPHER_TOKEN:-youshallnotpass}
+      - YOUTUBE_OAUTH_REFRESH_TOKEN=${YOUTUBE_OAUTH_REFRESH_TOKEN:-}
     depends_on:
       - ytcipher
     healthcheck:
