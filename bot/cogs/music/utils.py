@@ -35,6 +35,15 @@ _SPOTIFY = re.compile(r"^\s*(?:spsearch:|(?:https?://)?(?:open\.spotify\.com|spo
 NODE_UNAVAILABLE = "The music server isn't reachable right now — try again in a minute."
 LOAD_FAILED = "Couldn't load that. Try a different search or URL."
 SPOTIFY_UNCONFIGURED = "Spotify links aren't set up on this bot yet. Paste a YouTube link, or just search by name."
+SPOTIFY_PLAYLIST_FAILED = (
+    "Spotify wouldn't hand over that playlist's tracks. Single Spotify tracks still work — "
+    "or paste a YouTube playlist instead."
+)
+# Spotify refuses a playlist's *items* to an app (client-credentials) token with 401 "Valid user
+# authentication required", while still serving the playlist itself — so with valid credentials
+# a playlist link can fail every time. `preferPartnerApi` in lavalink/application.yml is the
+# workaround; this is what members read when it doesn't hold.
+_SPOTIFY_PLAYLIST = re.compile(r"^\s*(?:https?://)?open\.spotify\.com/(?:[^/?#]+/)*playlist/", re.IGNORECASE)
 
 # Said out loud when Lavalink fails a track it had already accepted. The exception's own text
 # never goes in here — same rule as `search_failure_message`: provider internals are not for
@@ -100,6 +109,8 @@ def search_failure_message(query: str, *, spotify_configured: bool) -> str:
     """
     if not spotify_configured and is_spotify_query(query):
         return SPOTIFY_UNCONFIGURED
+    if _SPOTIFY_PLAYLIST.match(query):
+        return SPOTIFY_PLAYLIST_FAILED
     return LOAD_FAILED
 
 

@@ -26,7 +26,11 @@ lavalink:
       soundcloud: false
       twitch: false
       vimeo: false
-      http: true
+      # Off on purpose: with it on, `/play http://db:5432` (or any internal host) makes Lavalink
+      # issue the request from inside our Docker network — members could probe services that
+      # are deliberately never published. Nothing we play needs it: YouTube goes through
+      # yt-dlp and Spotify is replayed through `ytsearch:`.
+      http: false
       local: false
     bufferDurationMs: 400
     frameBufferDurationMs: 5000
@@ -53,6 +57,14 @@ plugins:
       clientId: "${SPOTIFY_CLIENT_ID:}"
       clientSecret: "${SPOTIFY_CLIENT_SECRET:}"
       countryCode: "US"
+      # Spotify answers 401 "Valid user authentication required" on
+      # `GET /v1/playlists/{id}/items` to a client-credentials token, while still serving
+      # `/v1/playlists/{id}` — so with valid credentials every playlist link resolved its name
+      # and then died. The partner API (the web player's own, via an anonymous token — no
+      # account, no cookie) still returns playlist contents. Every partner call falls back to
+      # v1 on failure, so this can only add what v1 refuses. If Spotify breaks the anonymous
+      # token too, the next step is `spDc` (a logged-in account's cookie).
+      preferPartnerApi: true
       playlistLoadLimit: 6
       albumLoadLimit: 6
 

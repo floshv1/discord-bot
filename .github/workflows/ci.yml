@@ -68,12 +68,29 @@ jobs:
         run: uv sync --frozen
 
       - name: Audit dependencies
-        run: uv run pip-audit --ignore-vuln CVE-2026-3219 --ignore-vuln CVE-2026-6357
+        run: uv run pip-audit
+
+  # Build-only: Komodo builds this image itself on deploy, so nothing is pushed. Without this
+  # job a broken lavalink/Dockerfile (a checksum mismatch, a renamed release asset, an
+  # unsupported arch) only surfaced at deploy time, after main had already moved on.
+  docker-lavalink:
+    name: Build Lavalink Image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        uses: docker/build-push-action@v6
+        with:
+          context: ./lavalink
+          push: false
+          provenance: false
 
   docker:
     name: Build & Push Bot Image
     runs-on: ubuntu-latest
-    needs: [lint, test, security]
+    # docker-lavalink too: Komodo redeploys the whole stack off this push, lavalink build included.
+    needs: [lint, test, security, docker-lavalink]
     if: github.ref == 'refs/heads/main'
     permissions:
       contents: read

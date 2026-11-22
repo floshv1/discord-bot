@@ -7,6 +7,7 @@ import wavelink
 from bot.cogs.music.player import MusicPlayer
 from bot.cogs.music.utils import (
     LOAD_FAILED,
+    SPOTIFY_PLAYLIST_FAILED,
     SPOTIFY_UNCONFIGURED,
     _fmt_ms,
     calculate_eta,
@@ -283,10 +284,27 @@ def test_search_failure_spotify_url_unconfigured_names_spotify():
     assert msg == SPOTIFY_UNCONFIGURED
 
 
-def test_search_failure_spotify_url_configured_is_generic():
+def test_search_failure_spotify_track_configured_is_generic():
     # Credentials are set, so this is a real load failure — not a setup gap.
-    msg = search_failure_message("https://open.spotify.com/playlist/abc", spotify_configured=True)
+    msg = search_failure_message("https://open.spotify.com/track/abc", spotify_configured=True)
     assert msg == LOAD_FAILED
+
+
+def test_search_failure_spotify_playlist_configured_names_the_playlist_wall():
+    # Spotify answers 401 "Valid user authentication required" on a playlist's items to an
+    # app token, so a configured bot can still fail every playlist — say so, not "try again".
+    for url in (
+        "https://open.spotify.com/playlist/5AKEc32GTel0wjzy1Qw25Q?si=08407c74ddbd4175",
+        "https://open.spotify.com/intl-fr/playlist/abc",
+        "https://open.spotify.com/user/someone/playlist/abc",
+    ):
+        assert search_failure_message(url, spotify_configured=True) == SPOTIFY_PLAYLIST_FAILED
+
+
+def test_search_failure_spotify_playlist_unconfigured_still_names_setup():
+    # Missing credentials is the more fundamental problem and wins.
+    msg = search_failure_message("https://open.spotify.com/playlist/abc", spotify_configured=False)
+    assert msg == SPOTIFY_UNCONFIGURED
 
 
 def test_search_failure_text_query_never_mentions_spotify():

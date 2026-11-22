@@ -7,9 +7,9 @@ dependencies = [
     "asyncpg>=0.30",
     "loguru>=0.7",
     "wavelink>=3.4",
-    "urllib3>=2.7.0",
+    "urllib3>=2.8.0",
     "tzdata>=2024.1",
-    "aiohttp>=3.14.3",
+    "aiohttp>=3.14.4",
     "idna>=3.15",
 ]
 
@@ -19,7 +19,7 @@ dev = [
     "pytest-asyncio>=0.24",
     "ruff>=0.4",
     "pip-audit>=2.7",
-    "pip>=26.1.2",
+    "pip>=26.2",
 ]
 
 [tool.ruff]

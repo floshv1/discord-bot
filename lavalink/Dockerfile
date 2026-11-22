@@ -1,4 +1,4 @@
-# Lavalink + yt-dlp.
+# Lavalink + yt-dlp (+ Deno, which yt-dlp needs for YouTube).
 #
 # LavaSrc's `ytdlp` source shells out to a real `yt-dlp` binary, and the official Lavalink
 # image has no such thing. Upstream publishes a ready-made image for this
@@ -22,10 +22,24 @@
 # wrong about. Anything yt-dlp prints outside the JSON breaks the parse, which is worth
 # remembering before adding flags here.
 #
+# Deno: yt-dlp needs an external JavaScript runtime to solve YouTube's player challenges, and
+# the standalone build bundles Python but not that. Without one, YouTube formats go missing —
+# a failure that looks exactly like YouTube refusing us again. yt-dlp finds `deno` on PATH by
+# default, so installing it is the whole configuration. Deno is a single static binary, so
+# this does not reintroduce the system-interpreter trap above.
+#
+# Both downloads are checked against the SHA-256 sums their release publishes. They run as
+# root at build time and then for every track, so "whatever came back from the URL" is not
+# good enough.
+#
 # `curl` is deliberately left installed: compose's healthcheck for this service is a curl
 # against /v4/info, and removing it would leave lavalink permanently unhealthy — which the bot
 # waits on with `condition: service_healthy`, so the whole stack would never come up.
-ARG TAG=4
+
+# Pinned so two builds of the same commit run the same Lavalink. yt-dlp and Deno stay on
+# `latest` on purpose — their freshness is the point — and their versions are recorded in
+# /opt/versions.txt (and printed in the build log) so a playback regression can be traced.
+ARG TAG=4.2.2
 
 FROM ghcr.io/lavalink-devs/lavalink:${TAG}
 
@@ -37,16 +51,28 @@ USER root
 
 RUN set -eux; \
     apt-get update; \
-    apt-get install -y --no-install-recommends curl ca-certificates; \
+    apt-get install -y --no-install-recommends curl ca-certificates unzip; \
     case "${TARGETARCH}" in \
-      amd64) YTDLP_ASSET=yt-dlp_linux ;; \
-      arm64) YTDLP_ASSET=yt-dlp_linux_aarch64 ;; \
-      *) echo "no standalone yt-dlp build for TARGETARCH=${TARGETARCH}" >&2; exit 1 ;; \
+      amd64) YTDLP_ASSET=yt-dlp_linux;         DENO_ASSET=deno-x86_64-unknown-linux-gnu.zip ;; \
+      arm64) YTDLP_ASSET=yt-dlp_linux_aarch64; DENO_ASSET=deno-aarch64-unknown-linux-gnu.zip ;; \
+      *) echo "no standalone yt-dlp/deno build for TARGETARCH=${TARGETARCH}" >&2; exit 1 ;; \
     esac; \
-    curl -fL "https://github.com/yt-dlp/yt-dlp/releases/latest/download/${YTDLP_ASSET}" \
-      -o /usr/bin/yt-dlp; \
-    chmod +x /usr/bin/yt-dlp; \
+    tmp="$(mktemp -d)"; cd "$tmp"; \
+    \
+    curl -fsSLO "https://github.com/yt-dlp/yt-dlp/releases/latest/download/${YTDLP_ASSET}"; \
+    curl -fsSLO "https://github.com/yt-dlp/yt-dlp/releases/latest/download/SHA2-256SUMS"; \
+    grep " ${YTDLP_ASSET}\$" SHA2-256SUMS | sha256sum -c -; \
+    install -m 0755 "${YTDLP_ASSET}" /usr/bin/yt-dlp; \
+    \
+    curl -fsSLO "https://github.com/denoland/deno/releases/latest/download/${DENO_ASSET}"; \
+    curl -fsSLO "https://github.com/denoland/deno/releases/latest/download/${DENO_ASSET}.sha256sum"; \
+    sha256sum -c "${DENO_ASSET}.sha256sum"; \
+    unzip -q "${DENO_ASSET}" deno; \
+    install -m 0755 deno /usr/bin/deno; \
+    \
+    cd /; rm -rf "$tmp"; \
+    apt-get purge -y --auto-remove unzip; \
     rm -rf /var/lib/apt/lists/*; \
-    yt-dlp --version
+    { echo "yt-dlp $(yt-dlp --version)"; deno --version | head -n1; } | tee /opt/versions.txt
 
 USER lavalink

@@ -50,7 +50,7 @@ services:
       - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID:-}
       - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET:-}
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:2333/v4/info -H 'Authorization: ${LAVALINK_PASSWORD:-youshallnotpass}' || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:2333/v4/info -H 'Authorization: ${LAVALINK_PASSWORD:-youshallnotpass}' && yt-dlp --version >/dev/null && deno --version >/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 12

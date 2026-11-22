@@ -107,6 +107,10 @@ The one operational duty is keeping yt-dlp current. It is fetched at image build
 lavalink`, or just redeploy from Komodo. If YouTube playback ever starts failing across the
 board, that rebuild is the first thing to try: yt-dlp usually ships a fix within days.
 
+To see which yt-dlp and Deno versions a running image carries (Deno is the JavaScript runtime
+yt-dlp needs for YouTube): `docker compose exec lavalink cat /opt/versions.txt`. Background and
+history: [youtube-playback.md](youtube-playback.md).
+
 ### Auto-deploy (GitOps)
 
 Komodo polls GHCR directly — no webhook, no Tailscale exposure needed.
