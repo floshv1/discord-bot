@@ -14,7 +14,12 @@ FEATURE_TABLES: dict[str, tuple[str, str | None]] = {
     "betting": ("betting_config", None),
     "music": ("music_config", None),
     "palworld": ("palworld_config", None),
+    "customs": ("customs_config", None),
 }
+
+# Features that also need an env var on top of their /setup: without it the commands answer
+# "not set up", so advertising them would send members into a dead end.
+REQUIRES_CONFIG: dict[str, str] = {"customs": "lolamis_url"}
 
 
 class HelpCog(commands.Cog):
@@ -34,6 +39,9 @@ class HelpCog(commands.Cog):
                 interaction.guild_id,
             )
             if row and guard and row[guard] is None:
+                row = None
+            needs = REQUIRES_CONFIG.get(key)
+            if needs and not getattr(self.bot.config, needs, None):  # type: ignore[attr-defined]
                 row = None
             channel = self.bot.get_channel(row["channel_id"]) if row else None
             channels[key] = channel.mention if channel else None

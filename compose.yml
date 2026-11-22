@@ -23,6 +23,8 @@ services:
       PALWORLD_REST_URL: ${PALWORLD_REST_URL:-}
       PALWORLD_ADMIN_PASSWORD: ${PALWORLD_ADMIN_PASSWORD:-}
       PALWORLD_ADDRESS: ${PALWORLD_ADDRESS:-}
+      # LoL customs: the lol-amis stack, reached over lolamis_net. Empty = feature off.
+      LOLAMIS_URL: ${LOLAMIS_URL-http://lol-amis:8000}
     # Komodo listens on the host, not on any of our networks.
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -38,6 +40,9 @@ services:
       default:
         priority: 100
       palworld:
+        priority: 10
+      # Only to call lol-amis' API; never the default route.
+      lolamis:
         priority: 10
     depends_on:
       db:
@@ -117,4 +122,9 @@ networks:
   # deux regles pour ca.
   palworld:
     name: palworld_net
+    external: true
+  # Created by the lol-amis stack (team-generator/lol-amis/compose.yml), which must be deployed
+  # first: an external network that does not exist stops this whole stack from starting.
+  lolamis:
+    name: lolamis_net
     external: true

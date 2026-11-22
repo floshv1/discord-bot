@@ -21,7 +21,7 @@ def test_help_does_not_advertise_removed_features():
     from bot.cogs.help import embeds
     from bot.cogs.help.cog import FEATURE_TABLES
 
-    assert set(FEATURE_TABLES) == {"currency", "betting", "music", "palworld"}
+    assert set(FEATURE_TABLES) == {"currency", "betting", "music", "palworld", "customs"}
     assert not [k for k, *_ in embeds.CONFIGURABLE if k in REMOVED]
 
 

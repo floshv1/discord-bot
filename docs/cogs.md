@@ -145,6 +145,24 @@ Top 10 members by total seconds. Duration shown as `Xh YYm` (or `Zm` if under on
 
 ---
 
+## Customs Cog (`bot/cogs/customs/`)
+
+LoL 5v5 customs. A signup card replaces the group's poll; **lol-amis** builds the teams and keeps
+players, links, ratings and games. Needs `LOLAMIS_URL` and `/setup customs #channel [@role]`.
+
+| Command | Who | Description |
+|---------|-----|-------------|
+| `/custom lancer heure:21h` | anyone | Opens signup for a fixed time |
+| `/custom lancer creneaux:20h 21h 22h` | anyone | Opens a slot vote (2–5 slots); the first to 10 wins, or the organiser validates one |
+| `/custom lien [membre]` | anyone (mod for `membre`) | Links / relinks a Discord account to a lol-amis player |
+| `/custom corriger partie gagnant` | Manage Messages | Fixes a winner, or retries sending it to lol-amis |
+
+Card buttons: ✋ Je joue / 🚪 Me retirer / ➕ Invité (organiser, player without Discord) /
+⚔️ Générer (organiser, at 10) → teams card: 🔄 Regénérer · 🔁 Échanger (organiser) · 🏆 Bleu/Rouge
+gagne (organiser or mod) · ▶️ Partie suivante · 🏁 Fin de soirée. Over 10 = waiting list, in
+signup order. One open custom per guild; a reminder pings the ten 15 min before; a forgotten
+custom expires 6 h after its time (24 h after creation if it never got one).
+
 ## Birthday Cog (`bot/cogs/birthday/cog.py`)
 
 Members register their birthday once. Two pinned embeds update daily and the bot sends birthday wishes at midnight Paris time.

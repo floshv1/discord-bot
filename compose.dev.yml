@@ -38,6 +38,8 @@ services:
       - LAVALINK_PASSWORD=${LAVALINK_PASSWORD:-youshallnotpass}
       # Presence only — the secret stays on the lavalink service, which does the resolving.
       - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID:-}
+      # LoL customs: off in dev unless pointed at a lol-amis (e.g. http://host.docker.internal:8000).
+      - LOLAMIS_URL=${LOLAMIS_URL:-}
 
   lavalink:
     build:

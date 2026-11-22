@@ -111,6 +111,27 @@ To see which yt-dlp and Deno versions a running image carries (Deno is the JavaS
 yt-dlp needs for YouTube): `docker compose exec lavalink cat /opt/versions.txt`. Background and
 history: [youtube-playback.md](youtube-playback.md).
 
+### LoL customs (lol-amis)
+
+`/custom` builds teams by calling **lol-amis** (`team-generator/lol-amis`, a separate repo), which runs
+as **its own Komodo stack** from that repo's `compose.yml`. Order matters:
+
+1. **Deploy the lol-amis stack first.** It creates the `lolamis_net` network; the bot stack joins
+   it as `external`, and an external network that does not exist stops the *whole* bot stack
+   (music included) from starting.
+2. **Move the data once:** on the PC, lol-amis → Réglages → exporter une sauvegarde; on the server
+   UI (`http://127.0.0.1:8010`, through your usual access to the host) → restaurer. The backup
+   holds the Riot/Anthropic keys — keep the file private and delete it afterwards.
+3. Redeploy the bot. `LOLAMIS_URL` defaults to `http://lol-amis:8000`; set it to an empty value
+   to turn customs off.
+4. In Discord: `/setup customs #salon @rôle`.
+
+lol-amis has **no authentication** and `/api/backup` returns its API keys: its port is published on
+`127.0.0.1` only and must stay that way. If you reach the UI through another address, add it to
+`LOLAMIS_EXTRA_ORIGINS` in the lol-amis stack, or writes are refused (403).
+
+The "import from the League client" button only works where the League client runs (the PC).
+
 ### Auto-deploy (GitOps)
 
 Komodo polls GHCR directly — no webhook, no Tailscale exposure needed.

@@ -16,6 +16,7 @@ from bot.cogs.currency import service as currency_service
 from bot.cogs.currency.cog import CurrencyCog
 from bot.cogs.currency.embeds import build_panel_embed as build_currency_panel_embed
 from bot.cogs.currency.views import CurrencyPanelView
+from bot.cogs.customs import service as customs_service
 from bot.cogs.music import service as music_service
 from bot.cogs.music.cog import MusicCog
 from bot.cogs.music.embeds import build_history_embed, build_idle_embed
@@ -86,6 +87,7 @@ FEATURES: list[tuple[str, str, list[str], str]] = [
     ("Currency", "currency_leaderboard", ["message_id", "panel_message_id", "pnl_message_id"], "/setup currency"),
     ("Music", "music_config", ["now_playing_message_id", "history_message_id"], "/setup music"),
     ("Palworld", "palworld_config", ["panel_message_id"], "/setup palworld"),
+    ("Customs", "customs_config", [], "/setup customs"),
     ("Betting", "betting_config", [], "/setup betting"),
     ("Announcements", "announce_config", [], "/setup announce"),
     ("Reprimand", "reprimand_config", [], "/setup reprimand"),
@@ -443,6 +445,22 @@ class SetupCog(commands.Cog):
             "the history, and why the bot left — now lands there, wherever `/play` is typed.",
             ephemeral=True,
         )
+
+    @setup.command(name="customs", description="Choisir le salon des customs LoL et le rôle à pinger.")
+    @app_commands.describe(channel="Salon où les inscriptions sont postées", role="Rôle pingé à chaque nouvelle custom")
+    @app_commands.default_permissions(manage_guild=True)
+    async def setup_customs(
+        self, interaction: discord.Interaction, channel: discord.TextChannel, role: discord.Role | None = None
+    ) -> None:
+        # Config only: the cards belong to each custom, there is no pinned message to clear.
+        await customs_service.set_config(interaction.guild_id, channel.id, role.id if role else None)
+        lines = [
+            f"✅ Les customs seront postées dans {channel.mention}"
+            + (f", avec un ping {role.mention}." if role else ".")
+        ]
+        if not self.bot.config.lolamis_url:  # type: ignore[attr-defined]
+            lines.append("⚠️ `LOLAMIS_URL` n'est pas défini : `/custom` répondra que la feature est désactivée.")
+        await interaction.response.send_message("\n".join(lines), ephemeral=True)
 
     @setup.command(name="palworld", description="Poster le panneau d'ouverture du serveur Palworld dans un salon.")
     @app_commands.describe(channel="Salon qui hébergera le panneau épinglé")

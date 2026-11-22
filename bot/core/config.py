@@ -43,6 +43,9 @@ class Config:
         # Shown on the card so nobody has to ask for it again. Empty simply omits the line:
         # a tailnet address has no business being a default baked into a public repo.
         self.palworld_address: str | None = self._optional_str_or_none("PALWORLD_ADDRESS")
+        # Customs (LoL 5v5): the lol-amis service on the `lolamis_net` network, e.g.
+        # http://lol-amis:8000. Unset = the feature is absent, not broken.
+        self.lolamis_url: str | None = self._optional_str_or_none("LOLAMIS_URL")
 
     @staticmethod
     def _require_str(key: str) -> str:

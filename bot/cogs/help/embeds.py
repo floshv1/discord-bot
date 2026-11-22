@@ -28,6 +28,15 @@ CONFIGURABLE = [
         ],
     ),
     (
+        "customs",
+        "⚔️ Customs LoL 5v5",
+        [
+            "`/custom lancer heure:21h` — ouvre l'inscription (ou `creneaux:20h 21h 22h` pour voter l'heure)",
+            "Clique **✋ Je joue** sur la carte ; à 10, l'organisateur génère des équipes équilibrées.",
+            "`/custom lien` — relie (ou corrige) ton compte à ton joueur lol-amis",
+        ],
+    ),
+    (
         "palworld",
         "🌴 Serveur Palworld",
         [
