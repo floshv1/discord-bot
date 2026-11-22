@@ -19,6 +19,9 @@ ANSWER = Champion(
     year=2015,
     spells=tuple("pqwer"),
     splash="s",
+    gender="Femme",
+    damage="AP",
+    species=("Humain", "Néant"),
 )
 D = dt.date(2026, 11, 22)
 
@@ -38,31 +41,87 @@ def test_paris_day_changes_at_paris_midnight_not_utc():
 
 
 def test_identical_champion_is_all_green():
-    assert rules.compare(ANSWER, ANSWER) == ["green"] * 6
+    assert rules.compare(ANSWER, ANSWER) == ["green"] * 9
 
 
 @pytest.mark.parametrize(
     ("positions", "expected"), [(("Mid",), "yellow"), (("Top", "Mid"), "green"), (("ADC",), "red")]
 )
 def test_position_set_comparison(positions, expected):
-    assert rules.compare(replace(ANSWER, positions=positions), ANSWER)[0] == expected
+    assert rules.compare(replace(ANSWER, id="B", positions=positions), ANSWER)[0] == expected
 
 
 @pytest.mark.parametrize(
     ("classes", "expected"), [(("Mage", "Tank"), "yellow"), (("Mage", "Assassin"), "green"), (("Tank",), "red")]
 )
 def test_class_set_comparison(classes, expected):
-    assert rules.compare(replace(ANSWER, classes=classes), ANSWER)[1] == expected
+    assert rules.compare(replace(ANSWER, id="B", classes=classes), ANSWER)[1] == expected
 
 
 def test_single_value_clues_have_no_partial():
-    cells = rules.compare(replace(ANSWER, range="Mêlée", resource="Autre", region="Noxus"), ANSWER)
+    cells = rules.compare(replace(ANSWER, id="B", range="Mêlée", resource="Autre", region="Noxus"), ANSWER)
     assert cells[2:5] == ["red", "red", "red"]
 
 
 def test_year_arrow_points_at_the_answer():
-    assert rules.compare(replace(ANSWER, year=2012), ANSWER)[5] == "up"
-    assert rules.compare(replace(ANSWER, year=2020), ANSWER)[5] == "down"
+    assert rules.compare(replace(ANSWER, id="B", year=2012), ANSWER)[-1] == "up"
+    assert rules.compare(replace(ANSWER, id="B", year=2020), ANSWER)[-1] == "down"
+
+
+@pytest.mark.parametrize(
+    ("guess", "answer", "expected"),
+    [
+        ("Ionia", "Ionia", "green"),
+        ("Ionia/Noxus", "Noxus/Ionia", "green"),
+        ("Ionia/Noxus", "Ionia", "yellow"),
+        ("Zaun", "Ionia", "red"),
+    ],
+)
+def test_region_handles_several_regions(guess, answer, expected):
+    cells = rules.compare(replace(ANSWER, id="B", region=guess), replace(ANSWER, region=answer))
+    assert cells[4] == expected
+
+
+def test_gender_is_exact():
+    assert rules.compare(replace(ANSWER, id="B"), ANSWER)[5] == "green"
+    assert rules.compare(replace(ANSWER, id="B", gender="Homme"), ANSWER)[5] == "red"
+
+
+@pytest.mark.parametrize(
+    ("guess", "answer", "expected"),
+    [("AP", "AP", "green"), ("AD", "AP", "red"), ("Hybride", "AP", "yellow"), ("AD", "Hybride", "yellow")],
+)
+def test_damage_hybrid_is_partial(guess, answer, expected):
+    cells = rules.compare(replace(ANSWER, id="B", damage=guess), replace(ANSWER, damage=answer))
+    assert cells[6] == expected
+
+
+@pytest.mark.parametrize(
+    ("species", "expected"), [(("Néant", "Humain"), "green"), (("Humain",), "yellow"), (("Yordle",), "red")]
+)
+def test_species_set_comparison(species, expected):
+    assert rules.compare(replace(ANSWER, id="B", species=species), ANSWER)[7] == expected
+
+
+def test_clues_follow_the_cell_order():
+    assert rules.clues(ANSWER) == [
+        "Mid/Top",
+        "Assassin/Mage",
+        "Distance",
+        "Mana",
+        "Ionia",
+        "Femme",
+        "AP",
+        "Humain/Néant",
+        "2015",
+    ]
+
+
+def test_answer_without_the_new_clues_gets_a_neutral_cell_not_a_false_red():
+    old = replace(ANSWER, gender="", damage="", species=())
+    cells = rules.compare(replace(ANSWER, id="B"), old)
+    assert cells[5:8] == ["none", "none", "none"]
+    assert rules.grid_row(cells[5:8]) == "⬛⬛⬛"
 
 
 def test_grid_row():

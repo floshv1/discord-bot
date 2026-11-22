@@ -305,4 +305,4 @@ async def test_correct_guess_is_all_green_even_if_the_catalog_changed():
     refreshed = replace(AHRI, positions=("Top",), region="Noxus")
     with patch.object(service, "get_pool", return_value=pool):
         out = await service.record_guess(1, DAY, 2, refreshed, AHRI)
-    assert out.won and out.cells == ["green"] * 6
+    assert out.won and out.cells == ["green"] * 9

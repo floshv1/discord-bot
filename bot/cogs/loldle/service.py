@@ -10,12 +10,12 @@ from __future__ import annotations
 import datetime as dt
 import json
 import secrets
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import asyncpg
 
 from bot.cogs.currency import service as currency
-from bot.cogs.loldle import rules
+from bot.cogs.loldle import catalog, rules
 from bot.cogs.loldle.catalog import Champion
 from bot.db.client import get_pool
 
@@ -41,7 +41,12 @@ def _json(value):
 
 def answer_of(day_row) -> Champion:
     """The stored answer, never the catalog: a refreshed file cannot change a day in progress."""
-    return Champion.from_json(_json(day_row["answer"]))
+    answer = Champion.from_json(_json(day_row["answer"]))
+    if not answer.gender:  # stored before gender/damage/species existed: only those are completed
+        current = catalog.load().get(answer.id)
+        if current is not None:
+            answer = replace(answer, gender=current.gender, damage=current.damage, species=current.species)
+    return answer
 
 
 def cells_of(guess_row) -> list[str]:
@@ -64,19 +69,20 @@ async def lock_member(conn, guild_id: int, day: dt.date, user_id: int) -> None:
 
 async def get_config(guild_id: int) -> asyncpg.Record | None:
     return await get_pool().fetchrow(
-        "SELECT channel_id, board_message_id FROM loldle_config WHERE guild_id = $1", guild_id
+        "SELECT channel_id, board_message_id, role_id FROM loldle_config WHERE guild_id = $1", guild_id
     )
 
 
-async def set_config(guild_id: int, channel_id: int, board_message_id: int | None) -> None:
+async def set_config(guild_id: int, channel_id: int, board_message_id: int | None, role_id: int | None = None) -> None:
     await get_pool().execute(
         """
-        INSERT INTO loldle_config (guild_id, channel_id, board_message_id) VALUES ($1, $2, $3)
-        ON CONFLICT (guild_id) DO UPDATE SET channel_id = $2, board_message_id = $3
+        INSERT INTO loldle_config (guild_id, channel_id, board_message_id, role_id) VALUES ($1, $2, $3, $4)
+        ON CONFLICT (guild_id) DO UPDATE SET channel_id = $2, board_message_id = $3, role_id = $4
         """,
         guild_id,
         channel_id,
         board_message_id,
+        role_id,
     )
 
 
@@ -256,6 +262,109 @@ async def buy_hint(guild_id: int, day: dt.date, user_id: int, kind: str) -> BuyO
             conn, guild_id=guild_id, user_id=currency.HOUSE_USER_ID, amount=price, reason="loldle_hint"
         )
         return BuyOutcome("bought", new_balance)
+
+
+# --- daily posts ----------------------------------------------------------
+
+
+async def claim_recap(guild_id: int, day: dt.date) -> str | None:
+    """Claim the day's recap: `send`, `seed`, or None when already claimed.
+
+    The guild's very first claim only seeds (and stamps the ping too): deploying or running
+    /setup at 3pm must not announce a reset that did not just happen.
+    """
+    row = await get_pool().fetchrow(
+        """
+        UPDATE loldle_days d
+        SET recap_at = NOW(), ping_at = CASE WHEN s.seeding THEN NOW() ELSE d.ping_at END
+        FROM (
+            SELECT NOT EXISTS (SELECT 1 FROM loldle_days WHERE guild_id = $1 AND recap_at IS NOT NULL) AS seeding
+        ) s
+        WHERE d.guild_id = $1 AND d.day = $2::date AND d.recap_at IS NULL
+        RETURNING s.seeding
+        """,
+        guild_id,
+        day,
+    )
+    if row is None:
+        return None
+    return "seed" if row["seeding"] else "send"
+
+
+async def release_recap(guild_id: int, day: dt.date) -> None:
+    await get_pool().execute(
+        "UPDATE loldle_days SET recap_at = NULL WHERE guild_id = $1 AND day = $2::date", guild_id, day
+    )
+
+
+async def claim_ping(guild_id: int, day: dt.date) -> bool:
+    row = await get_pool().fetchval(
+        """
+        UPDATE loldle_days SET ping_at = NOW()
+        WHERE guild_id = $1 AND day = $2::date AND ping_at IS NULL AND recap_at IS NOT NULL
+        RETURNING day
+        """,
+        guild_id,
+        day,
+    )
+    return row is not None
+
+
+async def release_ping(guild_id: int, day: dt.date) -> None:
+    await get_pool().execute(
+        "UPDATE loldle_days SET ping_at = NULL WHERE guild_id = $1 AND day = $2::date", guild_id, day
+    )
+
+
+async def set_ping_message(guild_id: int, day: dt.date, message_id: int | None) -> None:
+    await get_pool().execute(
+        "UPDATE loldle_days SET ping_message_id = $3 WHERE guild_id = $1 AND day = $2::date",
+        guild_id,
+        day,
+        message_id,
+    )
+
+
+async def previous_ping(guild_id: int, day: dt.date) -> tuple[dt.date, int] | None:
+    row = await get_pool().fetchrow(
+        """
+        SELECT day, ping_message_id FROM loldle_days
+        WHERE guild_id = $1 AND day < $2::date AND ping_message_id IS NOT NULL
+        ORDER BY day DESC LIMIT 1
+        """,
+        guild_id,
+        day,
+    )
+    return (row["day"], row["ping_message_id"]) if row else None
+
+
+async def day_results(guild_id: int, day: dt.date) -> list[asyncpg.Record]:
+    return await get_pool().fetch(
+        """
+        SELECT user_id, tries, hints, score FROM loldle_results
+        WHERE guild_id = $1 AND day = $2::date
+        ORDER BY score, solved_at, user_id
+        """,
+        guild_id,
+        day,
+    )
+
+
+async def day_dnf(guild_id: int, day: dt.date) -> list[int]:
+    rows = await get_pool().fetch(
+        """
+        SELECT DISTINCT g.user_id FROM loldle_guesses g
+        WHERE g.guild_id = $1 AND g.day = $2::date
+          AND NOT EXISTS (
+              SELECT 1 FROM loldle_results r
+              WHERE r.guild_id = g.guild_id AND r.day = g.day AND r.user_id = g.user_id
+          )
+        ORDER BY g.user_id
+        """,
+        guild_id,
+        day,
+    )
+    return [r["user_id"] for r in rows]
 
 
 # --- streaks and board ----------------------------------------------------

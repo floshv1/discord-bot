@@ -16,8 +16,10 @@ HINTS: dict[str, int] = {"spell": 25, "splash": 50, "letter": 100}  # in purchas
 FULL_DAY_MINUTES = 1200  # below this the bot was down long enough to excuse the day
 BOARD_DAYS = 30
 BOARD_MIN_SOLVED = 5
+PING_FROM_HOUR, PING_UNTIL_HOUR = 9, 21  # a late catch-up must never ping at night
 
-EMOJI = {"green": "🟩", "yellow": "🟨", "red": "🟥", "up": "⬆️", "down": "⬇️"}
+EMOJI = {"green": "🟩", "yellow": "🟨", "red": "🟥", "up": "⬆️", "down": "⬇️", "none": "⬛"}
+COLUMN_COUNT = 9
 
 
 @dataclass(frozen=True)
@@ -30,32 +32,54 @@ def paris_day(now: dt.datetime) -> dt.date:
     return now.astimezone(PARIS).date()
 
 
+def in_ping_window(now: dt.datetime) -> bool:
+    return PING_FROM_HOUR <= now.astimezone(PARIS).hour < PING_UNTIL_HOUR
+
+
 def _sets(a: tuple[str, ...], b: tuple[str, ...]) -> str:
     x, y = set(a), set(b)
     return "green" if x == y else "yellow" if x & y else "red"
 
 
+def _damage(guess: str, answer: str) -> str:
+    if guess == answer:
+        return "green"
+    return "yellow" if "Hybride" in (guess, answer) else "red"
+
+
 def compare(guess: Champion, answer: Champion) -> list[str]:
-    """Six cells: position, class, range, resource, region, year (the arrow points at the answer)."""
+    """Nine cells: position, class, range, resource, region, gender, damage, species, year.
+
+    The year's arrow points at the answer. `none` is a clue the stored answer does not have (a day
+    started before the column existed and whose champion left the catalog): never a false red.
+    """
+    if guess.id == answer.id:
+        return ["green"] * COLUMN_COUNT
     year = "green" if guess.year == answer.year else "up" if answer.year > guess.year else "down"
     return [
         _sets(guess.positions, answer.positions),
         _sets(guess.classes, answer.classes),
         "green" if guess.range == answer.range else "red",
         "green" if guess.resource == answer.resource else "red",
-        "green" if guess.region == answer.region else "red",
+        _sets(tuple(guess.region.split("/")), tuple(answer.region.split("/"))),  # some have several
+        ("green" if guess.gender == answer.gender else "red") if answer.gender else "none",
+        _damage(guess.damage, answer.damage) if answer.damage else "none",
+        _sets(guess.species, answer.species) if answer.species else "none",
         year,
     ]
 
 
 def clues(champion: Champion) -> list[str]:
-    """The six values as displayed, stored with each guess so a data refresh can't rewrite it."""
+    """The nine values as displayed, stored with each guess so a data refresh can't rewrite it."""
     return [
         "/".join(champion.positions),
         "/".join(champion.classes),
         champion.range,
         champion.resource,
         champion.region,
+        champion.gender or "?",
+        champion.damage or "?",
+        "/".join(champion.species) or "?",
         str(champion.year),
     ]
 

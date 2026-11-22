@@ -23,6 +23,10 @@ class Champion:
     year: int
     spells: tuple[str, ...]
     splash: str
+    # Empty only on an answer stored before these clues existed.
+    gender: str = ""
+    damage: str = ""
+    species: tuple[str, ...] = ()
 
     def to_json(self) -> dict:
         return asdict(self)
@@ -40,6 +44,9 @@ class Champion:
             year=int(d["year"]),
             spells=tuple(d["spells"]),
             splash=d["splash"],
+            gender=d.get("gender", ""),
+            damage=d.get("damage", ""),
+            species=tuple(d.get("species", ())),
         )
 
 

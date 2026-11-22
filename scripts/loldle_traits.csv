@@ -1,0 +1,174 @@
+id;genre;degats;especes;positions;regions;annee
+Aatrox;Homme;AD;Darkin;Top;Runeterra;2013
+Ahri;Femme;AP;Vastayan;Middle;Ionia;2012
+Akali;Femme;AP;Human;Middle, Top;Ionia;2010
+Akshan;Homme;AD;Human;Middle;Shurima;2021
+Alistar;Homme;AP;Minotaur;Support;Runeterra;2009
+Ambessa;Femme;AD;Human;Top;Noxus;2024
+Amumu;Homme;AP;Mummy;Jungle, Support;Shurima;2009
+Anivia;Femme;AP;Spirit;Middle;Freljord;2009
+Annie;Femme;AP;Human;Middle, Support;Noxus;2009
+Aphelios;Homme;AD;Human;Bottom;Targon;2019
+Ashe;Femme;AD;Human, Iceborn;Bottom, Support;Freljord;2009
+AurelionSol;Homme;AP;Celestial, Dragon;Middle;Targon;2016
+Aurora;Femme;AP;Vastayan;Top, Middle;Freljord;2024
+Azir;Homme;AP;Ascended;Middle;Shurima;2014
+Bard;Autre;AP;Celestial;Support;Runeterra;2015
+Belveth;Femme;AD;Void;Jungle;Void;2022
+Blitzcrank;Autre;AP;Golem;Support;Zaun;2009
+Brand;Homme;AP;Demon;Support, Middle;Freljord;2011
+Braum;Homme;AP;Human;Support;Freljord;2014
+Briar;Femme;AD;Demon;Jungle;Noxus;2023
+Caitlyn;Femme;AD;Human;Bottom;Piltover;2011
+Camille;Femme;AD;Human;Top;Piltover;2016
+Cassiopeia;Femme;AP;Human;Middle;Noxus;2010
+Chogath;Homme;AP;Void;Top, Support;Void;2009
+Corki;Homme;Hybride;Yordle;Middle;Bandle City, Piltover;2009
+Darius;Homme;AD;Human;Top;Noxus;2012
+Diana;Femme;AP;Human, Ascended;Jungle, Middle;Targon;2012
+DrMundo;Homme;Hybride;Human;Top, Jungle;Zaun;2009
+Draven;Homme;AD;Human;Bottom;Noxus;2012
+Ekko;Homme;AP;Human;Jungle, Middle;Zaun;2015
+Elise;Femme;AP;Human, Demon;Jungle;Noxus, Shadow Isles;2012
+Evelynn;Femme;AP;Demon;Jungle;Runeterra;2009
+Ezreal;Homme;AD;Human;Bottom;Piltover;2010
+Fiddlesticks;Autre;AP;Demon;Jungle, Support;Runeterra;2009
+Fiora;Femme;AD;Human;Top;Demacia;2012
+Fizz;Homme;AP;Vastayan;Middle;Bilgewater;2012
+Galio;Homme;AP;Golem;Middle, Support;Demacia;2010
+Gangplank;Homme;AD;Human;Top;Bilgewater;2009
+Garen;Homme;AD;Human;Top;Demacia;2010
+Gnar;Homme;AD;Yordle;Top;Freljord;2014
+Gragas;Homme;AP;Human;Top, Jungle, Middle, Support;Freljord;2010
+Graves;Homme;AD;Human;Jungle;Bilgewater;2011
+Gwen;Femme;AP;Spirit;Top;Shadow Isles;2021
+Hecarim;Homme;AD;Undead;Jungle;Shadow Isles;2012
+Heimerdinger;Homme;AP;Yordle;Top, Middle, Support;Piltover;2009
+Hwei;Homme;AP;Human;Middle;Ionia;2023
+Illaoi;Femme;AD;Human;Top;Bilgewater;2015
+Irelia;Femme;AD;Human;Top, Middle;Ionia;2010
+Ivern;Homme;AP;Spirit;Jungle;Ionia;2016
+Janna;Femme;AP;Spirit;Support;Zaun;2009
+JarvanIV;Homme;AD;Human;Jungle, Top;Demacia;2011
+Jax;Homme;Hybride;Human;Top, Jungle;Runeterra;2009
+Jayce;Homme;AD;Human;Top, Middle;Piltover;2012
+Jhin;Homme;AD;Human;Bottom;Ionia;2016
+Jinx;Femme;AD;Human;Bottom;Zaun;2013
+KSante;Homme;AD;Human;Top;Shurima;2022
+Kaisa;Femme;Hybride;Human, Void;Bottom;Shurima, Void;2018
+Kalista;Femme;AD;Undead;Bottom;Shadow Isles;2014
+Karma;Femme;AP;Human;Support, Middle, Top;Ionia;2011
+Karthus;Homme;AP;Undead;Jungle, Middle;Shadow Isles;2009
+Kassadin;Homme;AP;Human, Void;Middle;Void, Shurima;2009
+Katarina;Femme;AP;Human;Middle;Noxus;2009
+Kayle;Femme;Hybride;Celestial, Human;Top;Targon, Demacia;2009
+Kayn;Homme;AD;Human, Darkin;Jungle;Ionia;2017
+Kennen;Homme;AP;Yordle;Top;Ionia;2010
+Khazix;Homme;AD;Void;Jungle;Void;2012
+Kindred;Autre;AD;Spirit;Jungle;Runeterra;2015
+Kled;Homme;AD;Yordle;Top;Noxus;2016
+KogMaw;Homme;Hybride;Void;Bottom;Void;2010
+Leblanc;Femme;AP;Human;Middle;Noxus;2010
+LeeSin;Homme;AD;Human;Jungle;Ionia;2011
+Leona;Femme;AP;Human, Ascended;Support;Targon;2011
+Lillia;Femme;AP;Spirit;Jungle, Top;Ionia;2020
+Lissandra;Femme;AP;Human, Iceborn;Middle;Freljord;2013
+Locke;Homme;AP;Human;Middle;Demacia;2026
+Lucian;Homme;AD;Human;Bottom, Middle;Demacia;2013
+Lulu;Femme;AP;Yordle;Support, Top;Bandle City, Ionia;2012
+Lux;Femme;AP;Human;Middle, Support;Demacia;2010
+Malphite;Homme;AP;Golem;Top, Support;Ixtal;2009
+Malzahar;Homme;AP;Human, Void;Middle;Void, Shurima;2010
+Maokai;Homme;AP;Spirit;Support, Top, Jungle;Shadow Isles;2011
+MasterYi;Homme;AD;Human;Jungle;Ionia;2009
+Mel;Femme;AP;Human;Middle;Noxus;2025
+Milio;Homme;AP;Human;Support;Ixtal;2023
+MissFortune;Femme;AD;Human;Bottom;Bilgewater;2010
+MonkeyKing;Homme;AD;Vastayan;Top, Jungle;Ionia;2011
+Mordekaiser;Homme;AP;Undead;Top;Noxus;2010
+Morgana;Femme;AP;Celestial, Human;Support, Middle;Targon, Demacia;2009
+Naafiri;Femme;AD;Darkin;Middle;Shurima;2023
+Nami;Femme;AP;Vastayan;Support;Bilgewater;2012
+Nasus;Homme;AD;Ascended;Top;Shurima;2009
+Nautilus;Homme;AP;Human;Support;Bilgewater;2012
+Neeko;Femme;AP;Vastayan;Middle, Support;Ixtal;2018
+Nidalee;Femme;AP;Human, Vastayan;Jungle;Ixtal;2010
+Nilah;Femme;AD;Human, Demon;Bottom;Runeterra;2022
+Nocturne;Autre;AD;Demon;Jungle;Runeterra;2011
+Nunu;Homme;AP;Human, Troll;Jungle;Freljord;2009
+Olaf;Homme;AD;Human;Jungle, Top;Freljord;2010
+Orianna;Femme;AP;Human, Golem;Middle;Piltover;2012
+Ornn;Homme;AP;Demi-God;Top;Freljord;2017
+Pantheon;Homme;AD;Human, Celestial;Top, Support, Middle;Targon;2010
+Poppy;Femme;AD;Yordle;Top, Jungle, Support;Demacia;2010
+Pyke;Homme;AD;Undead;Support;Bilgewater;2018
+Qiyana;Femme;AD;Human;Middle;Ixtal;2019
+Quinn;Femme;AD;Human;Top;Demacia;2013
+Rakan;Homme;AP;Vastayan;Support;Ionia;2017
+Rammus;Homme;AP;Ascended;Jungle;Shurima;2009
+RekSai;Femme;AD;Void;Jungle;Void;2014
+Rell;Femme;AP;Human;Support;Noxus;2020
+Renata;Femme;AP;Human;Support;Zaun;2022
+Renekton;Homme;AD;Ascended;Top;Shurima;2011
+Rengar;Homme;AD;Vastayan;Jungle;Ixtal;2012
+Riven;Femme;AD;Human;Top;Noxus;2012
+Rumble;Homme;AP;Yordle;Top, Jungle;Bandle City;2011
+Ryze;Homme;AP;Human;Middle;Runeterra;2009
+Samira;Femme;AD;Human;Bottom;Noxus;2020
+Sejuani;Femme;AP;Human;Jungle;Freljord;2012
+Senna;Femme;AD;Human, Undead;Support, Bottom;Demacia, Shadow Isles;2019
+Seraphine;Femme;AP;Human;Middle, Support;Piltover;2020
+Sett;Homme;AD;Human, Vastayan;Top, Support;Ionia;2020
+Shaco;Homme;Hybride;Demon;Jungle;Runeterra;2009
+Shen;Homme;AP;Human;Top;Ionia;2010
+Shyvana;Femme;Hybride;Dragon, Human;Jungle;Demacia;2011
+Singed;Homme;AP;Human;Top;Zaun;2009
+Sion;Homme;AD;Undead;Top;Noxus;2009
+Sivir;Femme;AD;Human;Bottom;Shurima;2009
+Skarner;Homme;AD;Brackern;Jungle;Shurima;2011
+Smolder;Homme;AD;Dragon;Bottom;Runeterra;2024
+Sona;Femme;AP;Human;Support;Demacia, Ionia;2010
+Soraka;Femme;AP;Celestial;Support;Targon;2009
+Swain;Homme;AP;Human, Demon;Middle, Support, Top;Noxus;2010
+Sylas;Homme;AP;Human;Middle, Jungle;Demacia;2019
+Syndra;Femme;AP;Human;Middle;Ionia;2012
+TahmKench;Homme;AP;Demon;Support, Top;Runeterra;2015
+Taliyah;Femme;AP;Human;Jungle, Middle;Shurima;2016
+Talon;Homme;AD;Human;Middle, Jungle;Noxus;2011
+Taric;Homme;AP;Human, Celestial;Support;Targon, Demacia;2009
+Teemo;Homme;AP;Yordle;Top;Bandle City;2009
+Thresh;Homme;AP;Undead, Demon;Support;Shadow Isles;2013
+Tristana;Femme;AD;Yordle;Bottom;Bandle City;2009
+Trundle;Homme;AD;Troll;Jungle, Top, Support;Freljord;2010
+Tryndamere;Homme;AD;Human;Top;Freljord;2009
+TwistedFate;Homme;AP;Human;Middle;Bilgewater;2009
+Twitch;Homme;AD;Vastayan;Bottom;Zaun;2009
+Udyr;Homme;Hybride;Human;Jungle;Freljord;2009
+Urgot;Homme;AD;Human;Top;Zaun, Noxus;2010
+Varus;Homme;AD;Darkin, Human;Bottom, Middle;Ionia;2012
+Vayne;Femme;AD;Human;Bottom, Top;Demacia;2011
+Veigar;Homme;AP;Yordle;Middle, Support;Bandle City;2009
+Velkoz;Autre;AP;Void;Support, Middle;Void;2014
+Vex;Femme;AP;Yordle;Middle;Shadow Isles, Bandle City;2021
+Vi;Femme;AD;Human;Jungle;Piltover, Zaun;2012
+Viego;Homme;AD;Undead;Jungle;Shadow Isles, Camavor;2021
+Viktor;Homme;AP;Human;Middle;Zaun;2011
+Vladimir;Homme;AP;Human;Top, Middle;Noxus;2010
+Volibear;Homme;Hybride;Demi-God;Top, Jungle;Freljord;2012
+Warwick;Homme;AD;Werewolf;Jungle, Top;Zaun;2009
+Xayah;Femme;AD;Vastayan;Bottom;Ionia;2017
+Xerath;Homme;AP;Ascended;Support, Middle;Shurima;2012
+XinZhao;Homme;AD;Human;Jungle;Demacia;2010
+Yasuo;Homme;AD;Human;Middle, Bottom;Ionia;2013
+Yone;Homme;AD;Human, Demon;Middle, Top;Ionia;2020
+Yorick;Homme;AD;Human;Top;Shadow Isles;2011
+Yunara;Femme;AD;Human;Bottom;Ionia;2025
+Yuumi;Femme;AP;Vastayan;Support;Bandle City;2019
+Zaahen;Homme;AD;Darkin;Top, Jungle;Runeterra;2025
+Zac;Homme;AP;Golem;Jungle, Top;Zaun;2013
+Zed;Homme;AD;Human;Middle, Jungle;Ionia;2012
+Zeri;Femme;AD;Human;Bottom;Zaun;2022
+Ziggs;Homme;AP;Yordle;Middle, Bottom;Zaun, Piltover;2012
+Zilean;Homme;AP;Human;Support;Runeterra;2009
+Zoe;Femme;AP;Celestial;Middle;Targon;2017
+Zyra;Femme;AP;Spirit;Support, Middle;Ixtal;2012

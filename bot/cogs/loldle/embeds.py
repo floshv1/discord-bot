@@ -13,8 +13,11 @@ from bot.cogs.loldle.catalog import Champion
 COLOR = discord.Color.gold()
 MAX_PRIVATE_ROWS = 15
 MAX_PUBLIC_ROWS = 8
+MAX_RECAP_ROWS = 20
+MAX_RECAP_DNF = 15
+MEDALS = ("🥇", "🥈", "🥉")
 LEGEND = "🟩 exact · 🟨 partiel · 🟥 faux · ⬆️⬇️ sorti plus tard / plus tôt"
-COLUMNS = "Position · Classe · Portée · Ressource · Région · Année"
+COLUMNS = "Position · Classe · Portée · Ressource · Région · Genre · Dégâts · Espèce · Année"
 
 
 def _row(guess: Mapping) -> str:
@@ -75,3 +78,28 @@ def build_board_embed(
     if best:
         embed.add_field(name="Meilleures séries", value=" · ".join(f"<@{u}> 🔥 {n}" for n, u in best), inline=False)
     return embed
+
+
+def build_recap_embed(
+    yesterday: str | None, results: Sequence[Mapping], dnf: Sequence[int], streaks: Mapping[int, int]
+) -> discord.Embed:
+    """The midnight message. Names yesterday's champion only, and only if someone played it."""
+    body = ["Joue avec `/loldle`."]
+    if yesterday and (results or dnf):
+        found = f"{len(results)} {'ont trouvé' if len(results) > 1 else 'a trouvé'}"
+        missed = f" · {len(dnf)} DNF" if dnf else ""
+        body += ["", f"Hier, c'était **{yesterday}** · {found}{missed}", ""]
+        for rank, r in enumerate(results[:MAX_RECAP_ROWS], 1):
+            place = MEDALS[rank - 1] if rank <= len(MEDALS) else f"{rank}."
+            tries = f"{r['tries']} essai{'s' if r['tries'] > 1 else ''}"
+            bulbs = f" + {'💡' * r['hints']}" if r["hints"] else ""
+            count = streaks.get(r["user_id"], 0)
+            flame = f" · 🔥 {count}" if count > 1 else ""
+            body.append(f"{place} <@{r['user_id']}> {tries}{bulbs}{flame}")
+        if len(results) > MAX_RECAP_ROWS:
+            body.append(f"*… +{len(results) - MAX_RECAP_ROWS} autres*")
+        if dnf:
+            names = " ".join(f"<@{u}>" for u in dnf[:MAX_RECAP_DNF])
+            more = f" *+{len(dnf) - MAX_RECAP_DNF}*" if len(dnf) > MAX_RECAP_DNF else ""
+            body += ["", f"DNF : {names}{more}"]
+    return discord.Embed(title="🎯 Nouveau LoLdle disponible !", description="\n".join(body), color=COLOR)

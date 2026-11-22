@@ -11,6 +11,7 @@ from discord import app_commands
 from discord.ext import commands, tasks
 from loguru import logger
 
+from bot.cogs.announce.service import allowed_mentions_for, ping_content
 from bot.cogs.currency.leaderboard import mark_dirty as mark_coins_dirty
 from bot.cogs.loldle import catalog, embeds, hints, rules, service
 from bot.cogs.loldle.views import GameView
@@ -169,6 +170,72 @@ class LoldleCog(commands.Cog):
         message = channel.get_partial_message(config["board_message_id"])
         await edit_if_changed(message, label="LoLdle", embed=await self.render_board(guild_id))
 
+    # --- midnight recap and 09:00 ping -------------------------------------
+
+    async def _daily_posts(self, guild_id: int, now: dt.datetime, day: dt.date) -> None:
+        config = await service.get_config(guild_id)
+        channel = self.bot.get_channel(config["channel_id"]) if config else None
+        if channel is None:
+            return
+        await self._post_recap(channel, guild_id, day)
+        if rules.in_ping_window(now):
+            await self._post_ping(channel, guild_id, day, config["role_id"])
+
+    async def _post_recap(self, channel, guild_id: int, day: dt.date) -> None:
+        if await service.claim_recap(guild_id, day) != "send":
+            return
+        try:
+            yesterday = day - dt.timedelta(days=1)
+            row = await service.day_row(guild_id, yesterday)
+            results = await service.day_results(guild_id, yesterday)
+            dnf = await service.day_dnf(guild_id, yesterday)
+            days = await service.all_days(guild_id)
+            solved = await service.solved_by_user(guild_id)
+            streaks = {r["user_id"]: rules.streak(days, solved.get(r["user_id"], set()), yesterday) for r in results}
+            name = service.answer_of(row).name if row else None
+            await channel.send(
+                embed=embeds.build_recap_embed(name, results, dnf, streaks),
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+        except discord.Forbidden:  # retrying every minute would change nothing
+            logger.warning(f"LoLdle: no permission to post the recap in {channel.id}")
+        except Exception:
+            logger.exception("LoLdle: recap failed, retrying next minute")
+            await service.release_recap(guild_id, day)
+
+    async def _post_ping(self, channel, guild_id: int, day: dt.date, role_id: int | None) -> None:
+        # Claimed even with no role, so a role added later today doesn't ping in the afternoon.
+        if not await service.claim_ping(guild_id, day):
+            return
+        guild = self.bot.get_guild(guild_id)
+        role = guild.get_role(role_id) if guild and role_id else None
+        if role is None:
+            return
+        try:
+            message = await channel.send(
+                f"{ping_content(role)} 🎯 Le LoLdle du jour t'attend : `/loldle`",
+                allowed_mentions=allowed_mentions_for(role),
+            )
+        except discord.Forbidden:
+            logger.warning(f"LoLdle: no permission to ping in {channel.id}")
+            return
+        except Exception:
+            logger.exception("LoLdle: ping failed, retrying next minute")
+            await service.release_ping(guild_id, day)
+            return
+        await service.set_ping_message(guild_id, day, message.id)
+        previous = await service.previous_ping(guild_id, day)
+        if previous is None:
+            return
+        old_day, old_id = previous
+        try:
+            await channel.get_partial_message(old_id).delete()
+        except discord.NotFound:
+            pass
+        except discord.HTTPException as exc:
+            logger.warning(f"LoLdle: could not delete the previous ping: {exc.status}")
+        await service.set_ping_message(guild_id, old_day, None)
+
     @tasks.loop(minutes=1)
     async def minute_ticker(self) -> None:
         """Counts uptime and redraws the board. Each step guards itself: this body never raises."""
@@ -183,6 +250,10 @@ class LoldleCog(commands.Cog):
                 await service.tick_day(guild_id, day, catalog.load())
             except Exception:
                 logger.exception("LoLdle: uptime tick failed")
+        try:
+            await self._daily_posts(guild_id, now, day)
+        except Exception:
+            logger.exception("LoLdle: daily posts failed")
         # Every tick, not off a flag: edit_if_changed skips identical renders and swallows HTTP
         # errors, so a one-shot flag would lose the midnight redraw on a single Discord 503.
         try:

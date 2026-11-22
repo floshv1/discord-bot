@@ -91,3 +91,19 @@ async def test_every_date_parameter_is_typed(conn):
     conn.fetch.return_value = []
     await service.board_rows(1, DAY)
     assert "$2::date" in conn.fetch.await_args.args[0]
+
+
+def test_a_day_stored_before_the_new_clues_is_completed_from_the_catalog():
+    stored = catalog.load()["Ahri"].to_json()
+    for key in ("gender", "damage", "species"):
+        del stored[key]
+    answer = service.answer_of({"answer": stored})
+    assert answer == catalog.load()["Ahri"]
+
+
+def test_old_answer_no_longer_in_the_catalog_still_loads():
+    stored = catalog.load()["Ahri"].to_json() | {"id": "Removed", "name": "Removed"}
+    for key in ("gender", "damage", "species"):
+        del stored[key]
+    answer = service.answer_of({"answer": stored})
+    assert answer.id == "Removed" and answer.gender == "" and answer.species == ()
