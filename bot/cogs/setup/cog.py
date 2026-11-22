@@ -25,10 +25,6 @@ from bot.cogs.palworld.cog import PalworldCog
 from bot.cogs.palworld.embeds import build_panel_embed as build_palworld_panel_embed
 from bot.cogs.palworld.service import ServerStatus, Status
 from bot.cogs.palworld.views import PalworldPanelView
-from bot.cogs.queue import service as queue_service
-from bot.cogs.queue.embeds import build_panel_embed
-from bot.cogs.queue.views import PanelView
-from bot.cogs.suggestions.cog import SetupView
 from bot.cogs.voice.cog import VoiceCog
 from bot.core.discord_utils import pin
 from bot.db.client import get_pool
@@ -88,8 +84,6 @@ FEATURES: list[tuple[str, str, list[str], str]] = [
     ("Voice leaderboard", "voice_leaderboard", ["weekly_message_id", "alltime_message_id"], "/setup voice"),
     ("Birthdays", "birthday_config", ["upcoming_message_id", "month_message_id"], "/setup birthday"),
     ("Currency", "currency_leaderboard", ["message_id", "panel_message_id", "pnl_message_id"], "/setup currency"),
-    ("Queue", "queue_config", ["panel_message_id"], "/setup queue"),
-    ("Suggestions", "suggestion_config", ["message_id"], "/setup suggestions"),
     ("Music", "music_config", ["now_playing_message_id", "history_message_id"], "/setup music"),
     ("Palworld", "palworld_config", ["panel_message_id"], "/setup palworld"),
     ("Betting", "betting_config", [], "/setup betting"),
@@ -268,42 +262,10 @@ class SetupCog(commands.Cog):
             ephemeral=True,
         )
 
-    @setup.command(name="suggestions", description="Post the suggestion entry-point message in a channel.")
-    @app_commands.describe(channel="Channel where suggestions will be collected")
-    @app_commands.default_permissions(manage_channels=True)
-    async def setup_suggestions(self, interaction: discord.Interaction, channel: discord.TextChannel) -> None:
-        await interaction.response.defer(ephemeral=True)
-        await _clear_previous(self.bot, interaction.guild_id, "suggestion_config", ["message_id"])
-        embed = discord.Embed(
-            title="💡 Suggestions",
-            description=(
-                "Have an idea to make the server better?\n\n"
-                "✨ **New Feature** — suggest something brand new\n"
-                "🔧 **Improvement** — improve an existing feature"
-            ),
-            color=discord.Color.blurple(),
-        )
-        view = SetupView()
-        msg = await channel.send(embed=embed, view=view)
-        await pin(msg)
-        pool = get_pool()
-        await pool.execute(
-            """
-            INSERT INTO suggestion_config (guild_id, channel_id, message_id)
-            VALUES ($1, $2, $3)
-            ON CONFLICT (guild_id) DO UPDATE SET channel_id = $2, message_id = $3
-            """,
-            interaction.guild_id,
-            channel.id,
-            msg.id,
-        )
-        await interaction.followup.send(f"Suggestion channel set to {channel.mention}!", ephemeral=True)
-
-    @setup.command(name="reprimand", description="Configure the Ennemi Public role, the goulag channel, and the jury.")
+    @setup.command(name="reprimand", description="Configure the Ennemi Public role and the goulag channel.")
     @app_commands.describe(
         role="Role applied to reprimanded members",
-        channel="Channel they're restricted to — this is also where trials are held",
-        judge_role="Role allowed to vote guilty / not guilty. Omit for no tribunal at all.",
+        channel="Channel they're restricted to",
     )
     @app_commands.default_permissions(manage_guild=True)
     async def setup_reprimand(
@@ -311,34 +273,21 @@ class SetupCog(commands.Cog):
         interaction: discord.Interaction,
         role: discord.Role,
         channel: discord.TextChannel,
-        judge_role: discord.Role | None = None,
     ) -> None:
         pool = get_pool()
         await pool.execute(
             """
-            INSERT INTO reprimand_config (guild_id, role_id, channel_id, judge_role_id)
-            VALUES ($1, $2, $3, $4)
-            ON CONFLICT (guild_id) DO UPDATE SET role_id = $2, channel_id = $3, judge_role_id = $4
+            INSERT INTO reprimand_config (guild_id, role_id, channel_id)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (guild_id) DO UPDATE SET role_id = $2, channel_id = $3
             """,
             interaction.guild_id,
             role.id,
             channel.id,
-            judge_role.id if judge_role else None,
         )
-
-        lines = [f"✅ Réprimande configurée : rôle {role.mention}, salon {channel.mention}."]
-        if judge_role:
-            lines += [
-                f"⚖️ **Tribunal actif** — le jury est {judge_role.mention}.",
-                "",
-                f"⚠️ Vérifie que {role.mention} peut **voir** {channel.mention}. Un accusé qui ne voit pas "
-                "sa carte ne peut jamais cliquer sur « Plaider ma cause » — et sans plaidoyer, le jury ne "
-                "vote pas. Le droit d'écrire, lui, n'est pas nécessaire : les boutons suffisent.",
-            ]
-        else:
-            lines.append("ℹ️ Aucun rôle de juge : pas de tribunal, `/reprimand` reste une sanction simple.")
-
-        await interaction.response.send_message("\n".join(lines), ephemeral=True)
+        await interaction.response.send_message(
+            f"✅ Réprimande configurée : rôle {role.mention}, salon {channel.mention}.", ephemeral=True
+        )
 
     @setup.command(name="currency", description="Post the FloshCoins panel + leaderboard, and fund every member.")
     @app_commands.describe(channel="Channel that will host the panel and pinned leaderboard")
@@ -529,20 +478,6 @@ class SetupCog(commands.Cog):
             "seuls les admins peuvent l'**arrêter**, et il s'éteint tout seul quand plus personne n'est en ligne.",
             ephemeral=True,
         )
-
-    @setup.command(name="queue", description="Post the game-queue control panel in a channel.")
-    @app_commands.describe(channel="Channel that will host the queue panel and queue cards")
-    @app_commands.default_permissions(manage_channels=True)
-    async def setup_queue(self, interaction: discord.Interaction, channel: discord.TextChannel) -> None:
-        await interaction.response.defer(ephemeral=True)
-        await _clear_previous(self.bot, interaction.guild_id, "queue_config", ["panel_message_id"])
-        presets = await queue_service.list_presets(interaction.guild_id)
-        view = PanelView(presets)
-        msg = await channel.send(embed=build_panel_embed(), view=view)
-        await pin(msg)
-        self.bot.add_view(view)
-        await queue_service.set_queue_config(interaction.guild_id, channel.id, msg.id)
-        await interaction.followup.send(f"Queue panel posted in {channel.mention}!", ephemeral=True)
 
 
 async def setup(bot: commands.Bot) -> None:

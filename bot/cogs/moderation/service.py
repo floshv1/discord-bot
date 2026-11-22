@@ -59,9 +59,7 @@ async def deactivate_reprimand(reprimand_id: int) -> None:
 async def lift_reprimand(member: discord.Member, original_nick: str | None) -> None:
     """Take the Ennemi Public role back off a member and restore their nickname.
 
-    Lives here rather than on the cog because three callers need it: /pardon, the expiry
-    ticker, and the tribunal acquitting someone. Reaching into the cog from the tribunal
-    would make the import cycle unavoidable.
+    Shared by /pardon and the expiry ticker.
     """
     config = await get_pool().fetchrow("SELECT role_id FROM reprimand_config WHERE guild_id = $1", member.guild.id)
     if config:

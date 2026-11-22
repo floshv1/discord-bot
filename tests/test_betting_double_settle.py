@@ -2,7 +2,7 @@
 
 Without this, two /bet resolve calls a second apart (double click, two clients, a mod racing
 the ticker) both pass a stale status check and both pay out — winners paid twice, minted out
-of thin air. The fix mirrors the tribunal's claim_verdict: the first statement of the
+of thin air. The fix: the first statement of the
 transaction is the claim, and the loser of the race gets zero rows back and must stand down
 before touching a single coin.
 """

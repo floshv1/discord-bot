@@ -832,8 +832,7 @@ async def resolve_market(market_id: int, winner: str) -> bool:
     calls a second apart (double click, two clients, a mod racing the ticker) both take
     `FOR UPDATE`, but `FOR UPDATE` only serializes them — it does not undo a stale status read
     taken before either wrote. Claiming the status change atomically means the loser of the
-    race reads back zero rows and must stand down before touching a single coin, the same
-    pattern as the tribunal's `claim_verdict`.
+    race reads back zero rows and must stand down before touching a single coin.
 
     The house is the residual claimant: whatever the pool does not pay out goes to it. That
     is one rule covering two leaks that used to just delete coins — the few 🪙 of rounding

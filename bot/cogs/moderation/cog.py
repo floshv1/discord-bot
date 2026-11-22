@@ -11,7 +11,6 @@ from loguru import logger
 from bot.cogs.logs.cog import make_embed
 from bot.cogs.moderation.service import REPRIMAND_NICK, deactivate_reprimand, lift_reprimand
 from bot.cogs.moderation.service import log_action as _log_action
-from bot.cogs.tribunal import views as tribunal
 from bot.core.config import Config
 from bot.db.client import get_pool
 
@@ -49,10 +48,6 @@ class ModerationCog(commands.Cog):
             """
         )
         for row in expired:
-            # The sentence is over either way, so the trial is moot — but only if the bench
-            # never ruled. A guilty verdict's sentence simply running its course must not
-            # rewrite that card.
-            await tribunal.close_trial(self.bot, row["id"])
             guild = self.bot.get_guild(row["guild_id"])
             member = guild.get_member(row["target_id"]) if guild else None
             if member is None:
@@ -166,7 +161,7 @@ class ModerationCog(commands.Cog):
 
         pool = get_pool()
         config = await pool.fetchrow(
-            "SELECT role_id, channel_id, judge_role_id FROM reprimand_config WHERE guild_id = $1",
+            "SELECT role_id, channel_id FROM reprimand_config WHERE guild_id = $1",
             interaction.guild_id,
         )
         if not config:
@@ -208,11 +203,10 @@ class ModerationCog(commands.Cog):
         except discord.Forbidden:
             logger.warning(f"Could not rename {user.id} for reprimand")
 
-        reprimand_id = await pool.fetchval(
+        await pool.execute(
             """
             INSERT INTO reprimands (guild_id, target_id, moderator_id, reason, original_nick, expires_at)
             VALUES ($1, $2, $3, $4, $5, $6)
-            RETURNING id
             """,
             interaction.guild_id,
             user.id,
@@ -221,15 +215,9 @@ class ModerationCog(commands.Cog):
             original_nick,
             expires_at,
         )
-
-        # No jury configured means no trial — the reprimand stands on its own, exactly as it
-        # did before the tribunal existed. Degraded, not broken.
-        if config["judge_role_id"] is None:
-            await channel.send(
-                f"{user.mention}, tu as été envoyé ici pour : **{reason}**. N'hésite pas à présenter tes excuses."
-            )
-        else:
-            await tribunal.open_trial(interaction.guild_id, reprimand_id, channel)
+        await channel.send(
+            f"{user.mention}, tu as été envoyé ici pour : **{reason}**. N'hésite pas à présenter tes excuses."
+        )
 
         await _log_action(self.bot, self.config, interaction.guild_id, user, interaction.user, "reprimand", reason)
         await interaction.response.send_message(f"Sent {user.mention} to the goulag.", ephemeral=True)
@@ -249,7 +237,6 @@ class ModerationCog(commands.Cog):
             return
 
         await deactivate_reprimand(row["id"])
-        await tribunal.close_trial(self.bot, row["id"])
         await lift_reprimand(user, row["original_nick"])
         await _log_action(self.bot, self.config, interaction.guild_id, user, interaction.user, "pardon", reason)
         await interaction.response.send_message(f"Pardoned {user.mention}.", ephemeral=True)

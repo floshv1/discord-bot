@@ -57,14 +57,16 @@ plugins:
       clientId: "${SPOTIFY_CLIENT_ID:}"
       clientSecret: "${SPOTIFY_CLIENT_SECRET:}"
       countryCode: "US"
-      # Spotify answers 401 "Valid user authentication required" on
-      # `GET /v1/playlists/{id}/items` to a client-credentials token, while still serving
-      # `/v1/playlists/{id}` — so with valid credentials every playlist link resolved its name
-      # and then died. The partner API (the web player's own, via an anonymous token — no
-      # account, no cookie) still returns playlist contents. Every partner call falls back to
-      # v1 on failure, so this can only add what v1 refuses. If Spotify breaks the anonymous
-      # token too, the next step is `spDc` (a logged-in account's cookie).
-      preferPartnerApi: true
+      # Spotify playlists do not load, and no setting here fixes that (as of LavaSrc 4.8.3):
+      #   - v1 answers 401 "Valid user authentication required" on `/v1/playlists/{id}/items`
+      #     to this client-credentials token (the playlist's own metadata still loads).
+      #   - `preferPartnerApi: true` was tried and fails earlier: its anonymous token is minted
+      #     from a secret scraped out of the web player's JS ("No secret array found in
+      #     script"), and Spotify changed that script. It then falls back to the same 401.
+      #   - `spDc` does NOT help: the partner API always uses the anonymous token; the cookie
+      #     only feeds the lyrics endpoint.
+      # Re-enable `preferPartnerApi` only after a LavaSrc release fixes the secret scraping.
+      # Single tracks and albums are unaffected.
       playlistLoadLimit: 6
       albumLoadLimit: 6
 

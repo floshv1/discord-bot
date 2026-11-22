@@ -1,7 +1,7 @@
 # Discord Bot
 
-A private Discord bot for a small community: music, game-lobby queues, audit logging, moderation,
-suggestions, a voice leaderboard, and birthdays. Built with Python 3.12, discord.py, Wavelink,
+A private Discord bot for a small community: music, audit logging, moderation, a voice
+leaderboard, birthdays, a server currency and betting. Built with Python 3.12, discord.py, Wavelink,
 asyncpg, and PostgreSQL. Deployed via Docker and managed by Komodo.
 
 ---
@@ -9,10 +9,8 @@ asyncpg, and PostgreSQL. Deployed via Docker and managed by Komodo.
 ## Features
 
 - **Music** — Lavalink-backed playback: play, autoplay, skip/previous, queue, lyrics
-- **Game queues** — a control panel where members open game lobbies (Duo / Full team / Custom), join with a button, get auto-pinged via per-game subscriptions, with start-time reminders and auto-cleanup
 - **Audit logs** — every server event (messages, members, voice, roles, channels, threads, invites) posted as a color-coded embed to a dedicated log channel
 - **Moderation** — `/kick`, `/ban`, `/unban`, `/timeout`, `/warn`, `/history`, `/clear` with DB-backed history
-- **Suggestions** — issue-style suggestions with 👍/👎 voting and status tracking
 - **Voice leaderboard** — auto-updating 7-day and all-time voice-time rankings
 - **Birthdays** — registered birthdays with pinned upcoming/this-month embeds and midnight wishes
 - **Single-guild by design** — only acts on `GUILD_ID`; ignores events from any other server it shares
@@ -50,8 +48,6 @@ INFO | PostgreSQL connection pool created.
 INFO | Migrations applied.
 INFO | Loaded cog: bot.cogs.logs.cog
 INFO | Loaded cog: bot.cogs.moderation.cog
-INFO | Loaded cog: bot.cogs.queue.cog
-INFO | Loaded cog: bot.cogs.suggestions.cog
 INFO | Loaded cog: bot.cogs.voice.cog
 INFO | Loaded cog: bot.cogs.birthday.cog
 INFO | Loaded cog: bot.cogs.music.cog
@@ -97,13 +93,11 @@ discord-bot/
 │       ├── logs/                  # Server event listeners (single-guild filtered)
 │       ├── moderation/            # Mod slash commands
 │       ├── music/                 # Lavalink playback
-│       ├── queue/                 # Game-lobby panel (cog/views/service/embeds)
-│       ├── suggestions/           # Suggestion board
 │       ├── voice/                 # Voice leaderboard
 │       ├── birthday/              # Birthday tracking
 │       └── setup/                 # /setup commands for the above
 ├── dashboard/                     # FastAPI + Next.js admin dashboard
-└── tests/                         # pytest (config, embeds, music, queue, suggestions)
+└── tests/                         # pytest
 ```
 
 ---

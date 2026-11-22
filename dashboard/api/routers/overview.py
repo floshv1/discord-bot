@@ -24,16 +24,6 @@ async def get_overview(
         guild_id,
     )
 
-    open_queues = await pool.fetchval(
-        "SELECT COUNT(*) FROM game_queues WHERE guild_id=$1 AND status='open'",
-        guild_id,
-    )
-
-    open_suggestions = await pool.fetchval(
-        "SELECT COUNT(*) FROM suggestions WHERE guild_id=$1 AND status='open'",
-        guild_id,
-    )
-
     audit_events_today = await pool.fetchval(
         "SELECT COUNT(*) FROM audit_logs WHERE guild_id=$1 AND created_at >= NOW() - INTERVAL '24 hours'",
         guild_id,
@@ -67,8 +57,6 @@ async def get_overview(
 
     return {
         "total_mod_actions": total_mod_actions,
-        "open_queues": open_queues,
-        "open_suggestions": open_suggestions,
         "audit_events_today": audit_events_today,
         "recent_activity": recent_activity,
     }

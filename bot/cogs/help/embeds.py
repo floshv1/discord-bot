@@ -27,7 +27,6 @@ CONFIGURABLE = [
             "winners split the losers' stakes, so the odds move until it locks.",
         ],
     ),
-    ("queue", "🎮 Game queues", ["Use the panel to start or join a lobby."]),
     (
         "palworld",
         "🌴 Serveur Palworld",
@@ -36,17 +35,6 @@ CONFIGURABLE = [
             "il est prêt en une minute trente.",
             "Il s'éteint tout seul quand plus personne n'est connecté — le temps ne passe plus dans "
             "le monde, donc vos pals ne meurent pas de faim pendant la nuit.",
-        ],
-    ),
-    ("suggestions", "💡 Suggestions", ["Use the panel to suggest a feature or an improvement."]),
-    (
-        "tribunal",
-        "⚖️ Tribunal",
-        [
-            "Réprimandé ? Clique sur **« Plaider ma cause »** sous ta carte pour te défendre. "
-            "Tant que tu n'as pas plaidé, le jury ne peut pas voter.",
-            "Les juges tranchent ensuite coupable ou non coupable — **un acquittement te libère "
-            "sur-le-champ**, sans attendre la fin de ta peine.",
         ],
     ),
 ]
@@ -78,8 +66,8 @@ MODERATION = [
     "`/setup status` — see which features are configured, and which need attention",
     "`/announce` — publish a formatted announcement (opens a multi-line editor)",
     "`/kick` `/ban` `/unban` `/timeout` `/warn` `/history` — moderation, all logged",
-    "`/reprimand` — send someone to the goulag; opens a trial if a jury role is configured",
-    "`/pardon` — lift a reprimand early (and drop the trial)",
+    "`/reprimand` — send someone to the goulag",
+    "`/pardon` — lift a reprimand early",
     "`/clear` — bulk-delete messages",
     "`/bet resolve` / `/bet cancel` — settle *any* stuck market, not just your own",
 ]

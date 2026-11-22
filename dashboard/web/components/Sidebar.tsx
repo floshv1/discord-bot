@@ -8,8 +8,6 @@ const navItems = [
   { href: "/overview", label: "📊 Overview" },
   { href: "/logs", label: "📋 Audit Logs" },
   { href: "/moderation", label: "🔨 Moderation" },
-  { href: "/queues", label: "🎮 Queues" },
-  { href: "/suggestions", label: "💡 Suggestions" },
   { href: "/voice", label: "🎙️ Voice" },
   { href: "/birthdays", label: "🎂 Birthdays" },
   { href: "/music", label: "🎵 Music" },

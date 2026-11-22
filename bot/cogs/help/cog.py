@@ -8,17 +8,12 @@ from bot.cogs.help.embeds import build_help_embed
 from bot.db.client import get_pool
 
 # Feature key → the table whose row proves an admin has set it up, plus an optional column
-# that must also be non-NULL. The tribunal needs that guard: reprimand_config has a
-# channel from the moment /setup reprimand runs, but there is no tribunal until a jury role
-# is set, and the channel alone must not advertise a court that cannot sit.
+# that must also be non-NULL (a feature whose config row exists before it is usable).
 FEATURE_TABLES: dict[str, tuple[str, str | None]] = {
     "currency": ("currency_leaderboard", None),
     "betting": ("betting_config", None),
-    "queue": ("queue_config", None),
-    "suggestions": ("suggestion_config", None),
     "music": ("music_config", None),
     "palworld": ("palworld_config", None),
-    "tribunal": ("reprimand_config", "judge_role_id"),
 }
 
 

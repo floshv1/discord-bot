@@ -14,8 +14,6 @@ interface RecentActivity {
 
 interface OverviewData {
   total_mod_actions: number;
-  open_queues: number;
-  open_suggestions: number;
   audit_events_today: number;
   recent_activity: RecentActivity[];
 }
@@ -105,10 +103,8 @@ export default function OverviewPage() {
       </h1>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 gap-4 mb-8">
         <StatCard label="Total Mod Actions" value={data.total_mod_actions} />
-        <StatCard label="Open Queues" value={data.open_queues} />
-        <StatCard label="Open Suggestions" value={data.open_suggestions} />
         <StatCard
           label="Audit Events Today"
           value={data.audit_events_today}
