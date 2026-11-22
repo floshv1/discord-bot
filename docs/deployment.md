@@ -116,6 +116,10 @@ history: [youtube-playback.md](youtube-playback.md).
 `/custom` builds teams by calling **lol-amis** (`team-generator/lol-amis`, a separate repo), which runs
 as **its own Komodo stack** from that repo's `compose.yml`. Order matters:
 
+0. **The image comes from CI**, like the bot's: a push touching `lol-amis/**` in the
+   team-generator repo (branch `master`) runs its tests, then pushes `ghcr.io/floshv1/lol-amis:latest` (+ a sha tag).
+   The Komodo stack *pulls* it — don't enable "build" there. Roll back by setting `LOLAMIS_TAG` to
+   a sha in the stack env.
 1. **Deploy the lol-amis stack first.** It creates the `lolamis_net` network; the bot stack joins
    it as `external`, and an external network that does not exist stops the *whole* bot stack
    (music included) from starting.
