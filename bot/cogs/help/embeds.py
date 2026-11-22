@@ -37,6 +37,15 @@ CONFIGURABLE = [
         ],
     ),
     (
+        "loldle",
+        "🎯 LoLdle",
+        [
+            "`/loldle champion:…` — devine le champion du jour, en privé ; un nouveau à minuit",
+            "Après 3 essais, achète des indices en FloshCoins (chacun ajoute +1 au score)",
+            "`/loldle` seul — revois ta partie et tes indices",
+        ],
+    ),
+    (
         "palworld",
         "🌴 Serveur Palworld",
         [

@@ -1,0 +1,3962 @@
+[
+ {
+  "id": "Aatrox",
+  "name": "Aatrox",
+  "positions": [
+   "Top"
+  ],
+  "classes": [
+   "Combattant"
+  ],
+  "range": "Mêlée",
+  "resource": "Autre",
+  "region": "Runeterra",
+  "year": 2013,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Aatrox/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Aatrox/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Aatrox/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Aatrox/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Aatrox/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Aatrox_0.jpg"
+ },
+ {
+  "id": "Ahri",
+  "name": "Ahri",
+  "positions": [
+   "Mid"
+  ],
+  "classes": [
+   "Assassin",
+   "Mage"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Ionia",
+  "year": 2011,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Ahri/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Ahri/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Ahri/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Ahri/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Ahri/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Ahri_0.jpg"
+ },
+ {
+  "id": "Akali",
+  "name": "Akali",
+  "positions": [
+   "Mid",
+   "Top"
+  ],
+  "classes": [
+   "Assassin"
+  ],
+  "range": "Mêlée",
+  "resource": "Énergie",
+  "region": "Ionia",
+  "year": 2010,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Akali/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Akali/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Akali/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Akali/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Akali/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Akali_0.jpg"
+ },
+ {
+  "id": "Akshan",
+  "name": "Akshan",
+  "positions": [
+   "Mid"
+  ],
+  "classes": [
+   "Assassin",
+   "Tireur"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Shurima",
+  "year": 2021,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Akshan/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Akshan/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Akshan/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Akshan/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Akshan/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Akshan_0.jpg"
+ },
+ {
+  "id": "Alistar",
+  "name": "Alistar",
+  "positions": [
+   "Support"
+  ],
+  "classes": [
+   "Support",
+   "Tank"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Runeterra",
+  "year": 2009,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Alistar/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Alistar/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Alistar/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Alistar/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Alistar/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Alistar_0.jpg"
+ },
+ {
+  "id": "Ambessa",
+  "name": "Ambessa",
+  "positions": [
+   "Top"
+  ],
+  "classes": [
+   "Assassin",
+   "Combattant"
+  ],
+  "range": "Mêlée",
+  "resource": "Énergie",
+  "region": "Noxus",
+  "year": 2024,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Ambessa/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Ambessa/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Ambessa/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Ambessa/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Ambessa/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Ambessa_0.jpg"
+ },
+ {
+  "id": "Amumu",
+  "name": "Amumu",
+  "positions": [
+   "Jungle",
+   "Support"
+  ],
+  "classes": [
+   "Support",
+   "Tank"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Shurima",
+  "year": 2009,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Amumu/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Amumu/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Amumu/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Amumu/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Amumu/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Amumu_0.jpg"
+ },
+ {
+  "id": "Anivia",
+  "name": "Anivia",
+  "positions": [
+   "Mid"
+  ],
+  "classes": [
+   "Mage"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Freljord",
+  "year": 2009,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Anivia/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Anivia/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Anivia/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Anivia/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Anivia/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Anivia_0.jpg"
+ },
+ {
+  "id": "Annie",
+  "name": "Annie",
+  "positions": [
+   "Mid"
+  ],
+  "classes": [
+   "Mage",
+   "Support"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Runeterra",
+  "year": 2009,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Annie/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Annie/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Annie/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Annie/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Annie/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Annie_0.jpg"
+ },
+ {
+  "id": "Aphelios",
+  "name": "Aphelios",
+  "positions": [
+   "ADC"
+  ],
+  "classes": [
+   "Tireur"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Targon",
+  "year": 2019,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Aphelios/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Aphelios/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Aphelios/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Aphelios/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Aphelios/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Aphelios_0.jpg"
+ },
+ {
+  "id": "Ashe",
+  "name": "Ashe",
+  "positions": [
+   "ADC",
+   "Support"
+  ],
+  "classes": [
+   "Support",
+   "Tireur"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Freljord",
+  "year": 2009,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Ashe/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Ashe/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Ashe/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Ashe/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Ashe/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Ashe_0.jpg"
+ },
+ {
+  "id": "AurelionSol",
+  "name": "Aurelion Sol",
+  "positions": [
+   "Mid"
+  ],
+  "classes": [
+   "Mage"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Runeterra",
+  "year": 2016,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/AurelionSol/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/AurelionSol/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/AurelionSol/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/AurelionSol/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/AurelionSol/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/AurelionSol_0.jpg"
+ },
+ {
+  "id": "Aurora",
+  "name": "Aurora",
+  "positions": [
+   "Mid",
+   "Top"
+  ],
+  "classes": [
+   "Assassin",
+   "Mage"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Freljord",
+  "year": 2024,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Aurora/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Aurora/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Aurora/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Aurora/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Aurora/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Aurora_0.jpg"
+ },
+ {
+  "id": "Azir",
+  "name": "Azir",
+  "positions": [
+   "Mid"
+  ],
+  "classes": [
+   "Mage",
+   "Tireur"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Shurima",
+  "year": 2014,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Azir/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Azir/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Azir/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Azir/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Azir/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Azir_0.jpg"
+ },
+ {
+  "id": "Bard",
+  "name": "Bard",
+  "positions": [
+   "Support"
+  ],
+  "classes": [
+   "Mage",
+   "Support"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Runeterra",
+  "year": 2015,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Bard/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Bard/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Bard/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Bard/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Bard/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Bard_0.jpg"
+ },
+ {
+  "id": "Belveth",
+  "name": "Bel'Veth",
+  "positions": [
+   "Jungle"
+  ],
+  "classes": [
+   "Combattant"
+  ],
+  "range": "Mêlée",
+  "resource": "Aucune",
+  "region": "Néant",
+  "year": 2022,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Belveth/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Belveth/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Belveth/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Belveth/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Belveth/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Belveth_0.jpg"
+ },
+ {
+  "id": "Blitzcrank",
+  "name": "Blitzcrank",
+  "positions": [
+   "Support"
+  ],
+  "classes": [
+   "Support",
+   "Tank"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Zaun",
+  "year": 2009,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Blitzcrank/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Blitzcrank/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Blitzcrank/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Blitzcrank/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Blitzcrank/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Blitzcrank_0.jpg"
+ },
+ {
+  "id": "Brand",
+  "name": "Brand",
+  "positions": [
+   "Jungle",
+   "Mid",
+   "Support"
+  ],
+  "classes": [
+   "Mage",
+   "Support"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Runeterra",
+  "year": 2011,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Brand/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Brand/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Brand/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Brand/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Brand/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Brand_0.jpg"
+ },
+ {
+  "id": "Braum",
+  "name": "Braum",
+  "positions": [
+   "Support"
+  ],
+  "classes": [
+   "Support",
+   "Tank"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Freljord",
+  "year": 2014,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Braum/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Braum/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Braum/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Braum/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Braum/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Braum_0.jpg"
+ },
+ {
+  "id": "Briar",
+  "name": "Briar",
+  "positions": [
+   "Jungle"
+  ],
+  "classes": [
+   "Assassin",
+   "Combattant"
+  ],
+  "range": "Mêlée",
+  "resource": "Autre",
+  "region": "Noxus",
+  "year": 2023,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Briar/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Briar/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Briar/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Briar/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Briar/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Briar_0.jpg"
+ },
+ {
+  "id": "Caitlyn",
+  "name": "Caitlyn",
+  "positions": [
+   "ADC"
+  ],
+  "classes": [
+   "Tireur"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Piltover",
+  "year": 2011,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Caitlyn/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Caitlyn/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Caitlyn/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Caitlyn/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Caitlyn/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Caitlyn_0.jpg"
+ },
+ {
+  "id": "Camille",
+  "name": "Camille",
+  "positions": [
+   "Support",
+   "Top"
+  ],
+  "classes": [
+   "Assassin",
+   "Combattant"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Piltover",
+  "year": 2016,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Camille/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Camille/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Camille/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Camille/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Camille/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Camille_0.jpg"
+ },
+ {
+  "id": "Cassiopeia",
+  "name": "Cassiopeia",
+  "positions": [
+   "Mid"
+  ],
+  "classes": [
+   "Mage"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Noxus",
+  "year": 2010,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Cassiopeia/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Cassiopeia/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Cassiopeia/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Cassiopeia/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Cassiopeia/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Cassiopeia_0.jpg"
+ },
+ {
+  "id": "Chogath",
+  "name": "Cho'Gath",
+  "positions": [
+   "Top"
+  ],
+  "classes": [
+   "Mage",
+   "Tank"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Néant",
+  "year": 2009,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Chogath/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Chogath/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Chogath/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Chogath/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Chogath/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Chogath_0.jpg"
+ },
+ {
+  "id": "Corki",
+  "name": "Corki",
+  "positions": [
+   "Mid"
+  ],
+  "classes": [
+   "Mage",
+   "Tireur"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Bandle",
+  "year": 2009,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Corki/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Corki/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Corki/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Corki/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Corki/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Corki_0.jpg"
+ },
+ {
+  "id": "Darius",
+  "name": "Darius",
+  "positions": [
+   "Top"
+  ],
+  "classes": [
+   "Combattant",
+   "Tank"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Noxus",
+  "year": 2012,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Darius/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Darius/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Darius/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Darius/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Darius/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Darius_0.jpg"
+ },
+ {
+  "id": "Diana",
+  "name": "Diana",
+  "positions": [
+   "Jungle",
+   "Mid"
+  ],
+  "classes": [
+   "Assassin",
+   "Combattant"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Targon",
+  "year": 2012,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Diana/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Diana/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Diana/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Diana/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Diana/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Diana_0.jpg"
+ },
+ {
+  "id": "DrMundo",
+  "name": "Dr. Mundo",
+  "positions": [
+   "Top"
+  ],
+  "classes": [
+   "Combattant",
+   "Tank"
+  ],
+  "range": "Mêlée",
+  "resource": "Autre",
+  "region": "Zaun",
+  "year": 2009,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/DrMundo/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/DrMundo/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/DrMundo/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/DrMundo/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/DrMundo/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/DrMundo_0.jpg"
+ },
+ {
+  "id": "Draven",
+  "name": "Draven",
+  "positions": [
+   "ADC"
+  ],
+  "classes": [
+   "Tireur"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Noxus",
+  "year": 2012,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Draven/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Draven/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Draven/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Draven/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Draven/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Draven_0.jpg"
+ },
+ {
+  "id": "Ekko",
+  "name": "Ekko",
+  "positions": [
+   "Jungle",
+   "Mid"
+  ],
+  "classes": [
+   "Assassin",
+   "Mage"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Zaun",
+  "year": 2015,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Ekko/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Ekko/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Ekko/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Ekko/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Ekko/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Ekko_0.jpg"
+ },
+ {
+  "id": "Elise",
+  "name": "Elise",
+  "positions": [
+   "Jungle"
+  ],
+  "classes": [
+   "Assassin",
+   "Mage"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Îles obscures",
+  "year": 2012,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Elise/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Elise/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Elise/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Elise/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Elise/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Elise_0.jpg"
+ },
+ {
+  "id": "Evelynn",
+  "name": "Evelynn",
+  "positions": [
+   "Jungle"
+  ],
+  "classes": [
+   "Assassin",
+   "Mage"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Runeterra",
+  "year": 2009,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Evelynn/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Evelynn/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Evelynn/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Evelynn/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Evelynn/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Evelynn_0.jpg"
+ },
+ {
+  "id": "Ezreal",
+  "name": "Ezreal",
+  "positions": [
+   "ADC"
+  ],
+  "classes": [
+   "Mage",
+   "Tireur"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Piltover",
+  "year": 2010,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Ezreal/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Ezreal/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Ezreal/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Ezreal/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Ezreal/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Ezreal_0.jpg"
+ },
+ {
+  "id": "Fiddlesticks",
+  "name": "Fiddlesticks",
+  "positions": [
+   "Jungle"
+  ],
+  "classes": [
+   "Mage",
+   "Support"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Runeterra",
+  "year": 2009,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Fiddlesticks/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Fiddlesticks/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Fiddlesticks/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Fiddlesticks/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Fiddlesticks/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Fiddlesticks_0.jpg"
+ },
+ {
+  "id": "Fiora",
+  "name": "Fiora",
+  "positions": [
+   "Top"
+  ],
+  "classes": [
+   "Assassin",
+   "Combattant"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Demacia",
+  "year": 2012,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Fiora/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Fiora/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Fiora/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Fiora/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Fiora/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Fiora_0.jpg"
+ },
+ {
+  "id": "Fizz",
+  "name": "Fizz",
+  "positions": [
+   "Mid"
+  ],
+  "classes": [
+   "Assassin",
+   "Combattant"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Runeterra",
+  "year": 2011,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Fizz/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Fizz/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Fizz/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Fizz/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Fizz/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Fizz_0.jpg"
+ },
+ {
+  "id": "Galio",
+  "name": "Galio",
+  "positions": [
+   "Mid",
+   "Support"
+  ],
+  "classes": [
+   "Mage",
+   "Tank"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Demacia",
+  "year": 2010,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Galio/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Galio/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Galio/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Galio/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Galio/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Galio_0.jpg"
+ },
+ {
+  "id": "Gangplank",
+  "name": "Gangplank",
+  "positions": [
+   "Top"
+  ],
+  "classes": [
+   "Combattant"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Bilgewater",
+  "year": 2009,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Gangplank/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Gangplank/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Gangplank/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Gangplank/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Gangplank/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Gangplank_0.jpg"
+ },
+ {
+  "id": "Garen",
+  "name": "Garen",
+  "positions": [
+   "Top"
+  ],
+  "classes": [
+   "Combattant",
+   "Tank"
+  ],
+  "range": "Mêlée",
+  "resource": "Aucune",
+  "region": "Demacia",
+  "year": 2010,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Garen/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Garen/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Garen/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Garen/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Garen/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Garen_0.jpg"
+ },
+ {
+  "id": "Gnar",
+  "name": "Gnar",
+  "positions": [
+   "Top"
+  ],
+  "classes": [
+   "Combattant",
+   "Tank"
+  ],
+  "range": "Distance",
+  "resource": "Autre",
+  "region": "Freljord",
+  "year": 2014,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Gnar/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Gnar/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Gnar/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Gnar/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Gnar/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Gnar_0.jpg"
+ },
+ {
+  "id": "Gragas",
+  "name": "Gragas",
+  "positions": [
+   "Jungle",
+   "Mid",
+   "Top"
+  ],
+  "classes": [
+   "Combattant",
+   "Mage"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Freljord",
+  "year": 2010,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Gragas/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Gragas/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Gragas/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Gragas/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Gragas/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Gragas_0.jpg"
+ },
+ {
+  "id": "Graves",
+  "name": "Graves",
+  "positions": [
+   "Jungle"
+  ],
+  "classes": [
+   "Tireur"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Bilgewater",
+  "year": 2011,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Graves/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Graves/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Graves/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Graves/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Graves/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Graves_0.jpg"
+ },
+ {
+  "id": "Gwen",
+  "name": "Gwen",
+  "positions": [
+   "Jungle",
+   "Top"
+  ],
+  "classes": [
+   "Combattant"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Îles obscures",
+  "year": 2021,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Gwen/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Gwen/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Gwen/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Gwen/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Gwen/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Gwen_0.jpg"
+ },
+ {
+  "id": "Hecarim",
+  "name": "Hecarim",
+  "positions": [
+   "Jungle"
+  ],
+  "classes": [
+   "Combattant",
+   "Tank"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Îles obscures",
+  "year": 2012,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Hecarim/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Hecarim/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Hecarim/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Hecarim/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Hecarim/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Hecarim_0.jpg"
+ },
+ {
+  "id": "Heimerdinger",
+  "name": "Heimerdinger",
+  "positions": [
+   "Mid",
+   "Support",
+   "Top"
+  ],
+  "classes": [
+   "Mage",
+   "Support"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Piltover",
+  "year": 2009,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Heimerdinger/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Heimerdinger/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Heimerdinger/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Heimerdinger/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Heimerdinger/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Heimerdinger_0.jpg"
+ },
+ {
+  "id": "Hwei",
+  "name": "Hwei",
+  "positions": [
+   "Mid",
+   "Support"
+  ],
+  "classes": [
+   "Mage",
+   "Support"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Ionia",
+  "year": 2023,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Hwei/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Hwei/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Hwei/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Hwei/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Hwei/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Hwei_0.jpg"
+ },
+ {
+  "id": "Illaoi",
+  "name": "Illaoi",
+  "positions": [
+   "Top"
+  ],
+  "classes": [
+   "Combattant",
+   "Tank"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Bilgewater",
+  "year": 2015,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Illaoi/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Illaoi/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Illaoi/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Illaoi/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Illaoi/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Illaoi_0.jpg"
+ },
+ {
+  "id": "Irelia",
+  "name": "Irelia",
+  "positions": [
+   "Mid",
+   "Top"
+  ],
+  "classes": [
+   "Assassin",
+   "Combattant"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Ionia",
+  "year": 2010,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Irelia/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Irelia/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Irelia/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Irelia/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Irelia/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Irelia_0.jpg"
+ },
+ {
+  "id": "Ivern",
+  "name": "Ivern",
+  "positions": [
+   "Jungle"
+  ],
+  "classes": [
+   "Mage",
+   "Support"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Ionia",
+  "year": 2016,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Ivern/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Ivern/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Ivern/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Ivern/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Ivern/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Ivern_0.jpg"
+ },
+ {
+  "id": "Janna",
+  "name": "Janna",
+  "positions": [
+   "Support"
+  ],
+  "classes": [
+   "Mage",
+   "Support"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Zaun",
+  "year": 2009,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Janna/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Janna/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Janna/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Janna/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Janna/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Janna_0.jpg"
+ },
+ {
+  "id": "JarvanIV",
+  "name": "Jarvan IV",
+  "positions": [
+   "Jungle"
+  ],
+  "classes": [
+   "Combattant",
+   "Tank"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Demacia",
+  "year": 2011,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/JarvanIV/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/JarvanIV/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/JarvanIV/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/JarvanIV/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/JarvanIV/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/JarvanIV_0.jpg"
+ },
+ {
+  "id": "Jax",
+  "name": "Jax",
+  "positions": [
+   "Jungle",
+   "Top"
+  ],
+  "classes": [
+   "Combattant"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Runeterra",
+  "year": 2009,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Jax/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Jax/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Jax/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Jax/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Jax/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Jax_0.jpg"
+ },
+ {
+  "id": "Jayce",
+  "name": "Jayce",
+  "positions": [
+   "Mid",
+   "Top"
+  ],
+  "classes": [
+   "Combattant",
+   "Tireur"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Piltover",
+  "year": 2012,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Jayce/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Jayce/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Jayce/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Jayce/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Jayce/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Jayce_0.jpg"
+ },
+ {
+  "id": "Jhin",
+  "name": "Jhin",
+  "positions": [
+   "ADC"
+  ],
+  "classes": [
+   "Mage",
+   "Tireur"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Ionia",
+  "year": 2016,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Jhin/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Jhin/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Jhin/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Jhin/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Jhin/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Jhin_0.jpg"
+ },
+ {
+  "id": "Jinx",
+  "name": "Jinx",
+  "positions": [
+   "ADC"
+  ],
+  "classes": [
+   "Tireur"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Zaun",
+  "year": 2013,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Jinx/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Jinx/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Jinx/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Jinx/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Jinx/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Jinx_0.jpg"
+ },
+ {
+  "id": "KSante",
+  "name": "K'Santé",
+  "positions": [
+   "Top"
+  ],
+  "classes": [
+   "Combattant",
+   "Tank"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Shurima",
+  "year": 2022,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/KSante/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/KSante/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/KSante/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/KSante/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/KSante/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/KSante_0.jpg"
+ },
+ {
+  "id": "Kaisa",
+  "name": "Kai'Sa",
+  "positions": [
+   "ADC"
+  ],
+  "classes": [
+   "Mage",
+   "Tireur"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Néant",
+  "year": 2018,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Kaisa/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Kaisa/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Kaisa/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Kaisa/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Kaisa/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Kaisa_0.jpg"
+ },
+ {
+  "id": "Kalista",
+  "name": "Kalista",
+  "positions": [
+   "ADC"
+  ],
+  "classes": [
+   "Tireur"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Îles obscures",
+  "year": 2014,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Kalista/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Kalista/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Kalista/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Kalista/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Kalista/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Kalista_0.jpg"
+ },
+ {
+  "id": "Karma",
+  "name": "Karma",
+  "positions": [
+   "Mid",
+   "Support",
+   "Top"
+  ],
+  "classes": [
+   "Mage",
+   "Support"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Ionia",
+  "year": 2011,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Karma/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Karma/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Karma/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Karma/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Karma/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Karma_0.jpg"
+ },
+ {
+  "id": "Karthus",
+  "name": "Karthus",
+  "positions": [
+   "Jungle"
+  ],
+  "classes": [
+   "Mage"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Îles obscures",
+  "year": 2009,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Karthus/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Karthus/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Karthus/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Karthus/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Karthus/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Karthus_0.jpg"
+ },
+ {
+  "id": "Kassadin",
+  "name": "Kassadin",
+  "positions": [
+   "Mid"
+  ],
+  "classes": [
+   "Assassin",
+   "Mage"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Néant",
+  "year": 2009,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Kassadin/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Kassadin/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Kassadin/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Kassadin/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Kassadin/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Kassadin_0.jpg"
+ },
+ {
+  "id": "Katarina",
+  "name": "Katarina",
+  "positions": [
+   "Mid"
+  ],
+  "classes": [
+   "Assassin",
+   "Mage"
+  ],
+  "range": "Mêlée",
+  "resource": "Aucune",
+  "region": "Noxus",
+  "year": 2009,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Katarina/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Katarina/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Katarina/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Katarina/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Katarina/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Katarina_0.jpg"
+ },
+ {
+  "id": "Kayle",
+  "name": "Kayle",
+  "positions": [
+   "Top"
+  ],
+  "classes": [
+   "Mage",
+   "Tireur"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Demacia",
+  "year": 2009,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Kayle/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Kayle/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Kayle/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Kayle/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Kayle/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Kayle_0.jpg"
+ },
+ {
+  "id": "Kayn",
+  "name": "Kayn",
+  "positions": [
+   "Jungle"
+  ],
+  "classes": [
+   "Assassin",
+   "Combattant"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Ionia",
+  "year": 2017,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Kayn/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Kayn/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Kayn/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Kayn/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Kayn/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Kayn_0.jpg"
+ },
+ {
+  "id": "Kennen",
+  "name": "Kennen",
+  "positions": [
+   "Top"
+  ],
+  "classes": [
+   "Mage"
+  ],
+  "range": "Distance",
+  "resource": "Énergie",
+  "region": "Ionia",
+  "year": 2010,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Kennen/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Kennen/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Kennen/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Kennen/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Kennen/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Kennen_0.jpg"
+ },
+ {
+  "id": "Khazix",
+  "name": "Kha'Zix",
+  "positions": [
+   "Jungle"
+  ],
+  "classes": [
+   "Assassin"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Néant",
+  "year": 2012,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Khazix/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Khazix/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Khazix/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Khazix/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Khazix/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Khazix_0.jpg"
+ },
+ {
+  "id": "Kindred",
+  "name": "Kindred",
+  "positions": [
+   "Jungle"
+  ],
+  "classes": [
+   "Tireur"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Runeterra",
+  "year": 2015,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Kindred/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Kindred/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Kindred/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Kindred/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Kindred/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Kindred_0.jpg"
+ },
+ {
+  "id": "Kled",
+  "name": "Kled",
+  "positions": [
+   "Top"
+  ],
+  "classes": [
+   "Combattant"
+  ],
+  "range": "Mêlée",
+  "resource": "Autre",
+  "region": "Noxus",
+  "year": 2016,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Kled/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Kled/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Kled/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Kled/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Kled/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Kled_0.jpg"
+ },
+ {
+  "id": "KogMaw",
+  "name": "Kog'Maw",
+  "positions": [
+   "ADC"
+  ],
+  "classes": [
+   "Mage",
+   "Tireur"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Néant",
+  "year": 2010,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/KogMaw/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/KogMaw/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/KogMaw/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/KogMaw/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/KogMaw/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/KogMaw_0.jpg"
+ },
+ {
+  "id": "Leblanc",
+  "name": "LeBlanc",
+  "positions": [
+   "Mid"
+  ],
+  "classes": [
+   "Assassin",
+   "Mage"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Noxus",
+  "year": 2010,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Leblanc/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Leblanc/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Leblanc/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Leblanc/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Leblanc/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Leblanc_0.jpg"
+ },
+ {
+  "id": "LeeSin",
+  "name": "Lee Sin",
+  "positions": [
+   "Jungle"
+  ],
+  "classes": [
+   "Assassin",
+   "Combattant"
+  ],
+  "range": "Mêlée",
+  "resource": "Énergie",
+  "region": "Ionia",
+  "year": 2011,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/LeeSin/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/LeeSin/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/LeeSin/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/LeeSin/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/LeeSin/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/LeeSin_0.jpg"
+ },
+ {
+  "id": "Leona",
+  "name": "Leona",
+  "positions": [
+   "Support"
+  ],
+  "classes": [
+   "Support",
+   "Tank"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Targon",
+  "year": 2011,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Leona/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Leona/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Leona/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Leona/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Leona/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Leona_0.jpg"
+ },
+ {
+  "id": "Lillia",
+  "name": "Lillia",
+  "positions": [
+   "Jungle"
+  ],
+  "classes": [
+   "Combattant",
+   "Mage"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Ionia",
+  "year": 2020,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Lillia/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Lillia/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Lillia/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Lillia/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Lillia/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Lillia_0.jpg"
+ },
+ {
+  "id": "Lissandra",
+  "name": "Lissandra",
+  "positions": [
+   "Mid"
+  ],
+  "classes": [
+   "Mage"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Freljord",
+  "year": 2013,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Lissandra/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Lissandra/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Lissandra/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Lissandra/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Lissandra/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Lissandra_0.jpg"
+ },
+ {
+  "id": "Lucian",
+  "name": "Lucian",
+  "positions": [
+   "ADC"
+  ],
+  "classes": [
+   "Assassin",
+   "Tireur"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Runeterra",
+  "year": 2013,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Lucian/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Lucian/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Lucian/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Lucian/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Lucian/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Lucian_0.jpg"
+ },
+ {
+  "id": "Lulu",
+  "name": "Lulu",
+  "positions": [
+   "Support"
+  ],
+  "classes": [
+   "Mage",
+   "Support"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Bandle",
+  "year": 2012,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Lulu/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Lulu/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Lulu/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Lulu/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Lulu/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Lulu_0.jpg"
+ },
+ {
+  "id": "Lux",
+  "name": "Lux",
+  "positions": [
+   "Mid",
+   "Support"
+  ],
+  "classes": [
+   "Mage",
+   "Support"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Demacia",
+  "year": 2010,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Lux/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Lux/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Lux/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Lux/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Lux/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Lux_0.jpg"
+ },
+ {
+  "id": "Malphite",
+  "name": "Malphite",
+  "positions": [
+   "Mid",
+   "Support",
+   "Top"
+  ],
+  "classes": [
+   "Mage",
+   "Tank"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Ixtal",
+  "year": 2009,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Malphite/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Malphite/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Malphite/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Malphite/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Malphite/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Malphite_0.jpg"
+ },
+ {
+  "id": "Malzahar",
+  "name": "Malzahar",
+  "positions": [
+   "Mid"
+  ],
+  "classes": [
+   "Mage"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Néant",
+  "year": 2010,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Malzahar/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Malzahar/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Malzahar/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Malzahar/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Malzahar/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Malzahar_0.jpg"
+ },
+ {
+  "id": "Maokai",
+  "name": "Maokai",
+  "positions": [
+   "Jungle",
+   "Support"
+  ],
+  "classes": [
+   "Support",
+   "Tank"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Îles obscures",
+  "year": 2011,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Maokai/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Maokai/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Maokai/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Maokai/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Maokai/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Maokai_0.jpg"
+ },
+ {
+  "id": "MasterYi",
+  "name": "Maître Yi",
+  "positions": [
+   "Jungle"
+  ],
+  "classes": [
+   "Assassin",
+   "Combattant"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Ionia",
+  "year": 2009,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/MasterYi/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/MasterYi/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/MasterYi/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/MasterYi/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/MasterYi/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/MasterYi_0.jpg"
+ },
+ {
+  "id": "Mel",
+  "name": "Mel",
+  "positions": [
+   "Mid",
+   "Support"
+  ],
+  "classes": [
+   "Mage",
+   "Support"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Noxus",
+  "year": 2025,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Mel/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Mel/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Mel/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Mel/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Mel/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Mel_0.jpg"
+ },
+ {
+  "id": "Milio",
+  "name": "Milio",
+  "positions": [
+   "Support"
+  ],
+  "classes": [
+   "Mage",
+   "Support"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Ixtal",
+  "year": 2023,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Milio/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Milio/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Milio/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Milio/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Milio/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Milio_0.jpg"
+ },
+ {
+  "id": "MissFortune",
+  "name": "Miss Fortune",
+  "positions": [
+   "ADC"
+  ],
+  "classes": [
+   "Mage",
+   "Tireur"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Bilgewater",
+  "year": 2010,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/MissFortune/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/MissFortune/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/MissFortune/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/MissFortune/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/MissFortune/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/MissFortune_0.jpg"
+ },
+ {
+  "id": "MonkeyKing",
+  "name": "Wukong",
+  "positions": [
+   "Jungle",
+   "Top"
+  ],
+  "classes": [
+   "Combattant",
+   "Tank"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Ionia",
+  "year": 2011,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/MonkeyKing/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/MonkeyKing/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/MonkeyKing/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/MonkeyKing/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/MonkeyKing/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/MonkeyKing_0.jpg"
+ },
+ {
+  "id": "Mordekaiser",
+  "name": "Mordekaiser",
+  "positions": [
+   "Top"
+  ],
+  "classes": [
+   "Combattant",
+   "Mage"
+  ],
+  "range": "Mêlée",
+  "resource": "Autre",
+  "region": "Noxus",
+  "year": 2010,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Mordekaiser/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Mordekaiser/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Mordekaiser/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Mordekaiser/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Mordekaiser/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Mordekaiser_0.jpg"
+ },
+ {
+  "id": "Morgana",
+  "name": "Morgana",
+  "positions": [
+   "Support"
+  ],
+  "classes": [
+   "Mage",
+   "Support"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Demacia",
+  "year": 2009,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Morgana/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Morgana/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Morgana/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Morgana/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Morgana/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Morgana_0.jpg"
+ },
+ {
+  "id": "Naafiri",
+  "name": "Naafiri",
+  "positions": [
+   "Mid"
+  ],
+  "classes": [
+   "Assassin",
+   "Combattant"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Shurima",
+  "year": 2023,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Naafiri/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Naafiri/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Naafiri/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Naafiri/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Naafiri/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Naafiri_0.jpg"
+ },
+ {
+  "id": "Nami",
+  "name": "Nami",
+  "positions": [
+   "Support"
+  ],
+  "classes": [
+   "Mage",
+   "Support"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Runeterra",
+  "year": 2012,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Nami/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Nami/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Nami/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Nami/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Nami/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Nami_0.jpg"
+ },
+ {
+  "id": "Nasus",
+  "name": "Nasus",
+  "positions": [
+   "Top"
+  ],
+  "classes": [
+   "Combattant",
+   "Tank"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Shurima",
+  "year": 2009,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Nasus/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Nasus/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Nasus/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Nasus/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Nasus/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Nasus_0.jpg"
+ },
+ {
+  "id": "Nautilus",
+  "name": "Nautilus",
+  "positions": [
+   "Support"
+  ],
+  "classes": [
+   "Support",
+   "Tank"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Bilgewater",
+  "year": 2012,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Nautilus/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Nautilus/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Nautilus/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Nautilus/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Nautilus/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Nautilus_0.jpg"
+ },
+ {
+  "id": "Neeko",
+  "name": "Neeko",
+  "positions": [
+   "Mid",
+   "Support"
+  ],
+  "classes": [
+   "Mage",
+   "Support"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Ixtal",
+  "year": 2018,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Neeko/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Neeko/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Neeko/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Neeko/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Neeko/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Neeko_0.jpg"
+ },
+ {
+  "id": "Nidalee",
+  "name": "Nidalee",
+  "positions": [
+   "Jungle"
+  ],
+  "classes": [
+   "Assassin",
+   "Mage"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Ixtal",
+  "year": 2009,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Nidalee/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Nidalee/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Nidalee/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Nidalee/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Nidalee/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Nidalee_0.jpg"
+ },
+ {
+  "id": "Nilah",
+  "name": "Nilah",
+  "positions": [
+   "ADC"
+  ],
+  "classes": [
+   "Assassin",
+   "Combattant"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Bilgewater",
+  "year": 2022,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Nilah/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Nilah/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Nilah/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Nilah/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Nilah/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Nilah_0.jpg"
+ },
+ {
+  "id": "Nocturne",
+  "name": "Nocturne",
+  "positions": [
+   "Jungle"
+  ],
+  "classes": [
+   "Assassin",
+   "Combattant"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Runeterra",
+  "year": 2011,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Nocturne/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Nocturne/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Nocturne/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Nocturne/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Nocturne/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Nocturne_0.jpg"
+ },
+ {
+  "id": "Nunu",
+  "name": "Nunu et Willump",
+  "positions": [
+   "Jungle"
+  ],
+  "classes": [
+   "Mage",
+   "Tank"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Freljord",
+  "year": 2009,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Nunu/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Nunu/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Nunu/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Nunu/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Nunu/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Nunu_0.jpg"
+ },
+ {
+  "id": "Olaf",
+  "name": "Olaf",
+  "positions": [
+   "Top"
+  ],
+  "classes": [
+   "Combattant",
+   "Tank"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Freljord",
+  "year": 2010,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Olaf/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Olaf/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Olaf/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Olaf/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Olaf/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Olaf_0.jpg"
+ },
+ {
+  "id": "Orianna",
+  "name": "Orianna",
+  "positions": [
+   "Mid"
+  ],
+  "classes": [
+   "Mage",
+   "Support"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Piltover",
+  "year": 2011,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Orianna/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Orianna/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Orianna/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Orianna/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Orianna/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Orianna_0.jpg"
+ },
+ {
+  "id": "Ornn",
+  "name": "Ornn",
+  "positions": [
+   "Top"
+  ],
+  "classes": [
+   "Tank"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Freljord",
+  "year": 2017,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Ornn/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Ornn/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Ornn/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Ornn/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Ornn/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Ornn_0.jpg"
+ },
+ {
+  "id": "Pantheon",
+  "name": "Pantheon",
+  "positions": [
+   "Jungle",
+   "Mid",
+   "Support",
+   "Top"
+  ],
+  "classes": [
+   "Assassin",
+   "Combattant"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Targon",
+  "year": 2010,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Pantheon/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Pantheon/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Pantheon/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Pantheon/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Pantheon/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Pantheon_0.jpg"
+ },
+ {
+  "id": "Poppy",
+  "name": "Poppy",
+  "positions": [
+   "Jungle",
+   "Top"
+  ],
+  "classes": [
+   "Combattant",
+   "Tank"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Demacia",
+  "year": 2010,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Poppy/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Poppy/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Poppy/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Poppy/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Poppy/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Poppy_0.jpg"
+ },
+ {
+  "id": "Pyke",
+  "name": "Pyke",
+  "positions": [
+   "Support"
+  ],
+  "classes": [
+   "Assassin",
+   "Support"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Bilgewater",
+  "year": 2018,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Pyke/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Pyke/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Pyke/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Pyke/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Pyke/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Pyke_0.jpg"
+ },
+ {
+  "id": "Qiyana",
+  "name": "Qiyana",
+  "positions": [
+   "Mid"
+  ],
+  "classes": [
+   "Assassin"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Ixtal",
+  "year": 2019,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Qiyana/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Qiyana/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Qiyana/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Qiyana/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Qiyana/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Qiyana_0.jpg"
+ },
+ {
+  "id": "Quinn",
+  "name": "Quinn",
+  "positions": [
+   "Top"
+  ],
+  "classes": [
+   "Assassin",
+   "Tireur"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Demacia",
+  "year": 2013,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Quinn/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Quinn/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Quinn/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Quinn/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Quinn/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Quinn_0.jpg"
+ },
+ {
+  "id": "Rakan",
+  "name": "Rakan",
+  "positions": [
+   "Support"
+  ],
+  "classes": [
+   "Support"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Ionia",
+  "year": 2017,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Rakan/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Rakan/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Rakan/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Rakan/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Rakan/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Rakan_0.jpg"
+ },
+ {
+  "id": "Rammus",
+  "name": "Rammus",
+  "positions": [
+   "Jungle"
+  ],
+  "classes": [
+   "Tank"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Shurima",
+  "year": 2009,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Rammus/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Rammus/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Rammus/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Rammus/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Rammus/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Rammus_0.jpg"
+ },
+ {
+  "id": "RekSai",
+  "name": "Rek'Sai",
+  "positions": [
+   "Jungle"
+  ],
+  "classes": [
+   "Combattant",
+   "Tank"
+  ],
+  "range": "Mêlée",
+  "resource": "Autre",
+  "region": "Néant",
+  "year": 2014,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/RekSai/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/RekSai/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/RekSai/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/RekSai/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/RekSai/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/RekSai_0.jpg"
+ },
+ {
+  "id": "Rell",
+  "name": "Rell",
+  "positions": [
+   "Support"
+  ],
+  "classes": [
+   "Support",
+   "Tank"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Noxus",
+  "year": 2020,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Rell/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Rell/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Rell/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Rell/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Rell/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Rell_0.jpg"
+ },
+ {
+  "id": "Renata",
+  "name": "Renata Glasc",
+  "positions": [
+   "Support"
+  ],
+  "classes": [
+   "Mage",
+   "Support"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Zaun",
+  "year": 2022,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Renata/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Renata/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Renata/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Renata/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Renata/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Renata_0.jpg"
+ },
+ {
+  "id": "Renekton",
+  "name": "Renekton",
+  "positions": [
+   "Top"
+  ],
+  "classes": [
+   "Combattant",
+   "Tank"
+  ],
+  "range": "Mêlée",
+  "resource": "Autre",
+  "region": "Shurima",
+  "year": 2011,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Renekton/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Renekton/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Renekton/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Renekton/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Renekton/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Renekton_0.jpg"
+ },
+ {
+  "id": "Rengar",
+  "name": "Rengar",
+  "positions": [
+   "Jungle",
+   "Top"
+  ],
+  "classes": [
+   "Assassin",
+   "Combattant"
+  ],
+  "range": "Mêlée",
+  "resource": "Autre",
+  "region": "Ixtal",
+  "year": 2012,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Rengar/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Rengar/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Rengar/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Rengar/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Rengar/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Rengar_0.jpg"
+ },
+ {
+  "id": "Riven",
+  "name": "Riven",
+  "positions": [
+   "Top"
+  ],
+  "classes": [
+   "Assassin",
+   "Combattant"
+  ],
+  "range": "Mêlée",
+  "resource": "Aucune",
+  "region": "Noxus",
+  "year": 2011,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Riven/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Riven/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Riven/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Riven/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Riven/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Riven_0.jpg"
+ },
+ {
+  "id": "Rumble",
+  "name": "Rumble",
+  "positions": [
+   "Mid",
+   "Top"
+  ],
+  "classes": [
+   "Combattant",
+   "Mage"
+  ],
+  "range": "Mêlée",
+  "resource": "Autre",
+  "region": "Bandle",
+  "year": 2011,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Rumble/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Rumble/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Rumble/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Rumble/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Rumble/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Rumble_0.jpg"
+ },
+ {
+  "id": "Ryze",
+  "name": "Ryze",
+  "positions": [
+   "Mid"
+  ],
+  "classes": [
+   "Mage"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Runeterra",
+  "year": 2009,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Ryze/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Ryze/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Ryze/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Ryze/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Ryze/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Ryze_0.jpg"
+ },
+ {
+  "id": "Samira",
+  "name": "Samira",
+  "positions": [
+   "ADC"
+  ],
+  "classes": [
+   "Assassin",
+   "Tireur"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Noxus",
+  "year": 2020,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Samira/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Samira/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Samira/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Samira/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Samira/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Samira_0.jpg"
+ },
+ {
+  "id": "Sejuani",
+  "name": "Sejuani",
+  "positions": [
+   "Jungle"
+  ],
+  "classes": [
+   "Tank"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Freljord",
+  "year": 2012,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Sejuani/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Sejuani/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Sejuani/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Sejuani/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Sejuani/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Sejuani_0.jpg"
+ },
+ {
+  "id": "Senna",
+  "name": "Senna",
+  "positions": [
+   "ADC",
+   "Support"
+  ],
+  "classes": [
+   "Support",
+   "Tireur"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Runeterra",
+  "year": 2019,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Senna/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Senna/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Senna/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Senna/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Senna/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Senna_0.jpg"
+ },
+ {
+  "id": "Seraphine",
+  "name": "Séraphine",
+  "positions": [
+   "ADC",
+   "Support"
+  ],
+  "classes": [
+   "Mage",
+   "Support"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Piltover",
+  "year": 2020,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Seraphine/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Seraphine/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Seraphine/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Seraphine/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Seraphine/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Seraphine_0.jpg"
+ },
+ {
+  "id": "Sett",
+  "name": "Sett",
+  "positions": [
+   "Top"
+  ],
+  "classes": [
+   "Combattant",
+   "Tank"
+  ],
+  "range": "Mêlée",
+  "resource": "Autre",
+  "region": "Ionia",
+  "year": 2020,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Sett/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Sett/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Sett/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Sett/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Sett/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Sett_0.jpg"
+ },
+ {
+  "id": "Shaco",
+  "name": "Shaco",
+  "positions": [
+   "Jungle",
+   "Support"
+  ],
+  "classes": [
+   "Assassin"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Runeterra",
+  "year": 2009,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Shaco/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Shaco/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Shaco/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Shaco/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Shaco/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Shaco_0.jpg"
+ },
+ {
+  "id": "Shen",
+  "name": "Shen",
+  "positions": [
+   "Support",
+   "Top"
+  ],
+  "classes": [
+   "Tank"
+  ],
+  "range": "Mêlée",
+  "resource": "Énergie",
+  "region": "Ionia",
+  "year": 2010,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Shen/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Shen/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Shen/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Shen/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Shen/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Shen_0.jpg"
+ },
+ {
+  "id": "Shyvana",
+  "name": "Shyvana",
+  "positions": [
+   "Jungle"
+  ],
+  "classes": [
+   "Combattant",
+   "Tank"
+  ],
+  "range": "Mêlée",
+  "resource": "Autre",
+  "region": "Demacia",
+  "year": 2011,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Shyvana/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Shyvana/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Shyvana/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Shyvana/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Shyvana/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Shyvana_0.jpg"
+ },
+ {
+  "id": "Singed",
+  "name": "Singed",
+  "positions": [
+   "Top"
+  ],
+  "classes": [
+   "Mage",
+   "Tank"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Zaun",
+  "year": 2009,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Singed/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Singed/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Singed/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Singed/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Singed/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Singed_0.jpg"
+ },
+ {
+  "id": "Sion",
+  "name": "Sion",
+  "positions": [
+   "Top"
+  ],
+  "classes": [
+   "Combattant",
+   "Tank"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Noxus",
+  "year": 2009,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Sion/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Sion/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Sion/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Sion/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Sion/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Sion_0.jpg"
+ },
+ {
+  "id": "Sivir",
+  "name": "Sivir",
+  "positions": [
+   "ADC"
+  ],
+  "classes": [
+   "Tireur"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Shurima",
+  "year": 2009,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Sivir/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Sivir/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Sivir/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Sivir/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Sivir/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Sivir_0.jpg"
+ },
+ {
+  "id": "Skarner",
+  "name": "Skarner",
+  "positions": [
+   "Jungle",
+   "Top"
+  ],
+  "classes": [
+   "Combattant",
+   "Tank"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Ixtal",
+  "year": 2011,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Skarner/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Skarner/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Skarner/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Skarner/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Skarner/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Skarner_0.jpg"
+ },
+ {
+  "id": "Smolder",
+  "name": "Smolder",
+  "positions": [
+   "ADC",
+   "Mid",
+   "Top"
+  ],
+  "classes": [
+   "Mage",
+   "Tireur"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Runeterra",
+  "year": 2024,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Smolder/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Smolder/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Smolder/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Smolder/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Smolder/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Smolder_0.jpg"
+ },
+ {
+  "id": "Sona",
+  "name": "Sona",
+  "positions": [
+   "Support"
+  ],
+  "classes": [
+   "Mage",
+   "Support"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Demacia",
+  "year": 2010,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Sona/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Sona/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Sona/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Sona/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Sona/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Sona_0.jpg"
+ },
+ {
+  "id": "Soraka",
+  "name": "Soraka",
+  "positions": [
+   "Support"
+  ],
+  "classes": [
+   "Mage",
+   "Support"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Targon",
+  "year": 2009,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Soraka/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Soraka/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Soraka/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Soraka/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Soraka/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Soraka_0.jpg"
+ },
+ {
+  "id": "Swain",
+  "name": "Swain",
+  "positions": [
+   "ADC",
+   "Mid",
+   "Support"
+  ],
+  "classes": [
+   "Mage",
+   "Support"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Noxus",
+  "year": 2010,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Swain/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Swain/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Swain/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Swain/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Swain/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Swain_0.jpg"
+ },
+ {
+  "id": "Sylas",
+  "name": "Sylas",
+  "positions": [
+   "Mid",
+   "Top"
+  ],
+  "classes": [
+   "Assassin",
+   "Mage"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Demacia",
+  "year": 2019,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Sylas/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Sylas/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Sylas/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Sylas/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Sylas/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Sylas_0.jpg"
+ },
+ {
+  "id": "Syndra",
+  "name": "Syndra",
+  "positions": [
+   "Mid"
+  ],
+  "classes": [
+   "Mage"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Ionia",
+  "year": 2012,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Syndra/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Syndra/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Syndra/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Syndra/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Syndra/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Syndra_0.jpg"
+ },
+ {
+  "id": "TahmKench",
+  "name": "Tahm Kench",
+  "positions": [
+   "Support",
+   "Top"
+  ],
+  "classes": [
+   "Support",
+   "Tank"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Runeterra",
+  "year": 2015,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/TahmKench/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/TahmKench/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/TahmKench/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/TahmKench/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/TahmKench/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/TahmKench_0.jpg"
+ },
+ {
+  "id": "Taliyah",
+  "name": "Taliyah",
+  "positions": [
+   "Jungle",
+   "Mid"
+  ],
+  "classes": [
+   "Mage",
+   "Support"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Shurima",
+  "year": 2016,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Taliyah/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Taliyah/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Taliyah/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Taliyah/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Taliyah/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Taliyah_0.jpg"
+ },
+ {
+  "id": "Talon",
+  "name": "Talon",
+  "positions": [
+   "Jungle"
+  ],
+  "classes": [
+   "Assassin"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Noxus",
+  "year": 2011,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Talon/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Talon/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Talon/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Talon/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Talon/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Talon_0.jpg"
+ },
+ {
+  "id": "Taric",
+  "name": "Taric",
+  "positions": [
+   "Mid",
+   "Support"
+  ],
+  "classes": [
+   "Support",
+   "Tank"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Targon",
+  "year": 2009,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Taric/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Taric/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Taric/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Taric/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Taric/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Taric_0.jpg"
+ },
+ {
+  "id": "Teemo",
+  "name": "Teemo",
+  "positions": [
+   "Jungle",
+   "Support",
+   "Top"
+  ],
+  "classes": [
+   "Mage",
+   "Tireur"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Bandle",
+  "year": 2009,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Teemo/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Teemo/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Teemo/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Teemo/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Teemo/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Teemo_0.jpg"
+ },
+ {
+  "id": "Thresh",
+  "name": "Thresh",
+  "positions": [
+   "Support"
+  ],
+  "classes": [
+   "Support",
+   "Tank"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Îles obscures",
+  "year": 2013,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Thresh/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Thresh/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Thresh/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Thresh/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Thresh/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Thresh_0.jpg"
+ },
+ {
+  "id": "Tristana",
+  "name": "Tristana",
+  "positions": [
+   "ADC",
+   "Mid"
+  ],
+  "classes": [
+   "Assassin",
+   "Tireur"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Bandle",
+  "year": 2009,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Tristana/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Tristana/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Tristana/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Tristana/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Tristana/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Tristana_0.jpg"
+ },
+ {
+  "id": "Trundle",
+  "name": "Trundle",
+  "positions": [
+   "Jungle",
+   "Top"
+  ],
+  "classes": [
+   "Combattant",
+   "Tank"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Freljord",
+  "year": 2010,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Trundle/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Trundle/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Trundle/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Trundle/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Trundle/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Trundle_0.jpg"
+ },
+ {
+  "id": "Tryndamere",
+  "name": "Tryndamere",
+  "positions": [
+   "Top"
+  ],
+  "classes": [
+   "Assassin",
+   "Combattant"
+  ],
+  "range": "Mêlée",
+  "resource": "Autre",
+  "region": "Freljord",
+  "year": 2009,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Tryndamere/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Tryndamere/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Tryndamere/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Tryndamere/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Tryndamere/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Tryndamere_0.jpg"
+ },
+ {
+  "id": "TwistedFate",
+  "name": "Twisted Fate",
+  "positions": [
+   "ADC",
+   "Mid",
+   "Top"
+  ],
+  "classes": [
+   "Mage",
+   "Tireur"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Bilgewater",
+  "year": 2009,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/TwistedFate/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/TwistedFate/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/TwistedFate/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/TwistedFate/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/TwistedFate/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/TwistedFate_0.jpg"
+ },
+ {
+  "id": "Twitch",
+  "name": "Twitch",
+  "positions": [
+   "ADC",
+   "Support"
+  ],
+  "classes": [
+   "Assassin",
+   "Tireur"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Zaun",
+  "year": 2009,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Twitch/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Twitch/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Twitch/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Twitch/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Twitch/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Twitch_0.jpg"
+ },
+ {
+  "id": "Udyr",
+  "name": "Udyr",
+  "positions": [
+   "Jungle",
+   "Top"
+  ],
+  "classes": [
+   "Combattant",
+   "Tank"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Freljord",
+  "year": 2009,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Udyr/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Udyr/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Udyr/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Udyr/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Udyr/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Udyr_0.jpg"
+ },
+ {
+  "id": "Urgot",
+  "name": "Urgot",
+  "positions": [
+   "Top"
+  ],
+  "classes": [
+   "Combattant",
+   "Tank"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Zaun",
+  "year": 2010,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Urgot/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Urgot/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Urgot/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Urgot/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Urgot/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Urgot_0.jpg"
+ },
+ {
+  "id": "Varus",
+  "name": "Varus",
+  "positions": [
+   "ADC"
+  ],
+  "classes": [
+   "Mage",
+   "Tireur"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Ionia",
+  "year": 2012,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Varus/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Varus/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Varus/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Varus/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Varus/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Varus_0.jpg"
+ },
+ {
+  "id": "Vayne",
+  "name": "Vayne",
+  "positions": [
+   "ADC",
+   "Top"
+  ],
+  "classes": [
+   "Assassin",
+   "Tireur"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Demacia",
+  "year": 2011,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Vayne/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Vayne/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Vayne/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Vayne/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Vayne/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Vayne_0.jpg"
+ },
+ {
+  "id": "Veigar",
+  "name": "Veigar",
+  "positions": [
+   "Mid",
+   "Support"
+  ],
+  "classes": [
+   "Mage"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Bandle",
+  "year": 2009,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Veigar/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Veigar/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Veigar/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Veigar/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Veigar/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Veigar_0.jpg"
+ },
+ {
+  "id": "Velkoz",
+  "name": "Vel'Koz",
+  "positions": [
+   "Mid",
+   "Support"
+  ],
+  "classes": [
+   "Mage",
+   "Support"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Néant",
+  "year": 2014,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Velkoz/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Velkoz/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Velkoz/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Velkoz/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Velkoz/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Velkoz_0.jpg"
+ },
+ {
+  "id": "Vex",
+  "name": "Vex",
+  "positions": [
+   "Mid"
+  ],
+  "classes": [
+   "Mage"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Îles obscures",
+  "year": 2021,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Vex/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Vex/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Vex/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Vex/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Vex/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Vex_0.jpg"
+ },
+ {
+  "id": "Vi",
+  "name": "Vi",
+  "positions": [
+   "Jungle"
+  ],
+  "classes": [
+   "Assassin",
+   "Combattant"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Piltover",
+  "year": 2012,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Vi/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Vi/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Vi/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Vi/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Vi/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Vi_0.jpg"
+ },
+ {
+  "id": "Viego",
+  "name": "Viego",
+  "positions": [
+   "Jungle"
+  ],
+  "classes": [
+   "Assassin",
+   "Combattant"
+  ],
+  "range": "Mêlée",
+  "resource": "Aucune",
+  "region": "Îles obscures",
+  "year": 2021,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Viego/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Viego/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Viego/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Viego/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Viego/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Viego_0.jpg"
+ },
+ {
+  "id": "Viktor",
+  "name": "Viktor",
+  "positions": [
+   "Mid"
+  ],
+  "classes": [
+   "Mage"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Zaun",
+  "year": 2011,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Viktor/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Viktor/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Viktor/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Viktor/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Viktor/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Viktor_0.jpg"
+ },
+ {
+  "id": "Vladimir",
+  "name": "Vladimir",
+  "positions": [
+   "Mid",
+   "Top"
+  ],
+  "classes": [
+   "Combattant",
+   "Mage"
+  ],
+  "range": "Distance",
+  "resource": "Autre",
+  "region": "Noxus",
+  "year": 2010,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Vladimir/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Vladimir/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Vladimir/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Vladimir/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Vladimir/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Vladimir_0.jpg"
+ },
+ {
+  "id": "Volibear",
+  "name": "Volibear",
+  "positions": [
+   "Jungle",
+   "Top"
+  ],
+  "classes": [
+   "Combattant",
+   "Tank"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Freljord",
+  "year": 2011,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Volibear/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Volibear/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Volibear/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Volibear/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Volibear/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Volibear_0.jpg"
+ },
+ {
+  "id": "Warwick",
+  "name": "Warwick",
+  "positions": [
+   "Jungle",
+   "Top"
+  ],
+  "classes": [
+   "Combattant",
+   "Tank"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Zaun",
+  "year": 2009,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Warwick/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Warwick/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Warwick/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Warwick/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Warwick/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Warwick_0.jpg"
+ },
+ {
+  "id": "Xayah",
+  "name": "Xayah",
+  "positions": [
+   "ADC"
+  ],
+  "classes": [
+   "Tireur"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Ionia",
+  "year": 2017,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Xayah/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Xayah/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Xayah/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Xayah/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Xayah/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Xayah_0.jpg"
+ },
+ {
+  "id": "Xerath",
+  "name": "Xerath",
+  "positions": [
+   "Mid",
+   "Support"
+  ],
+  "classes": [
+   "Mage",
+   "Support"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Shurima",
+  "year": 2011,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Xerath/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Xerath/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Xerath/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Xerath/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Xerath/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Xerath_0.jpg"
+ },
+ {
+  "id": "XinZhao",
+  "name": "Xin Zhao",
+  "positions": [
+   "Jungle"
+  ],
+  "classes": [
+   "Combattant",
+   "Tank"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Demacia",
+  "year": 2010,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/XinZhao/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/XinZhao/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/XinZhao/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/XinZhao/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/XinZhao/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/XinZhao_0.jpg"
+ },
+ {
+  "id": "Yasuo",
+  "name": "Yasuo",
+  "positions": [
+   "ADC",
+   "Mid",
+   "Top"
+  ],
+  "classes": [
+   "Assassin",
+   "Combattant"
+  ],
+  "range": "Mêlée",
+  "resource": "Autre",
+  "region": "Ionia",
+  "year": 2013,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Yasuo/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Yasuo/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Yasuo/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Yasuo/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Yasuo/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Yasuo_0.jpg"
+ },
+ {
+  "id": "Yone",
+  "name": "Yone",
+  "positions": [
+   "Mid",
+   "Top"
+  ],
+  "classes": [
+   "Assassin",
+   "Combattant"
+  ],
+  "range": "Mêlée",
+  "resource": "Autre",
+  "region": "Ionia",
+  "year": 2020,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Yone/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Yone/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Yone/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Yone/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Yone/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Yone_0.jpg"
+ },
+ {
+  "id": "Yorick",
+  "name": "Yorick",
+  "positions": [
+   "Top"
+  ],
+  "classes": [
+   "Combattant",
+   "Tank"
+  ],
+  "range": "Mêlée",
+  "resource": "Mana",
+  "region": "Îles obscures",
+  "year": 2011,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Yorick/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Yorick/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Yorick/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Yorick/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Yorick/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Yorick_0.jpg"
+ },
+ {
+  "id": "Yunara",
+  "name": "Yunara",
+  "positions": [
+   "ADC"
+  ],
+  "classes": [
+   "Tireur"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Ionia",
+  "year": 2025,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Yunara/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Yunara/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Yunara/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Yunara/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Yunara/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Yunara_0.jpg"
+ },
+ {
+  "id": "Yuumi",
+  "name": "Yuumi",
+  "positions": [
+   "Support"
+  ],
+  "classes": [
+   "Mage",
+   "Support"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Bandle",
+  "year": 2019,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Yuumi/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Yuumi/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Yuumi/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Yuumi/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Yuumi/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Yuumi_0.jpg"
+ },
+ {
+  "id": "Zac",
+  "name": "Zac",
+  "positions": [
+   "Jungle",
+   "Support",
+   "Top"
+  ],
+  "classes": [
+   "Combattant",
+   "Tank"
+  ],
+  "range": "Mêlée",
+  "resource": "Autre",
+  "region": "Zaun",
+  "year": 2013,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Zac/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Zac/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Zac/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Zac/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Zac/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Zac_0.jpg"
+ },
+ {
+  "id": "Zed",
+  "name": "Zed",
+  "positions": [
+   "Jungle",
+   "Mid"
+  ],
+  "classes": [
+   "Assassin"
+  ],
+  "range": "Mêlée",
+  "resource": "Énergie",
+  "region": "Ionia",
+  "year": 2012,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Zed/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Zed/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Zed/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Zed/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Zed/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Zed_0.jpg"
+ },
+ {
+  "id": "Zeri",
+  "name": "Zeri",
+  "positions": [
+   "ADC"
+  ],
+  "classes": [
+   "Tireur"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Zaun",
+  "year": 2022,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Zeri/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Zeri/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Zeri/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Zeri/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Zeri/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Zeri_0.jpg"
+ },
+ {
+  "id": "Ziggs",
+  "name": "Ziggs",
+  "positions": [
+   "ADC",
+   "Mid"
+  ],
+  "classes": [
+   "Mage"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Zaun",
+  "year": 2012,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Ziggs/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Ziggs/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Ziggs/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Ziggs/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Ziggs/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Ziggs_0.jpg"
+ },
+ {
+  "id": "Zilean",
+  "name": "Zilean",
+  "positions": [
+   "Support"
+  ],
+  "classes": [
+   "Mage",
+   "Support"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Runeterra",
+  "year": 2009,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Zilean/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Zilean/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Zilean/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Zilean/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Zilean/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Zilean_0.jpg"
+ },
+ {
+  "id": "Zoe",
+  "name": "Zoé",
+  "positions": [
+   "Mid"
+  ],
+  "classes": [
+   "Mage"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Targon",
+  "year": 2017,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Zoe/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Zoe/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Zoe/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Zoe/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Zoe/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Zoe_0.jpg"
+ },
+ {
+  "id": "Zyra",
+  "name": "Zyra",
+  "positions": [
+   "Support"
+  ],
+  "classes": [
+   "Mage",
+   "Support"
+  ],
+  "range": "Distance",
+  "resource": "Mana",
+  "region": "Ixtal",
+  "year": 2012,
+  "spells": [
+   "https://cdn.communitydragon.org/latest/champion/Zyra/ability-icon/p",
+   "https://cdn.communitydragon.org/latest/champion/Zyra/ability-icon/q",
+   "https://cdn.communitydragon.org/latest/champion/Zyra/ability-icon/w",
+   "https://cdn.communitydragon.org/latest/champion/Zyra/ability-icon/e",
+   "https://cdn.communitydragon.org/latest/champion/Zyra/ability-icon/r"
+  ],
+  "splash": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Zyra_0.jpg"
+ }
+]

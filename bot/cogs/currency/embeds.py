@@ -19,6 +19,7 @@ REASON_LABELS = {
     "refund": "Remboursement",
     "bet_create_fee": "Ouverture d'un pari",
     "bet_create_fee_refund": "Frais d'ouverture rendus",
+    "loldle_hint": "Indice LoLdle",
     "admin_grant": "Ajustement admin",
     "house_endowment": "Fonds de la banque",
     "house_seed": "Mise de la banque",

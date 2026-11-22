@@ -20,6 +20,10 @@ def make_embed(color: discord.Color, title: str, details: str) -> discord.Embed:
     return embed
 
 
+# Commands logged by name only: their options must not reach the log channel or audit_logs.
+PRIVATE_OPTION_COMMANDS = frozenset({"loldle"})
+
+
 class LogsCog(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
@@ -509,7 +513,8 @@ class LogsCog(commands.Cog):
         if self._is_ignored(interaction.channel_id):
             return
         name = interaction.command.qualified_name if interaction.command else "unknown"
-        ns = vars(interaction.namespace) if interaction.namespace else {}
+        # A guess is the game's secret: mirroring `champion=Ahri` would spoil the day's answer.
+        ns = {} if name in PRIVATE_OPTION_COMMANDS else (vars(interaction.namespace) if interaction.namespace else {})
         opts = ", ".join(f"{k}={v}" for k, v in ns.items() if v is not None) or "—"
         channel_mention = getattr(interaction.channel, "mention", "unknown")
         details = f"{interaction.user.mention} → `/{name}` in {channel_mention} | {opts}"

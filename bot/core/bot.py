@@ -18,6 +18,7 @@ COGS = [
     "bot.cogs.announce.cog",
     "bot.cogs.palworld.cog",
     "bot.cogs.customs.cog",
+    "bot.cogs.loldle.cog",
     "bot.cogs.setup.cog",
     "bot.cogs.help.cog",
 ]

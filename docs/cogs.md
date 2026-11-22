@@ -163,6 +163,21 @@ gagne (organiser or mod) · ▶️ Partie suivante · 🏁 Fin de soirée. Over 
 signup order. One open custom per guild; a reminder pings the ten 15 min before; a forgotten
 custom expires 6 h after its time (24 h after creation if it never got one).
 
+## LoLdle Cog (`bot/cogs/loldle/`)
+
+One champion a day (midnight Europe/Paris), guessed privately. `/setup loldle #channel` posts the pinned board and
+chooses where spoiler-free result grids are posted; the game itself works without it.
+
+| Command | Who | Description |
+|---------|-----|-------------|
+| `/loldle champion:…` | anyone | Submit a guess (unlimited, private) |
+| `/loldle` | anyone | Show your grid and hints |
+| `/setup loldle <channel>` | Manage Server | Post the pinned board |
+
+Clues: position, class, range, resource, region, year. After 3 guesses, hints can be bought in order: ability icon
+25 🪙, splash crop 50 🪙, first letter 100 🪙. Coins go to the house; each hint adds +1 to the score. The board ranks by
+average score over 30 days (minimum 5 solved), shows DNFs and streaks.
+
 ## Birthday Cog (`bot/cogs/birthday/cog.py`)
 
 Members register their birthday once. Two pinned embeds update daily and the bot sends birthday wishes at midnight Paris time.

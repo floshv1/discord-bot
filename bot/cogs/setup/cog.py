@@ -17,6 +17,7 @@ from bot.cogs.currency.cog import CurrencyCog
 from bot.cogs.currency.embeds import build_panel_embed as build_currency_panel_embed
 from bot.cogs.currency.views import CurrencyPanelView
 from bot.cogs.customs import service as customs_service
+from bot.cogs.loldle import service as loldle_service
 from bot.cogs.music import service as music_service
 from bot.cogs.music.cog import MusicCog
 from bot.cogs.music.embeds import build_history_embed, build_idle_embed
@@ -88,6 +89,7 @@ FEATURES: list[tuple[str, str, list[str], str]] = [
     ("Music", "music_config", ["now_playing_message_id", "history_message_id"], "/setup music"),
     ("Palworld", "palworld_config", ["panel_message_id"], "/setup palworld"),
     ("Customs", "customs_config", [], "/setup customs"),
+    ("LoLdle", "loldle_config", ["board_message_id"], "/setup loldle"),
     ("Betting", "betting_config", [], "/setup betting"),
     ("Announcements", "announce_config", [], "/setup announce"),
     ("Reprimand", "reprimand_config", [], "/setup reprimand"),
@@ -461,6 +463,23 @@ class SetupCog(commands.Cog):
         if not self.bot.config.lolamis_url:  # type: ignore[attr-defined]
             lines.append("⚠️ `LOLAMIS_URL` n'est pas défini : `/custom` répondra que la feature est désactivée.")
         await interaction.response.send_message("\n".join(lines), ephemeral=True)
+
+    @setup.command(name="loldle", description="Poster le classement LoLdle et choisir le salon des résultats.")
+    @app_commands.describe(channel="Salon du classement épinglé et des grilles du jour")
+    @app_commands.default_permissions(manage_guild=True)
+    async def setup_loldle(self, interaction: discord.Interaction, channel: discord.TextChannel) -> None:
+        await interaction.response.defer(ephemeral=True)
+        await _clear_previous(self.bot, interaction.guild_id, "loldle_config", ["board_message_id"])
+        cog = self.bot.cogs.get("LoldleCog")
+        if cog is None:
+            await interaction.followup.send("Le LoLdle n'est pas chargé.", ephemeral=True)
+            return
+        message = await channel.send(embed=await cog.render_board(interaction.guild_id))  # type: ignore[attr-defined]
+        await pin(message)
+        await loldle_service.set_config(interaction.guild_id, channel.id, message.id)
+        await interaction.followup.send(
+            f"✅ LoLdle prêt dans {channel.mention}. Les membres jouent avec `/loldle`.", ephemeral=True
+        )
 
     @setup.command(name="palworld", description="Poster le panneau d'ouverture du serveur Palworld dans un salon.")
     @app_commands.describe(channel="Salon qui hébergera le panneau épinglé")
