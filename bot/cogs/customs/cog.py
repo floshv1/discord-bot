@@ -43,7 +43,7 @@ class CustomsCog(commands.Cog):
         self._session: aiohttp.ClientSession | None = None
         self._dirty: set[int] = set()
         self._persons: dict[int, Person] = {}
-        self._persons_at = 0.0
+        self._persons_at: float | None = None  # None = never loaded: stale whatever the clock says
         self._ticking = False
         self._create_locks: dict[int, asyncio.Lock] = {}
 
@@ -72,7 +72,7 @@ class CustomsCog(commands.Cog):
         self._dirty.add(custom_id)
 
     async def persons(self, *, fresh: bool = False) -> dict[int, Person]:
-        if fresh or time.monotonic() - self._persons_at > PERSONS_TTL:
+        if fresh or self._persons_at is None or time.monotonic() - self._persons_at > PERSONS_TTL:
             assert self.client is not None
             self._persons = {p.id: p for p in await self.client.list_persons()}
             self._persons_at = time.monotonic()

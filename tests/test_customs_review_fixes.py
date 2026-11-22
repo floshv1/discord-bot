@@ -207,3 +207,13 @@ async def test_retry_finds_the_game_lolamis_already_has(cog):
         service.set_lolamis_game_id.assert_awaited_once_with(5, 1, 55)
     assert ok
     cog.client.record_game.assert_not_called()
+
+
+# CI: on Linux time.monotonic() counts from boot, so a runner up < 60 s made the never-filled cache
+# look fresh — the bot skipped lol-amis entirely (empty picker, "?" names right after a reboot).
+async def test_never_loaded_cache_is_stale_even_right_after_boot(cog):
+    cog.client.list_persons.return_value = [Person(7, "Adri", "", None)]
+    with patch.object(customs_cog.time, "monotonic", return_value=5.0):
+        persons = await cog.persons()
+    assert 7 in persons
+    cog.client.list_persons.assert_awaited_once()
