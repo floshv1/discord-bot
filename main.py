@@ -20,6 +20,18 @@ class _InterceptHandler(logging.Handler):
         logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
 
 
+def configure_logging(sink=sys.stderr) -> None:
+    """One loguru sink with `diagnose=False`.
+
+    Loguru's default handler prints the *value* of every local variable in a traceback. The first
+    ticker crash in production printed `config.discord_token` (a local of `main()`, two frames up)
+    straight into the container logs. Tracebacks stay; variable values never get printed.
+    """
+    logger.remove()
+    logger.add(sink, level="INFO", backtrace=False, diagnose=False)
+
+
+configure_logging()
 logging.basicConfig(handlers=[_InterceptHandler()], level=logging.INFO, force=True)
 
 

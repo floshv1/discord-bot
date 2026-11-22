@@ -86,3 +86,15 @@ def test_setup_status_knows_customs():
     from bot.cogs.setup.cog import FEATURES
 
     assert ("Customs", "customs_config", [], "/setup customs") in FEATURES
+
+
+async def test_a_failing_tick_is_logged_not_raised():
+    # Raising made the .error handler restart() at once: a deterministic error became a
+    # restart loop printing thousands of tracebacks a second.
+    cog, _ = _cog()
+    with (
+        patch.object(customs_cog.service, "claim_reminders", AsyncMock(side_effect=RuntimeError("db"))),
+        patch.object(customs_cog.service, "expire_due", AsyncMock(return_value=[{"id": 3}])),
+    ):
+        await cog.minute_ticker.coro(cog)  # must not raise
+    assert 3 in cog._dirty  # and one failing step does not cost the other

@@ -282,12 +282,17 @@ async def set_lolamis_game_id(custom_id: int, number: int, game_id: int) -> None
 
 
 async def claim_reminders(now: dt.datetime) -> list[asyncpg.Record]:
-    """Customs starting within 15 min, stamped in the same UPDATE so a restart can't re-ping."""
+    """Customs starting within 15 min, stamped in the same UPDATE so a restart can't re-ping.
+
+    `$1::timestamptz` is not decoration: in `$1 + INTERVAL` Postgres would infer $1 as an interval
+    and fail every tick with « timestamp with time zone <= interval ».
+    """
     return await get_pool().fetch(
         f"""
-        UPDATE customs SET reminded_at = $1
+        UPDATE customs SET reminded_at = $1::timestamptz
         WHERE status IN {OPEN} AND mode = 'fixed' AND reminded_at IS NULL
-          AND start_at IS NOT NULL AND start_at <= $1 + INTERVAL '15 minutes' AND start_at > $1
+          AND start_at IS NOT NULL
+          AND start_at <= $1::timestamptz + INTERVAL '15 minutes' AND start_at > $1::timestamptz
         RETURNING *
         """,
         now,
@@ -299,7 +304,7 @@ async def expire_due(now: dt.datetime) -> list[asyncpg.Record]:
         f"""
         UPDATE customs SET status = 'cancelled'
         WHERE status IN {OPEN}
-          AND COALESCE(start_at + INTERVAL '6 hours', created_at + INTERVAL '24 hours') <= $1
+          AND COALESCE(start_at + INTERVAL '6 hours', created_at + INTERVAL '24 hours') <= $1::timestamptz
         RETURNING *
         """,
         now,

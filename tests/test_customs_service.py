@@ -76,3 +76,16 @@ async def test_end_only_closes_an_open_custom(conn):
     conn.fetchval.return_value = None
     assert await service.end(1, "done") is False
     assert "status IN ('signup', 'teams')" in conn.fetchval.call_args.args[0]
+
+
+async def test_ticker_queries_type_now_as_a_timestamp(conn):
+    # `$1 + INTERVAL '15 minutes'` made Postgres infer $1 as an interval:
+    # "operator does not exist: timestamp with time zone <= interval" on every tick in prod.
+    conn.fetch.return_value = []
+    now = dt.datetime(2026, 11, 22, tzinfo=dt.UTC)
+    await service.claim_reminders(now)
+    await service.expire_due(now)
+    for call in conn.fetch.call_args_list:
+        sql = call.args[0]
+        assert "$1::timestamptz" in sql
+        assert "$1 + INTERVAL" not in sql

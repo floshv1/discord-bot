@@ -680,11 +680,20 @@ class CustomsCog(commands.Cog):
 
     @tasks.loop(minutes=1)
     async def minute_ticker(self) -> None:
+        # Each step guards itself and the loop never raises: `.error` restarts the task at once,
+        # so a deterministic failure used to become a restart loop printing thousands of
+        # tracebacks a second. A failing step now costs one log line per minute, not the others.
         now = discord.utils.utcnow()
-        for custom in await service.claim_reminders(now):
-            await self._remind(custom)
-        for custom in await service.expire_due(now):
-            self.mark_dirty(custom["id"])
+        try:
+            for custom in await service.claim_reminders(now):
+                await self._remind(custom)
+        except Exception:
+            logger.exception("Customs: reminder step failed")
+        try:
+            for custom in await service.expire_due(now):
+                self.mark_dirty(custom["id"])
+        except Exception:
+            logger.exception("Customs: expiry step failed")
 
     async def _remind(self, custom) -> None:
         channel = self.bot.get_channel(custom["channel_id"])
