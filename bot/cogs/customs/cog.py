@@ -59,10 +59,12 @@ class CustomsCog(commands.Cog):
         logger.info(f"Customs: using lol-amis at {self.config.lolamis_url}.")
         self.card_ticker.start()
         self.minute_ticker.start()
+        self.name_ticker.start()
 
     async def cog_unload(self) -> None:
         self.card_ticker.cancel()
         self.minute_ticker.cancel()
+        self.name_ticker.cancel()
         if self._session:
             await self._session.close()
 
@@ -283,6 +285,7 @@ class CustomsCog(commands.Cog):
                 return None
             raise
         await self.persons(fresh=True)
+        await self._sync_quietly(getattr(interaction, "guild", None))
         return person_id
 
     async def not_listed(self, interaction: discord.Interaction, discord_id: int) -> int | None:
@@ -294,7 +297,7 @@ class CustomsCog(commands.Cog):
             if existing is not None:
                 return existing.id
             member = interaction.user if interaction.user.id == discord_id else None
-            name = getattr(member, "display_name", None) or str(discord_id)
+            name = discord_tag(member) or str(discord_id)
             try:
                 person = await self.client.create_person(name, str(discord_id))
             except LinkTaken as exc:
@@ -560,7 +563,9 @@ class CustomsCog(commands.Cog):
             persons = await self.persons()
         except LolAmisError:
             persons = self._persons  # degraded: stale names, or ids
-        names = {pid: p.name for pid, p in persons.items()}
+        # Linked players render as mentions: Discord shows each member's *current* name, and a
+        # mention inside an embed never pings. Guests (no Discord) keep their lol-amis name.
+        names = {pid: (f"<@{p.discord_id}>" if p.discord_id else p.name) for pid, p in persons.items()}
         ranks = {pid: p.rank_label for pid, p in persons.items()}
         games = list(await service.games(cid))
         score = rules.evening_score(games)
@@ -715,6 +720,60 @@ class CustomsCog(commands.Cog):
     async def _minute_error(self, exc: BaseException) -> None:
         logger.opt(exception=exc).error("Customs minute ticker crashed — restarting.")
         self.minute_ticker.restart()
+
+    # --- lol-amis names follow Discord tags -------------------------------
+
+    async def sync_names(self, guild: discord.Guild) -> int:
+        """Rename every linked player to its member's Discord tag. Returns how many changed.
+
+        The old name is kept as an alias: lol-amis recognises players in screenshots by name
+        *and* aliases, so dropping it would break that recognition. Unlinked players and members
+        who left the server are left alone.
+        """
+        assert self.client is not None
+        renamed = 0
+        for p in (await self.persons(fresh=True)).values():
+            if not p.discord_id:
+                continue
+            tag = discord_tag(guild.get_member(int(p.discord_id)))
+            if not tag or tag == p.name:
+                continue
+            aliases = list(p.aliases)
+            if p.name not in aliases:
+                aliases.append(p.name)
+            await self.client.rename(p.id, tag, aliases)
+            renamed += 1
+        if renamed:
+            await self.persons(fresh=True)
+        return renamed
+
+    async def _sync_quietly(self, guild: discord.Guild | None) -> None:
+        if guild is None or self.client is None:
+            return
+        try:
+            await self.sync_names(guild)
+        except LolAmisError as exc:
+            logger.warning(f"Customs: name sync failed: {exc}")
+
+    @tasks.loop(hours=1)
+    async def name_ticker(self) -> None:
+        # Links typed into the lol-amis UI never pass through the bot: this is what catches them.
+        guild = self.bot.get_guild(self.config.guild_id)
+        try:
+            await self._sync_quietly(guild)
+        except Exception:
+            logger.exception("Customs: name sync step failed")
+
+    @name_ticker.before_loop
+    async def _before_names(self) -> None:
+        await self.bot.wait_until_ready()
+
+
+def discord_tag(member) -> str | None:
+    """The member's username (the unique « tag »), not the server nickname: nicknames change
+    freely — /reprimand even sets one — and would end up in the lol-amis stats."""
+    name = getattr(member, "name", None)
+    return name if isinstance(name, str) and name else None
 
 
 def _teams_json(game) -> dict:

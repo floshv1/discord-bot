@@ -39,6 +39,7 @@ class Person:
     name: str
     rank_label: str
     discord_id: str | None
+    aliases: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -72,7 +73,13 @@ class Teams:
 
 
 def _person(d: dict) -> Person:
-    return Person(int(d["id"]), str(d["name"]), str(d.get("rank_label") or ""), d.get("discord_id"))
+    return Person(
+        int(d["id"]),
+        str(d["name"]),
+        str(d.get("rank_label") or ""),
+        d.get("discord_id"),
+        tuple(str(a) for a in d.get("aliases") or ()),
+    )
 
 
 class LolAmisClient:
@@ -108,6 +115,10 @@ class LolAmisClient:
     async def link(self, person_id: int, discord_id: str | None) -> Person:
         body = {"discord_id": discord_id or ""}  # "" unlinks
         return _person(await self._call("PATCH", f"/api/persons/{person_id}", body))
+
+    async def rename(self, person_id: int, name: str, aliases: list[str]) -> Person:
+        """Rename a player, sending the full alias list (lol-amis replaces it wholesale)."""
+        return _person(await self._call("PATCH", f"/api/persons/{person_id}", {"name": name, "aliases": aliases}))
 
     async def generate(self, person_ids: list[int]) -> Teams:
         return Teams.from_json(await self._call("POST", "/api/generate", {"person_ids": person_ids, "opts": UI_OPTS}))
