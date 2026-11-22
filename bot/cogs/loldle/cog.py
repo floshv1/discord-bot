@@ -11,7 +11,6 @@ from discord import app_commands
 from discord.ext import commands, tasks
 from loguru import logger
 
-from bot.cogs.announce.service import allowed_mentions_for, ping_content
 from bot.cogs.currency.leaderboard import mark_dirty as mark_coins_dirty
 from bot.cogs.loldle import catalog, embeds, hints, rules, service
 from bot.cogs.loldle.views import GameView
@@ -179,7 +178,7 @@ class LoldleCog(commands.Cog):
             return
         await self._post_recap(channel, guild_id, day)
         if rules.in_ping_window(now):
-            await self._post_ping(channel, guild_id, day, config["role_id"])
+            await self._post_ping(channel, guild_id, day)
 
     async def _post_recap(self, channel, guild_id: int, day: dt.date) -> None:
         if await service.claim_recap(guild_id, day) != "send":
@@ -203,18 +202,23 @@ class LoldleCog(commands.Cog):
             logger.exception("LoLdle: recap failed, retrying next minute")
             await service.release_recap(guild_id, day)
 
-    async def _post_ping(self, channel, guild_id: int, day: dt.date, role_id: int | None) -> None:
-        # Claimed even with no role, so a role added later today doesn't ping in the afternoon.
+    async def _post_ping(self, channel, guild_id: int, day: dt.date) -> None:
         if not await service.claim_ping(guild_id, day):
             return
-        guild = self.bot.get_guild(guild_id)
-        role = guild.get_role(role_id) if guild and role_id else None
-        if role is None:
-            return
         try:
+            targets = await service.ping_targets(guild_id, day)
+            if not targets:
+                return
+            if len(targets) > rules.MAX_PING_USERS:
+                logger.warning(f"LoLdle: {len(targets)} players to ping, only the first {rules.MAX_PING_USERS} are")
+                targets = targets[: rules.MAX_PING_USERS]
+            mentions = " ".join(f"<@{u}>" for u in targets)
             message = await channel.send(
-                f"{ping_content(role)} 🎯 Le LoLdle du jour t'attend : `/loldle`",
-                allowed_mentions=allowed_mentions_for(role),
+                f"{mentions}\n🎯 Le LoLdle du jour t'attend : `/loldle`",
+                # Exactly these members: nothing typed or stored elsewhere can widen the ping.
+                allowed_mentions=discord.AllowedMentions(
+                    everyone=False, roles=False, users=[discord.Object(id=u) for u in targets]
+                ),
             )
         except discord.Forbidden:
             logger.warning(f"LoLdle: no permission to ping in {channel.id}")

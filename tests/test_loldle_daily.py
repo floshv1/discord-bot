@@ -1,4 +1,4 @@
-"""The midnight recap and the 09:00 role ping."""
+"""The midnight recap and the 09:00 ping of yesterday's players."""
 
 import datetime as dt
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -62,6 +62,7 @@ def svc(**over):
         "day_dnf": [3],
         "all_days": [rules.DayInfo(YESTERDAY, 1440)],
         "solved_by_user": {1: {YESTERDAY}, 2: {YESTERDAY}},
+        "ping_targets": [1, 2],
         "previous_ping": None,
         "set_ping_message": None,
     }
@@ -158,31 +159,52 @@ async def test_no_ping_before_nine(cog):
     claim.assert_not_called()
 
 
-async def test_ping_notifies_only_the_role_and_replaces_yesterdays(cog):
+async def test_ping_mentions_only_yesterdays_players_and_replaces_the_old_one(cog):
     store = AsyncMock()
     with svc(claim_recap=None, claim_ping=True, previous_ping=(YESTERDAY, 77), set_ping_message=store):
         await cog._daily_posts(10, NINE, DAY)
     call = cog.channel.send.await_args
-    assert call.args[0].startswith("<@&40>")
+    assert call.args[0].startswith("<@1> <@2>") and "/loldle" in call.args[0]
     mentions = call.kwargs["allowed_mentions"]
-    assert mentions.roles == [cog.role] and mentions.users is False and mentions.everyone is False
+    assert [u.id for u in mentions.users] == [1, 2]
+    assert mentions.roles is False and mentions.everyone is False
     cog.channel.get_partial_message.assert_called_once_with(77)
     cog.channel.get_partial_message.return_value.delete.assert_awaited_once()
     assert [c.args for c in store.await_args_list] == [(10, DAY, 99), (10, YESTERDAY, None)]
 
 
-async def test_everyone_role_uses_the_literal_mention(cog):
-    cog.role.is_default.return_value = True
+async def test_a_role_left_in_the_config_is_never_pinged(cog):
     with svc(claim_recap=None, claim_ping=True):
         await cog._daily_posts(10, NINE, DAY)
-    assert cog.channel.send.await_args.args[0].startswith("@everyone")
+    assert "<@&40>" not in cog.channel.send.await_args.args[0]
 
 
-async def test_no_role_sends_no_ping(cog):
+async def test_nobody_to_ping_sends_nothing(cog):
     claim = AsyncMock(return_value=True)
-    with svc(get_config={**CONFIG, "role_id": None}, claim_recap=None, claim_ping=claim):
+    with svc(claim_recap=None, claim_ping=claim, ping_targets=[]):
         await cog._daily_posts(10, NINE, DAY)
-    claim.assert_awaited_once()  # stamped, so a role set later today doesn't ping at 3pm
+    claim.assert_awaited_once()
+    cog.channel.send.assert_not_called()
+
+
+async def test_ping_stays_within_discord_limits(cog):
+    targets = [10**18 + n for n in range(300)]
+    with svc(claim_recap=None, claim_ping=True, ping_targets=targets):
+        await cog._daily_posts(10, NINE, DAY)
+    call = cog.channel.send.await_args
+    assert len(call.args[0]) <= 2000 and len(call.kwargs["allowed_mentions"].users) <= 100
+
+
+async def test_failed_lookup_releases_the_ping(cog):
+    release = AsyncMock()
+    with svc(
+        claim_recap=None,
+        claim_ping=True,
+        ping_targets=AsyncMock(side_effect=TimeoutError()),
+        release_ping=release,
+    ):
+        await cog._daily_posts(10, NINE, DAY)
+    release.assert_awaited_once_with(10, DAY)
     cog.channel.send.assert_not_called()
 
 
@@ -214,20 +236,18 @@ async def test_a_failing_daily_post_never_breaks_the_ticker(cog):
     cog.redraw_board.assert_awaited_once_with(10)
 
 
-async def test_setup_stores_the_role():
+async def test_setup_takes_no_role():
+    import inspect
+
     from bot.cogs.setup import cog as setup_cog
 
-    bot = MagicMock()
-    bot.cogs.get.return_value = MagicMock(render_board=AsyncMock(return_value=MagicMock()))
-    channel = MagicMock(id=20, mention="#loldle")
-    channel.send = AsyncMock(return_value=MagicMock(id=30))
-    i = MagicMock(guild_id=10)
-    i.response.defer = AsyncMock()
-    i.followup.send = AsyncMock()
-    with (
-        patch.object(setup_cog, "_clear_previous", AsyncMock()),
-        patch.object(setup_cog, "pin", AsyncMock()),
-        patch.object(setup_cog.loldle_service, "set_config", AsyncMock()) as config,
-    ):
-        await setup_cog.SetupCog.setup_loldle.callback(setup_cog.SetupCog(bot), i, channel, MagicMock(id=40))
-    config.assert_awaited_once_with(10, 20, 30, 40)
+    assert "role" not in inspect.signature(setup_cog.SetupCog.setup_loldle.callback).parameters
+
+
+async def test_ping_targets_are_yesterdays_players_who_have_not_played_today():
+    conn = MagicMock()
+    conn.fetch = AsyncMock(return_value=[{"user_id": 1}, {"user_id": 2}])
+    with patch.object(service, "get_pool", return_value=conn):
+        assert await service.ping_targets(10, DAY) == [1, 2]
+    sql = conn.fetch.await_args.args[0]
+    assert "$2::date - 1" in sql and "NOT EXISTS" in sql

@@ -139,7 +139,7 @@ async def test_setup_loldle_clears_previous_posts_and_pins():
         await setup_cog.SetupCog.setup_loldle.callback(cog, i, channel)
     clear.assert_awaited_once_with(bot, 10, "loldle_config", ["board_message_id"])
     pin.assert_awaited_once_with(message)
-    config.assert_awaited_once_with(10, 20, 30, None)
+    config.assert_awaited_once_with(10, 20, 30)
 
 
 def test_feature_is_wired_everywhere():

@@ -466,13 +466,10 @@ class SetupCog(commands.Cog):
 
     @setup.command(name="loldle", description="Poster le classement LoLdle et choisir le salon des résultats.")
     @app_commands.describe(
-        channel="Salon du classement épinglé, des grilles et du récap de minuit",
-        role="Rôle pingé chaque jour à 9h (vide : aucun ping)",
+        channel="Salon du classement épinglé, des grilles, du récap de minuit et du rappel de 9h",
     )
     @app_commands.default_permissions(manage_guild=True)
-    async def setup_loldle(
-        self, interaction: discord.Interaction, channel: discord.TextChannel, role: discord.Role | None = None
-    ) -> None:
+    async def setup_loldle(self, interaction: discord.Interaction, channel: discord.TextChannel) -> None:
         await interaction.response.defer(ephemeral=True)
         await _clear_previous(self.bot, interaction.guild_id, "loldle_config", ["board_message_id"])
         cog = self.bot.cogs.get("LoldleCog")
@@ -481,13 +478,11 @@ class SetupCog(commands.Cog):
             return
         message = await channel.send(embed=await cog.render_board(interaction.guild_id))  # type: ignore[attr-defined]
         await pin(message)
-        await loldle_service.set_config(interaction.guild_id, channel.id, message.id, role.id if role else None)
+        await loldle_service.set_config(interaction.guild_id, channel.id, message.id)
         await interaction.followup.send(
-            f"✅ LoLdle prêt dans {channel.mention}. Récap chaque soir à minuit"
-            + (f", ping de {role.mention} à 9h." if role else ", sans ping.")
-            + " Le premier récap partira à la prochaine minuit.",
+            f"✅ LoLdle prêt dans {channel.mention}. Récap à minuit, puis à 9h un rappel aux joueurs de la veille. "
+            "Le premier récap partira à la prochaine minuit.",
             ephemeral=True,
-            allowed_mentions=discord.AllowedMentions.none(),
         )
 
     @setup.command(name="palworld", description="Poster le panneau d'ouverture du serveur Palworld dans un salon.")

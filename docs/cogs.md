@@ -172,13 +172,13 @@ chooses where spoiler-free result grids are posted; the game itself works withou
 |---------|-----|-------------|
 | `/loldle champion:…` | anyone | Submit a guess (unlimited, private) |
 | `/loldle` | anyone | Show your grid and hints |
-| `/setup loldle <channel> [role]` | Manage Server | Post the pinned board; `role` is pinged at 09:00 |
+| `/setup loldle <channel>` | Manage Server | Post the pinned board |
 
 Clues: position, class, range, resource, region, gender, damage (AD/AP/Hybride), species, year. Gender, damage,
 species, positions, regions and year come from `scripts/loldle_traits.csv` (derived from OolaaPleur/loldel, MIT). After 3 guesses, hints can be bought in order: ability icon
 25 🪙, splash crop 50 🪙, first letter 100 🪙. Coins go to the house; each hint adds +1 to the score. The board ranks by
 average score over 30 days (minimum 5 solved), shows DNFs and streaks. At midnight a recap (no ping) names yesterday's
-champion and who found it in how many tries; at 09:00 a short message pings the role and replaces the previous one.
+champion and who found it in how many tries; at 09:00 a short message pings yesterday's players who haven't played yet today, and replaces the previous one.
 
 ## Birthday Cog (`bot/cogs/birthday/cog.py`)
 

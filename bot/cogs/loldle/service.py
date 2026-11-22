@@ -69,20 +69,19 @@ async def lock_member(conn, guild_id: int, day: dt.date, user_id: int) -> None:
 
 async def get_config(guild_id: int) -> asyncpg.Record | None:
     return await get_pool().fetchrow(
-        "SELECT channel_id, board_message_id, role_id FROM loldle_config WHERE guild_id = $1", guild_id
+        "SELECT channel_id, board_message_id FROM loldle_config WHERE guild_id = $1", guild_id
     )
 
 
-async def set_config(guild_id: int, channel_id: int, board_message_id: int | None, role_id: int | None = None) -> None:
+async def set_config(guild_id: int, channel_id: int, board_message_id: int | None) -> None:
     await get_pool().execute(
         """
-        INSERT INTO loldle_config (guild_id, channel_id, board_message_id, role_id) VALUES ($1, $2, $3, $4)
-        ON CONFLICT (guild_id) DO UPDATE SET channel_id = $2, board_message_id = $3, role_id = $4
+        INSERT INTO loldle_config (guild_id, channel_id, board_message_id) VALUES ($1, $2, $3)
+        ON CONFLICT (guild_id) DO UPDATE SET channel_id = $2, board_message_id = $3
         """,
         guild_id,
         channel_id,
         board_message_id,
-        role_id,
     )
 
 
@@ -336,6 +335,24 @@ async def previous_ping(guild_id: int, day: dt.date) -> tuple[dt.date, int] | No
         day,
     )
     return (row["day"], row["ping_message_id"]) if row else None
+
+
+async def ping_targets(guild_id: int, day: dt.date) -> list[int]:
+    """Who the 09:00 ping is for: played yesterday (won or DNF), and hasn't already played today."""
+    rows = await get_pool().fetch(
+        """
+        SELECT DISTINCT y.user_id FROM loldle_guesses y
+        WHERE y.guild_id = $1 AND y.day = $2::date - 1
+          AND NOT EXISTS (
+              SELECT 1 FROM loldle_guesses t
+              WHERE t.guild_id = y.guild_id AND t.day = $2::date AND t.user_id = y.user_id
+          )
+        ORDER BY y.user_id
+        """,
+        guild_id,
+        day,
+    )
+    return [r["user_id"] for r in rows]
 
 
 async def day_results(guild_id: int, day: dt.date) -> list[asyncpg.Record]:

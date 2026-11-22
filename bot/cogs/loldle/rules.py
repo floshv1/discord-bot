@@ -17,6 +17,7 @@ FULL_DAY_MINUTES = 1200  # below this the bot was down long enough to excuse the
 BOARD_DAYS = 30
 BOARD_MIN_SOLVED = 5
 PING_FROM_HOUR, PING_UNTIL_HOUR = 9, 21  # a late catch-up must never ping at night
+MAX_PING_USERS = 75  # a mention is ~23 characters and a message holds 2000
 
 EMOJI = {"green": "🟩", "yellow": "🟨", "red": "🟥", "up": "⬆️", "down": "⬇️", "none": "⬛"}
 COLUMN_COUNT = 9

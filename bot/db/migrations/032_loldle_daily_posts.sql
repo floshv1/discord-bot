@@ -2,6 +2,7 @@
 -- so a restart cannot post twice. No UPDATE here: migrations re-run on every boot, so stamping
 -- existing days would silently cancel a recap after any restart. Seeding happens in claim_recap.
 
+-- role_id is no longer used (the ping now targets yesterday's players); kept, migrations are append-only.
 ALTER TABLE loldle_config ADD COLUMN IF NOT EXISTS role_id BIGINT;
 
 ALTER TABLE loldle_days ADD COLUMN IF NOT EXISTS recap_at TIMESTAMPTZ;
