@@ -53,6 +53,20 @@ plugins:
       # within days, which is the whole reason this replaced youtube-source.
       path: "yt-dlp"
       searchLimit: 10
+      # visionos first, or most tracks die on a 403. yt-dlp's default order starts with tv_samsung,
+      # whose links only become valid after a pre-roll wait (`available_at`, 5-6 s measured). yt-dlp
+      # sleeps through it when *it* downloads; LavaSrc only takes the URL and fetches it at once.
+      # The first client wins for a given format. The others stay as a fallback for what visionos
+      # cannot serve (made-for-kids videos). These args replace LavaSrc's defaults, so keep
+      # -q/--no-warnings/-J: anything printed outside the JSON breaks its parser.
+      customPlaybackArgs:
+        - "-q"
+        - "--no-warnings"
+        - "-f"
+        - "bestaudio"
+        - "-J"
+        - "--extractor-args"
+        - "youtube:player_client=visionos,tv_samsung,web"
     spotify:
       clientId: "${SPOTIFY_CLIENT_ID:}"
       clientSecret: "${SPOTIFY_CLIENT_SECRET:}"

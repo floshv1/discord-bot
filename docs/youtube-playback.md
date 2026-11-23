@@ -62,6 +62,21 @@ wavelink's autoplay filters on before building its `music.youtube.com/...&list=R
 and that URL matches ytdlp's own `URL_PATTERN`. Spotify links are replayed through `ytsearch:`
 by `lavasrc.providers`, so they go through yt-dlp too.
 
+## Why playback forces the `visionos` client
+
+Symptom: `Not success status code: 403` in Lavalink on most tracks, while `yt-dlp` run by hand
+downloaded the same videos. The link was identical in both cases.
+
+yt-dlp's default clients are `tv_samsung`, `visionos`, `web`, and the first client wins per format.
+`tv_samsung` responses carry a pre-roll wait: the link answers 403 until `available_at` (5-6 s
+measured). yt-dlp's downloader sleeps until then. LavaSrc only asks yt-dlp for the JSON and fetches
+the URL itself, at once. Measured on 7 failing tracks: default 1/7, `tv_samsung` 0/7, `visionos` 7/7
+with no delay.
+
+`customPlaybackArgs` therefore puts `visionos` first and keeps the others as a fallback. Waiting out
+the delay is the wrong fix: it is the length of an ad, and past Lavalink's 10 s stuck threshold the
+bot skips the track.
+
 ## Lavalink's `http` source is off
 
 With it on, `/play http://db:5432` (or any internal hostname) makes Lavalink issue the request
