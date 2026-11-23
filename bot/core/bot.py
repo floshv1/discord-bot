@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 from loguru import logger
 
+from bot.core.command_sync import purge_stale_global_commands
 from bot.core.config import Config
 from bot.core.errors import handle_app_command_error
 from bot.db.client import create_pool, run_migrations
@@ -56,7 +57,12 @@ class DiscordBot(commands.Bot):
         logger.info(f"Slash commands synced to guild {self.config.guild_id}.")
 
         self.tree.clear_commands(guild=None)
-        await self.tree.sync()
+        # No bulk overwrite: it would wipe the Activity Entry Point command. Housekeeping
+        # must not block boot, so a failure is only logged.
+        try:
+            await purge_stale_global_commands(self.http, self.application_id)
+        except discord.HTTPException as err:
+            logger.warning(f"Could not purge stale global commands: {err}")
 
     async def on_ready(self) -> None:
         logger.info(f"Bot ready — logged in as {self.user} ({self.user.id})")
