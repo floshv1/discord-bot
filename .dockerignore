@@ -1,9 +1,23 @@
 .venv/
 __pycache__/
+**/__pycache__/
 *.pyc
 *.pyo
 .git/
 .pytest_cache/
+.ruff_cache/
+.claude/
+.superpowers/
 docs/
 tests/
 *.md
+
+# Secrets and local config must never reach any image layer.
+.env
+.env.*
+**/.env
+**/.env.*
+
+# Rebuilt inside the Activity image (stage 1); a host copy would be stale and platform-specific.
+**/node_modules
+activity/web/dist

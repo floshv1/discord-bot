@@ -25,6 +25,10 @@ services:
       PALWORLD_ADDRESS: ${PALWORLD_ADDRESS:-}
       # LoL customs: the lol-amis stack, reached over lolamis_net. Empty = feature off.
       LOLAMIS_URL: ${LOLAMIS_URL-http://lol-amis:8000}
+      # LoLdle Activity. The password creates the restricted `loldle_activity` Postgres role at boot;
+      # the internal URL is what /loldle probes (no colon: an *empty* value turns the Activity off).
+      ACTIVITY_DB_PASSWORD: ${ACTIVITY_DB_PASSWORD:-}
+      LOLDLE_ACTIVITY_INTERNAL_URL: ${LOLDLE_ACTIVITY_INTERNAL_URL-http://loldle-activity:8080}
     # Komodo listens on the host, not on any of our networks.
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -68,6 +72,25 @@ services:
       interval: 10s
       timeout: 5s
       retries: 12
+
+  # LoLdle Activity: the only service reachable from the Internet (Tailscale Funnel -> 127.0.0.1:3250).
+  # It holds no bot token and connects as the restricted `loldle_activity` role, on the default network
+  # only. An empty client id/secret/session secret makes it answer 503; an empty ACTIVITY_DB_PASSWORD
+  # makes the bot switch the role off, so the container cannot log in and keeps retrying (the stack still starts).
+  loldle-activity:
+    image: ghcr.io/floshv1/discord-bot-activity:latest
+    restart: unless-stopped
+    environment:
+      ACTIVITY_DATABASE_URL: postgresql://loldle_activity:${ACTIVITY_DB_PASSWORD:-}@db:5432/discord_bot
+      ACTIVITY_CLIENT_ID: ${ACTIVITY_CLIENT_ID:-}
+      ACTIVITY_CLIENT_SECRET: ${ACTIVITY_CLIENT_SECRET:-}
+      ACTIVITY_SESSION_SECRET: ${ACTIVITY_SESSION_SECRET:-}
+      GUILD_ID: ${GUILD_ID}
+    ports:
+      - "127.0.0.1:3250:8080"
+    depends_on:
+      db:
+        condition: service_healthy
 
   db:
     image: postgres:16-alpine

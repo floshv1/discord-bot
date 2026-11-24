@@ -40,6 +40,9 @@ services:
       - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID:-}
       # LoL customs: off in dev unless pointed at a lol-amis (e.g. http://host.docker.internal:8000).
       - LOLAMIS_URL=${LOLAMIS_URL:-}
+      # LoLdle Activity: off in dev unless both are set (the URL is what /loldle probes).
+      - ACTIVITY_DB_PASSWORD=${ACTIVITY_DB_PASSWORD:-}
+      - LOLDLE_ACTIVITY_INTERNAL_URL=${LOLDLE_ACTIVITY_INTERNAL_URL-}
 
   lavalink:
     build:
@@ -56,6 +59,24 @@ services:
       interval: 10s
       timeout: 5s
       retries: 12
+
+  # LoLdle Activity (see compose.yml). Dev mapping: http://127.0.0.1:3250
+  loldle-activity:
+    build:
+      context: .
+      dockerfile: activity/Dockerfile
+    restart: unless-stopped
+    environment:
+      - ACTIVITY_DATABASE_URL=postgresql://loldle_activity:${ACTIVITY_DB_PASSWORD:-}@db:5432/discord_bot
+      - ACTIVITY_CLIENT_ID=${ACTIVITY_CLIENT_ID:-}
+      - ACTIVITY_CLIENT_SECRET=${ACTIVITY_CLIENT_SECRET:-}
+      - ACTIVITY_SESSION_SECRET=${ACTIVITY_SESSION_SECRET:-}
+      - GUILD_ID=${GUILD_ID}
+    ports:
+      - "127.0.0.1:3250:8080"
+    depends_on:
+      db:
+        condition: service_healthy
 
   db:
     image: postgres:16-alpine

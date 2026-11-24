@@ -46,6 +46,12 @@ class Config:
         # Customs (LoL 5v5): the lol-amis service on the `lolamis_net` network, e.g.
         # http://lol-amis:8000. Unset = the feature is absent, not broken.
         self.lolamis_url: str | None = self._optional_str_or_none("LOLAMIS_URL")
+        # LoLdle Activity container, reachable from the bot (e.g. http://loldle-activity:8080); the bot
+        # only probes GET /health. Empty = no Activity: /loldle shows the private card.
+        self.loldle_activity_internal_url: str | None = self._optional_str_or_none("LOLDLE_ACTIVITY_INTERNAL_URL")
+        # Password of the restricted `loldle_activity` Postgres role (see bot/db/activity_role.py).
+        # Unset = no role is created. Never logged.
+        self.activity_db_password: str | None = self._optional_str_or_none("ACTIVITY_DB_PASSWORD")
 
     @staticmethod
     def _require_str(key: str) -> str:

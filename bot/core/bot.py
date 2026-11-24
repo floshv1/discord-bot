@@ -5,6 +5,7 @@ from loguru import logger
 from bot.core.command_sync import purge_stale_global_commands
 from bot.core.config import Config
 from bot.core.errors import handle_app_command_error
+from bot.db.activity_role import ensure_activity_role
 from bot.db.client import create_pool, run_migrations
 from bot.db.models import load_all_migrations
 
@@ -45,6 +46,9 @@ class DiscordBot(commands.Bot):
 
         pool = await create_pool(self.config.database_url)
         await run_migrations(pool, load_all_migrations())
+        # Best-effort and after the migrations (the grants need the tables): it logs its own
+        # failure and must never keep the bot from booting.
+        await ensure_activity_role(pool, self.config.activity_db_password)
 
         for cog in COGS:
             await self.load_extension(cog)

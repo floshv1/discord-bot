@@ -9,6 +9,7 @@ import pytest
 
 from bot.cogs.loldle import catalog, embeds, rules, service
 from bot.cogs.loldle import cog as loldle_cog
+from bot.cogs.loldle.views import PlayView
 
 PARIS = ZoneInfo("Europe/Paris")
 DAY = dt.date(2026, 11, 23)
@@ -164,7 +165,8 @@ async def test_ping_mentions_only_yesterdays_players_and_replaces_the_old_one(co
     with svc(claim_recap=None, claim_ping=True, previous_ping=(YESTERDAY, 77), set_ping_message=store):
         await cog._daily_posts(10, NINE, DAY)
     call = cog.channel.send.await_args
-    assert call.args[0].startswith("<@1> <@2>") and "/loldle" in call.args[0]
+    assert call.args[0].startswith("<@1> <@2>") and "/loldle" not in call.args[0]
+    assert isinstance(call.kwargs["view"], PlayView)
     mentions = call.kwargs["allowed_mentions"]
     assert [u.id for u in mentions.users] == [1, 2]
     assert mentions.roles is False and mentions.everyone is False

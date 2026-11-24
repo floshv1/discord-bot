@@ -35,6 +35,25 @@ class BuyOutcome:
     balance: int | None = None
 
 
+CHANNEL = "loldle_events"
+
+
+async def notify(conn, guild_id: int, day: dt.date, user_id: int, kind: str) -> None:
+    """Tell listeners something changed. Runs on the transaction's `conn`: delivered at commit only.
+
+    The payload never names a champion (it travels to the Activity).
+    """
+    payload = json.dumps({"guild_id": guild_id, "day": day.isoformat(), "user_id": user_id, "kind": kind})
+    await conn.execute("SELECT pg_notify($1, $2)", CHANNEL, payload)
+
+
+def resolve_guess(text: str, answer: Champion) -> Champion | None:
+    """The stored answer first: a refreshed catalog may no longer contain it."""
+    if catalog.normalise(text) in (catalog.normalise(answer.id), catalog.normalise(answer.name)):
+        return answer
+    return catalog.find(text)
+
+
 def _json(value):
     return json.loads(value) if isinstance(value, str) else value
 
@@ -197,6 +216,7 @@ async def record_guess(guild_id: int, day: dt.date, user_id: int, guess: Champio
             json.dumps(rules.clues(guess), ensure_ascii=False),
         )
         if guess.id != answer.id:
+            await notify(conn, guild_id, day, user_id, "guess")
             return GuessOutcome("ok", cells, number)
         rows = await conn.fetch(
             f"SELECT cells FROM loldle_guesses WHERE {where} ORDER BY number", guild_id, day, user_id
@@ -205,8 +225,8 @@ async def record_guess(guild_id: int, day: dt.date, user_id: int, guess: Champio
         used = await conn.fetchval(f"SELECT COUNT(*) FROM loldle_hints WHERE {where}", guild_id, day, user_id)
         won = await conn.fetchrow(
             """
-            INSERT INTO loldle_results (guild_id, day, user_id, tries, hints, score, grid)
-            VALUES ($1, $2::date, $3, $4, $5, $6, $7)
+            INSERT INTO loldle_results (guild_id, day, user_id, tries, hints, score, grid, announce_pending)
+            VALUES ($1, $2::date, $3, $4, $5, $6, $7, TRUE)
             ON CONFLICT (guild_id, day, user_id) DO NOTHING
             RETURNING *
             """,
@@ -218,6 +238,8 @@ async def record_guess(guild_id: int, day: dt.date, user_id: int, guess: Champio
             rules.score(number, used),
             grid,
         )
+        if won is not None:  # a lost race has no pending row: nothing to announce
+            await notify(conn, guild_id, day, user_id, "win")
         return GuessOutcome("ok", cells, number, True, won)
 
 
@@ -260,7 +282,83 @@ async def buy_hint(guild_id: int, day: dt.date, user_id: int, kind: str) -> BuyO
         await currency.adjust(
             conn, guild_id=guild_id, user_id=currency.HOUSE_USER_ID, amount=price, reason="loldle_hint"
         )
+        await notify(conn, guild_id, day, user_id, "hint")
         return BuyOutcome("bought", new_balance)
+
+
+# --- announcements and live view ------------------------------------------
+
+
+async def claim_announcements(guild_id: int) -> list[asyncpg.Record]:
+    """Wins not yet announced, claimed atomically: two claimers never get the same row."""
+    return await get_pool().fetch(
+        """
+        UPDATE loldle_results SET announce_pending = FALSE
+        WHERE (guild_id, day, user_id) IN (
+            SELECT guild_id, day, user_id FROM loldle_results
+            WHERE guild_id = $1 AND announce_pending
+            FOR UPDATE SKIP LOCKED
+        )
+        RETURNING *
+        """,
+        guild_id,
+    )
+
+
+async def upsert_player(guild_id: int, user_id: int, display_name: str, avatar_hash: str | None) -> None:
+    await get_pool().execute(
+        """
+        INSERT INTO loldle_players (guild_id, user_id, display_name, avatar_hash)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (guild_id, user_id) DO UPDATE
+        SET display_name = EXCLUDED.display_name, avatar_hash = EXCLUDED.avatar_hash, updated_at = NOW()
+        """,
+        guild_id,
+        user_id,
+        display_name,
+        avatar_hash,
+    )
+
+
+async def live_rows(guild_id: int, day: dt.date) -> list[asyncpg.Record]:
+    """Colours only, never names: who is playing today, how far, and their latest row of cells."""
+    return await get_pool().fetch(
+        """
+        SELECT g.user_id,
+               COALESCE(p.display_name, g.user_id::text) AS display_name,
+               p.avatar_hash,
+               g.tries,
+               EXISTS (
+                   SELECT 1 FROM loldle_results r
+                   WHERE r.guild_id = $1 AND r.day = $2::date AND r.user_id = g.user_id
+               ) AS solved,
+               (SELECT l.cells FROM loldle_guesses l
+                WHERE l.guild_id = $1 AND l.day = $2::date AND l.user_id = g.user_id
+                ORDER BY l.number DESC LIMIT 1) AS last_cells
+        FROM (
+            SELECT user_id, COUNT(*)::int AS tries FROM loldle_guesses
+            WHERE guild_id = $1 AND day = $2::date GROUP BY user_id
+        ) g
+        LEFT JOIN loldle_players p ON p.guild_id = $1 AND p.user_id = g.user_id
+        ORDER BY g.user_id
+        """,
+        guild_id,
+        day,
+    )
+
+
+async def player_names(guild_id: int, user_ids: list[int]) -> list[asyncpg.Record]:
+    """Name and avatar of known players, for members who have the Activity open but have not guessed."""
+    if not user_ids:
+        return []
+    return await get_pool().fetch(
+        """
+        SELECT user_id, display_name, avatar_hash FROM loldle_players
+        WHERE guild_id = $1 AND user_id = ANY($2::bigint[])
+        """,
+        guild_id,
+        user_ids,
+    )
 
 
 # --- daily posts ----------------------------------------------------------

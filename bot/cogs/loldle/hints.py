@@ -33,7 +33,7 @@ class HintContent:
     file_bytes: bytes | None = None
 
 
-async def _download(url: str, session: aiohttp.ClientSession) -> bytes:
+async def download_image(url: str, session: aiohttp.ClientSession) -> bytes:
     try:
         async with session.get(url, timeout=TIMEOUT) as resp:
             if resp.status != 200:
@@ -48,11 +48,13 @@ async def _download(url: str, session: aiohttp.ClientSession) -> bytes:
 
 def _encode(image: Image.Image) -> bytes:
     out = io.BytesIO()
-    image.convert("RGBA").save(out, "PNG")  # re-encoded: no source metadata travels with it
+    rgba = image.convert("RGBA")
+    rgba.info = {}  # convert() keeps `info`, and the PNG writer would re-emit the ICC profile from it
+    rgba.save(out, "PNG")  # re-encoded: no source metadata travels with it
     return out.getvalue()
 
 
-def _reencode(body: bytes) -> bytes:
+def reencode_png(body: bytes) -> bytes:
     with Image.open(io.BytesIO(body)) as image:
         return _encode(image)
 
@@ -71,9 +73,9 @@ async def render_hint(
     try:
         if kind == "spell":
             url = answer.spells[rules.spell_index(guild_id, day, len(answer.spells))]
-            data = await asyncio.to_thread(_reencode, await _download(url, session))
+            data = await asyncio.to_thread(reencode_png, await download_image(url, session))
             return HintContent("✨ Un de ses sorts :", data)
-        data = await asyncio.to_thread(_crop, await _download(answer.splash, session), guild_id, day)
+        data = await asyncio.to_thread(_crop, await download_image(answer.splash, session), guild_id, day)
         return HintContent("🖼️ Un bout de son splash art :", data)
     except (OSError, ValueError, Image.DecompressionBombError) as exc:
         raise HintUnavailable(type(exc).__name__) from exc

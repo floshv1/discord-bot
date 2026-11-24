@@ -141,3 +141,24 @@ async def test_too_poor_is_charged_nothing(conn):
     out = await service.buy_hint(1, DAY, 2, "spell")
     assert out.status == "poor" and out.balance == 24
     conn.adjust_mock.assert_not_called()
+
+
+def png_with_metadata() -> bytes:
+    from PIL.PngImagePlugin import PngInfo
+
+    info = PngInfo()
+    info.add_text("Comment", "Ahri-secret")
+    buf = io.BytesIO()
+    Image.new("RGB", (64, 64), (1, 2, 3)).save(buf, "PNG", pnginfo=info, icc_profile=b"ICC-PROFILE-MARKER" * 4)
+    return buf.getvalue()
+
+
+@pytest.mark.parametrize("func", [hints.reencode_png, lambda b: hints._crop(b, 1, DAY)])
+def test_reencoding_drops_icc_profile_and_text_chunks(func):
+    source = png_with_metadata()
+    assert b"iCCP" in source and b"Ahri-secret" in source
+    out = func(source)
+    assert b"Ahri-secret" not in out
+    assert b"iCCP" not in out and b"tEXt" not in out
+    with Image.open(io.BytesIO(out)) as image:
+        assert "icc_profile" not in image.info and "Comment" not in image.info

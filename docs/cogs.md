@@ -180,6 +180,12 @@ species, positions, regions and year come from `scripts/loldle_traits.csv` (deri
 average score over 30 days (minimum 5 solved), shows DNFs and streaks. At midnight a recap (no ping) names yesterday's
 champion and who found it in how many tries; at 09:00 a short message pings yesterday's players who haven't played yet today, and replaces the previous one.
 
+`/loldle` with no argument opens the **Activity** (a live board inside Discord) when one is configured and reachable,
+and shows the private card otherwise (no configuration, container down, or Discord refusing the launch). The pinned
+board message carries two buttons: **🎯 Jouer** (same as `/loldle`: Activity, else card) and **Version texte** (always
+the private card). Both front ends call the same service, so a guess made in one shows in the other, and a win is
+announced once, by the bot. See `docs/superpowers/specs/2026-11-23-loldle-activity-design.md`.
+
 ## Birthday Cog (`bot/cogs/birthday/cog.py`)
 
 Members register their birthday once. Two pinned embeds update daily and the bot sends birthday wishes at midnight Paris time.

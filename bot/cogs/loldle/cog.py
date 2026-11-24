@@ -13,8 +13,11 @@ from loguru import logger
 
 from bot.cogs.currency.leaderboard import mark_dirty as mark_coins_dirty
 from bot.cogs.loldle import catalog, embeds, hints, rules, service
-from bot.cogs.loldle.views import GameView
+from bot.cogs.loldle.events import Event, EventListener
+from bot.cogs.loldle.views import GameView, PlayView
 from bot.core.discord_utils import edit_if_changed
+
+STALE_WIN = dt.timedelta(hours=24)  # older wins are claimed but not posted: nobody wants last week's news
 
 
 class LoldleCog(commands.Cog):
@@ -22,14 +25,30 @@ class LoldleCog(commands.Cog):
         self.bot = bot
         self._session: aiohttp.ClientSession | None = None
         self._last_minute: int | None = None
+        self._listener: EventListener | None = None
+        # False until the first successful probe: a fresh boot must never launch into a dead Activity.
+        self._activity_up = False
 
     async def cog_load(self) -> None:
         self._session = aiohttp.ClientSession()
         logger.info(f"LoLdle: {len(catalog.load())} champions loaded.")
+        self.bot.add_view(PlayView())
         self.minute_ticker.start()
+        if self._activity_url():
+            self.activity_probe.start()
+        # Retries on its own: an unreachable database must not break boot.
+        self._listener = EventListener(
+            self.bot.config.database_url,  # type: ignore[attr-defined]
+            self._on_event,
+            self._on_connect,
+        )
+        self._listener.start()
 
     async def cog_unload(self) -> None:
         self.minute_ticker.cancel()
+        self.activity_probe.cancel()
+        if self._listener:
+            await self._listener.stop()
         if self._session:
             await self._session.close()
 
@@ -43,7 +62,31 @@ class LoldleCog(commands.Cog):
     @app_commands.describe(champion="Ton essai (vide : revoir ta partie et tes indices)")
     @app_commands.guild_only()
     async def loldle(self, interaction: discord.Interaction, champion: str | None = None) -> None:
-        await self.play(interaction, champion)
+        if champion is None:
+            await self.launch_or_card(interaction)
+        else:
+            await self.play(interaction, champion)
+
+    def _activity_url(self) -> str | None:
+        return self.bot.config.loldle_activity_internal_url  # type: ignore[attr-defined]
+
+    async def launch_or_card(self, interaction: discord.Interaction) -> None:
+        """Open the Activity, or the private card when it is absent, down, or refused.
+
+        launch_activity() must be the first response (no defer) and the probe is read from memory:
+        nothing here may wait on the network inside Discord's 3 s window.
+        """
+        if not self._activity_url() or not self._activity_up:
+            await self.play(interaction, None)
+            return
+        try:
+            await interaction.response.launch_activity()
+        except discord.HTTPException as exc:
+            logger.warning(f"LoLdle: launch_activity refused (HTTP {exc.status}), showing the card")
+            if interaction.response.is_done():
+                await interaction.followup.send("Impossible d'ouvrir l'Activity pour l'instant.", ephemeral=True)
+            else:
+                await self.play(interaction, None)
 
     @loldle.autocomplete("champion")
     async def champion_autocomplete(
@@ -54,13 +97,12 @@ class LoldleCog(commands.Cog):
     async def play(self, interaction: discord.Interaction, champion: str | None) -> None:
         await interaction.response.defer(ephemeral=True)
         guild_id, user_id = interaction.guild_id, interaction.user.id
+        await self._remember_player(interaction)
         day = self.today()
         answer = service.answer_of(await service.get_or_pick_day(guild_id, day, catalog.load()))
         note = None
         if champion is not None:
-            # The stored answer first: a refreshed catalog may no longer contain it.
-            is_answer = catalog.normalise(champion) in (catalog.normalise(answer.id), catalog.normalise(answer.name))
-            guess = answer if is_answer else catalog.find(champion)
+            guess = service.resolve_guess(champion, answer)
             if guess is None:
                 await interaction.followup.send("Champion inconnu : choisis-le dans la liste.", ephemeral=True)
                 return
@@ -69,8 +111,6 @@ class LoldleCog(commands.Cog):
                 note = f"Tu as déjà essayé **{guess.name}**, cet essai ne compte pas."
             elif outcome.status == "solved_already":
                 note = "Tu as déjà trouvé le champion du jour. Reviens demain !"
-            elif outcome.result is not None:  # only the request that claimed the win announces it
-                await self._announce(interaction, outcome.result, day)
         await self._show(interaction, day, answer, note)
 
     async def _show(
@@ -87,22 +127,61 @@ class LoldleCog(commands.Cog):
             ephemeral=True,
         )
 
-    async def _announce(self, interaction: discord.Interaction, won, day: dt.date) -> None:
-        """Best effort: a channel problem must never cost the member their own reply."""
-        guild_id, user_id = interaction.guild_id, interaction.user.id
+    async def _remember_player(self, interaction: discord.Interaction) -> None:
+        """Best effort: the Activity shows names from here, but it must never cost the member their game."""
         try:
+            user = interaction.user
+            avatar = user.avatar.key if user.avatar else None
+            await service.upsert_player(interaction.guild_id, user.id, user.display_name, avatar)
+        except Exception:
+            logger.exception("LoLdle: could not record the player")
+
+    # --- announcements (the queue is the only path) -----------------------
+
+    async def _drain_announcements(self, guild_id: int) -> None:
+        """Post every win not yet announced. Never raises: it runs from a ticker and from the listener."""
+        if not self.bot.is_ready():
+            # The listener starts in setup_hook: before READY the channel cache is empty, so a claim
+            # would swallow every pending win. The minute ticker waits for ready and catches up.
+            return
+        try:
+            rows = sorted(await service.claim_announcements(guild_id), key=lambda r: r["solved_at"])
+            if not rows:
+                return
             config = await service.get_config(guild_id)
             channel = self.bot.get_channel(config["channel_id"]) if config else None
-            if channel is None:
+            if channel is None:  # claimed anyway: a channel set up later must not replay old wins
                 return
+            now = discord.utils.utcnow()
             days = await service.all_days(guild_id)
-            count = rules.streak(days, await service.solved_days(guild_id, user_id), day)
-            await channel.send(
-                embed=embeds.build_public_embed(interaction.user.mention, won, count),
-                allowed_mentions=discord.AllowedMentions.none(),
-            )
-        except Exception:  # the win is already committed: the member must still get their card
-            logger.exception("LoLdle: could not post a result")
+        except Exception:
+            logger.exception("LoLdle: could not claim announcements")
+            return
+        for row in rows:
+            if now - row["solved_at"] > STALE_WIN:
+                continue
+            try:
+                solved = await service.solved_days(guild_id, row["user_id"])
+                count = rules.streak(days, solved, row["day"])
+                await channel.send(
+                    embed=embeds.build_public_embed(f"<@{row['user_id']}>", row, count),
+                    allowed_mentions=discord.AllowedMentions.none(),
+                )
+            except Exception:  # the win is committed: one failure must not cost the others their post
+                logger.exception("LoLdle: could not post a result")
+
+    async def _on_event(self, event: Event) -> None:
+        if event.guild_id != self.bot.config.guild_id:  # type: ignore[attr-defined]
+            return
+        if event.kind == "win":
+            await self._drain_announcements(event.guild_id)
+        elif event.kind == "hint":
+            mark_coins_dirty(self.bot)
+
+    async def _on_connect(self) -> None:
+        """Notifications sent while disconnected are lost: resync from the database."""
+        await self._drain_announcements(self.bot.config.guild_id)  # type: ignore[attr-defined]
+        mark_coins_dirty(self.bot)
 
     # --- hints ------------------------------------------------------------
 
@@ -167,7 +246,7 @@ class LoldleCog(commands.Cog):
         if channel is None:
             return
         message = channel.get_partial_message(config["board_message_id"])
-        await edit_if_changed(message, label="LoLdle", embed=await self.render_board(guild_id))
+        await edit_if_changed(message, label="LoLdle", embed=await self.render_board(guild_id), view=PlayView())
 
     # --- midnight recap and 09:00 ping -------------------------------------
 
@@ -195,6 +274,7 @@ class LoldleCog(commands.Cog):
             await channel.send(
                 embed=embeds.build_recap_embed(name, results, dnf, streaks),
                 allowed_mentions=discord.AllowedMentions.none(),
+                view=PlayView(),
             )
         except discord.Forbidden:  # retrying every minute would change nothing
             logger.warning(f"LoLdle: no permission to post the recap in {channel.id}")
@@ -214,11 +294,12 @@ class LoldleCog(commands.Cog):
                 targets = targets[: rules.MAX_PING_USERS]
             mentions = " ".join(f"<@{u}>" for u in targets)
             message = await channel.send(
-                f"{mentions}\n🎯 Le LoLdle du jour t'attend : `/loldle`",
+                f"{mentions}\n🎯 Le LoLdle du jour t'attend !",
                 # Exactly these members: nothing typed or stored elsewhere can widen the ping.
                 allowed_mentions=discord.AllowedMentions(
                     everyone=False, roles=False, users=[discord.Object(id=u) for u in targets]
                 ),
+                view=PlayView(),
             )
         except discord.Forbidden:
             logger.warning(f"LoLdle: no permission to ping in {channel.id}")
@@ -255,6 +336,10 @@ class LoldleCog(commands.Cog):
             except Exception:
                 logger.exception("LoLdle: uptime tick failed")
         try:
+            await self._drain_announcements(guild_id)
+        except Exception:
+            logger.exception("LoLdle: announcement drain failed")
+        try:
             await self._daily_posts(guild_id, now, day)
         except Exception:
             logger.exception("LoLdle: daily posts failed")
@@ -273,6 +358,33 @@ class LoldleCog(commands.Cog):
     async def _minute_error(self, exc: BaseException) -> None:
         logger.opt(exception=exc).error("LoLdle ticker crashed — restarting.")
         self.minute_ticker.restart()
+
+    # --- Activity health ---------------------------------------------------
+
+    @tasks.loop(seconds=30)
+    async def activity_probe(self) -> None:
+        """Keeps `_activity_up` fresh so /loldle can decide without a network call. Never raises."""
+        up = False
+        reason = "unreachable"
+        try:
+            async with self._session.get(  # type: ignore[union-attr]
+                f"{self._activity_url()}/health", timeout=aiohttp.ClientTimeout(total=2)
+            ) as resp:
+                up = resp.status == 200
+                reason = f"HTTP {resp.status}"
+        except Exception as exc:
+            reason = type(exc).__name__
+        # Only the transitions are worth a line: a probe every 30 s would otherwise fill the log.
+        if up and not self._activity_up:
+            logger.info("LoLdle: the Activity is reachable")
+        elif not up and self._activity_up:
+            logger.warning(f"LoLdle: the Activity went down ({reason}), /loldle falls back to the private card")
+        self._activity_up = up
+
+    @activity_probe.error
+    async def _probe_error(self, exc: BaseException) -> None:
+        logger.opt(exception=exc).error("LoLdle probe crashed — restarting.")
+        self.activity_probe.restart()
 
 
 async def setup(bot: commands.Bot) -> None:

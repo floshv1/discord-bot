@@ -107,3 +107,118 @@ def test_old_answer_no_longer_in_the_catalog_still_loads():
         del stored[key]
     answer = service.answer_of({"answer": stored})
     assert answer.id == "Removed" and answer.gender == "" and answer.species == ()
+
+
+# --- events and announcements ---------------------------------------------
+
+
+def _notifies(conn):
+    return [c.args for c in conn.execute.await_args_list if "pg_notify" in c.args[0]]
+
+
+async def test_guess_notifies_inside_the_transaction(conn):
+    champions = catalog.load()
+    conn.fetchval.side_effect = [None, None, 1]
+    await service.record_guess(1, DAY, 2, champions["Ahri"], champions["Annie"])
+    calls = _notifies(conn)
+    assert len(calls) == 1 and calls[0][1] == "loldle_events" and '"kind": "guess"' in calls[0][2]
+    assert conn.execute.await_args_list[-1].args == calls[0]  # on the same conn, last statement of the transaction
+
+
+async def test_win_notifies_win_and_marks_pending(conn):
+    champions = catalog.load()
+    conn.fetchval.side_effect = [None, None, 1, 0]
+    conn.fetch.return_value = [{"cells": json.dumps(["green"])}]
+    out = await service.record_guess(1, DAY, 2, champions["Ahri"], champions["Ahri"])
+    assert out.won
+    assert "announce_pending" in conn.fetchrow.await_args.args[0]
+    assert '"kind": "win"' in _notifies(conn)[0][2]
+
+
+async def test_a_lost_win_race_does_not_notify(conn):
+    champions = catalog.load()
+    conn.fetchval.side_effect = [None, None, 1, 0]
+    conn.fetch.return_value = [{"cells": json.dumps(["green"])}]
+    conn.fetchrow.return_value = None  # ON CONFLICT DO NOTHING: another request already claimed the win
+    out = await service.record_guess(1, DAY, 2, champions["Ahri"], champions["Ahri"])
+    assert out.result is None
+    assert _notifies(conn) == []
+
+
+async def test_notify_payload_never_names_a_champion(conn):
+    champions = catalog.load()
+    conn.fetchval.side_effect = [None, None, 1]
+    await service.record_guess(1, DAY, 2, champions["Ahri"], champions["Annie"])
+    payload = _notifies(conn)[0][2]
+    assert set(json.loads(payload)) == {"guild_id", "day", "user_id", "kind"}
+    assert "Ahri" not in payload and "Annie" not in payload
+
+
+async def test_hint_purchase_notifies_hint():
+    from bot.cogs.loldle import service as svc
+
+    conn = AsyncMock()
+    pool = _pool(conn)
+    conn.fetchval.side_effect = [None, 3]
+    conn.fetch.return_value = []
+    with (
+        patch.object(svc, "get_pool", return_value=pool),
+        patch.object(svc.currency, "get_or_create_wallet", AsyncMock()),
+        patch.object(svc.currency, "ensure_house_wallet", AsyncMock()),
+        patch.object(svc.currency, "get_balance_locked", AsyncMock(return_value=500)),
+        patch.object(svc.currency, "adjust", AsyncMock(return_value=475)),
+    ):
+        assert (await svc.buy_hint(1, DAY, 2, "spell")).status == "bought"
+        assert '"kind": "hint"' in _notifies(conn)[0][2]
+        conn.execute.reset_mock()
+        conn.fetchval.side_effect = [None, 1]  # locked: fewer than 3 guesses
+        assert (await svc.buy_hint(1, DAY, 2, "spell")).status == "locked"
+        assert _notifies(conn) == []
+
+
+async def test_duplicate_guess_does_not_notify(conn):
+    champions = catalog.load()
+    conn.fetchval.side_effect = [None, 1]
+    await service.record_guess(1, DAY, 2, champions["Ahri"], champions["Annie"])
+    assert _notifies(conn) == []
+
+
+async def test_already_solved_guess_does_not_notify(conn):
+    champions = catalog.load()
+    conn.fetchval.side_effect = [1]
+    await service.record_guess(1, DAY, 2, champions["Ahri"], champions["Annie"])
+    assert _notifies(conn) == []
+
+
+async def test_claim_is_one_conditional_update(conn):
+    conn.fetch.return_value = []
+    await service.claim_announcements(1)
+    sql = conn.fetch.await_args.args[0]
+    for part in ("SET announce_pending = FALSE", "WHERE", "announce_pending", "RETURNING", "SKIP LOCKED"):
+        assert part in sql
+
+
+async def test_live_rows_types_its_date(conn):
+    conn.fetch.return_value = []
+    await service.live_rows(1, DAY)
+    assert "$2::date" in conn.fetch.await_args.args[0]
+
+
+async def test_player_names_reads_only_the_players_table(conn):
+    conn.fetch.return_value = []
+    await service.player_names(1, [5, 6])
+    sql = conn.fetch.await_args.args[0]
+    assert "loldle_players" in sql and "$2::bigint[]" in sql
+    conn.fetch.reset_mock()
+    assert await service.player_names(1, []) == []
+    conn.fetch.assert_not_called()
+
+
+def test_resolve_guess_prefers_stored_answer():
+    gone = catalog.load()["Ahri"].to_json() | {"id": "Removed", "name": "Removed Hero"}
+    answer = catalog.Champion.from_json(gone)
+    assert service.resolve_guess("removed hero", answer) is answer
+    assert service.resolve_guess("Removed", answer) is answer
+    assert service.resolve_guess("Ahri", answer).id == "Ahri"
+    assert service.resolve_guess("zzzz", answer) is None
+    assert service.resolve_guess("Remov", answer) is None

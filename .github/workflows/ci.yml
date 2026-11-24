@@ -86,11 +86,67 @@ jobs:
           push: false
           provenance: false
 
+  activity-web:
+    name: Activity Front (test & build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: activity/web
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: activity/web/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Test
+        run: npm test -- --run
+
+      - name: Build
+        run: npm run build
+
+  # Built on every push and PR (the Dockerfile re-runs the front tests and the build), pushed on main only.
+  # The `docker` job waits for it: Komodo redeploys the whole stack off the bot image, and the stack now
+  # references this one, so it has to exist by then.
+  docker-activity:
+    name: Build & Push Activity Image
+    runs-on: ubuntu-latest
+    needs: [lint, test, security, activity-web]
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        if: github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build (and push on main)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: activity/Dockerfile
+          push: ${{ github.ref == 'refs/heads/main' }}
+          provenance: false
+          tags: ghcr.io/floshv1/discord-bot-activity:latest
+
   docker:
     name: Build & Push Bot Image
     runs-on: ubuntu-latest
-    # docker-lavalink too: Komodo redeploys the whole stack off this push, lavalink build included.
-    needs: [lint, test, security, docker-lavalink]
+    # docker-lavalink and docker-activity too: Komodo redeploys the whole stack off this push, so every
+    # image it references must exist by then.
+    needs: [lint, test, security, docker-lavalink, docker-activity]
     if: github.ref == 'refs/heads/main'
     permissions:
       contents: read

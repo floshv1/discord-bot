@@ -18,6 +18,7 @@ from bot.cogs.currency.embeds import build_panel_embed as build_currency_panel_e
 from bot.cogs.currency.views import CurrencyPanelView
 from bot.cogs.customs import service as customs_service
 from bot.cogs.loldle import service as loldle_service
+from bot.cogs.loldle.views import PlayView
 from bot.cogs.music import service as music_service
 from bot.cogs.music.cog import MusicCog
 from bot.cogs.music.embeds import build_history_embed, build_idle_embed
@@ -476,7 +477,10 @@ class SetupCog(commands.Cog):
         if cog is None:
             await interaction.followup.send("Le LoLdle n'est pas chargé.", ephemeral=True)
             return
-        message = await channel.send(embed=await cog.render_board(interaction.guild_id))  # type: ignore[attr-defined]
+        message = await channel.send(
+            embed=await cog.render_board(interaction.guild_id),  # type: ignore[attr-defined]
+            view=PlayView(),
+        )
         await pin(message)
         await loldle_service.set_config(interaction.guild_id, channel.id, message.id)
         await interaction.followup.send(

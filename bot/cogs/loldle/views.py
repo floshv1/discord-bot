@@ -47,3 +47,41 @@ class GameView(discord.ui.View):
                 await interaction.response.send_message(text, ephemeral=True)
         except (discord.HTTPException, discord.ClientException):
             logger.warning("LoLdle: could not report a button failure")
+
+
+class PlayView(discord.ui.View):
+    """« Jouer » / « Version texte » on the public messages. Persistent: registered once at boot."""
+
+    def __init__(self) -> None:
+        super().__init__(timeout=None)
+
+    @staticmethod
+    def _cog(interaction: discord.Interaction):
+        return interaction.client.get_cog("LoldleCog")  # type: ignore[attr-defined]
+
+    @discord.ui.button(label="🎯 Jouer", style=discord.ButtonStyle.primary, custom_id="loldle:play")
+    async def play(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        cog = self._cog(interaction)
+        if cog is None:
+            await interaction.response.send_message("Le LoLdle n'est pas disponible.", ephemeral=True)
+            return
+        await cog.launch_or_card(interaction)
+
+    @discord.ui.button(label="Version texte", style=discord.ButtonStyle.secondary, custom_id="loldle:text")
+    async def text(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        cog = self._cog(interaction)
+        if cog is None:
+            await interaction.response.send_message("Le LoLdle n'est pas disponible.", ephemeral=True)
+            return
+        await cog.play(interaction, None)
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception, item: discord.ui.Item) -> None:
+        logger.opt(exception=error).error("LoLdle play button failed")
+        text = "Quelque chose a échoué, réessaie dans un instant."
+        try:
+            if interaction.response.is_done():
+                await interaction.followup.send(text, ephemeral=True)
+            else:
+                await interaction.response.send_message(text, ephemeral=True)
+        except (discord.HTTPException, discord.ClientException):
+            logger.warning("LoLdle: could not report a button failure")
