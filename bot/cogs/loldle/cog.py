@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import datetime as dt
 import io
+import time
 
 import aiohttp
 import discord
@@ -12,12 +14,16 @@ from discord.ext import commands, tasks
 from loguru import logger
 
 from bot.cogs.currency.leaderboard import mark_dirty as mark_coins_dirty
-from bot.cogs.loldle import catalog, embeds, hints, rules, service
+from bot.cogs.loldle import catalog, embeds, hints, images, rules, service
 from bot.cogs.loldle.events import Event, EventListener
 from bot.cogs.loldle.views import GameView, PlayView
 from bot.core.discord_utils import edit_if_changed
 
 STALE_WIN = dt.timedelta(hours=24)  # older wins are claimed but not posted: nobody wants last week's news
+POST_BACKOFF = 60.0  # after a 429 on a game post, leave that message alone this long
+AVATAR_TIMEOUT = 5.0
+POST_RETRY = 30.0  # a draw that failed (DB timeout, Discord 5xx) is tried again this much later
+POST_MAX_FAILURES = 5  # ...at most this many times, so a deterministic failure cannot loop all day
 
 
 class LoldleCog(commands.Cog):
@@ -28,12 +34,19 @@ class LoldleCog(commands.Cog):
         self._listener: EventListener | None = None
         # False until the first successful probe: a fresh boot must never launch into a dead Activity.
         self._activity_up = False
+        # (day, user_id) whose public game post must be redrawn: drained swap-then-iterate by post_ticker,
+        # so a burst of guesses costs one edit per member per tick.
+        self._dirty_posts: set[tuple[dt.date, int]] = set()
+        self._post_cooldown: dict[tuple[dt.date, int], float] = {}
+        self._avatars: dict[tuple[dt.date, int], bytes | None] = {}
+        self._post_failures: dict[tuple[dt.date, int], int] = {}
 
     async def cog_load(self) -> None:
         self._session = aiohttp.ClientSession()
         logger.info(f"LoLdle: {len(catalog.load())} champions loaded.")
         self.bot.add_view(PlayView())
         self.minute_ticker.start()
+        self.post_ticker.start()
         if self._activity_url():
             self.activity_probe.start()
         # Retries on its own: an unreachable database must not break boot.
@@ -46,6 +59,7 @@ class LoldleCog(commands.Cog):
 
     async def cog_unload(self) -> None:
         self.minute_ticker.cancel()
+        self.post_ticker.cancel()
         self.activity_probe.cancel()
         if self._listener:
             await self._listener.stop()
@@ -153,7 +167,6 @@ class LoldleCog(commands.Cog):
             if channel is None:  # claimed anyway: a channel set up later must not replay old wins
                 return
             now = discord.utils.utcnow()
-            days = await service.all_days(guild_id)
         except Exception:
             logger.exception("LoLdle: could not claim announcements")
             return
@@ -161,18 +174,17 @@ class LoldleCog(commands.Cog):
             if now - row["solved_at"] > STALE_WIN:
                 continue
             try:
-                solved = await service.solved_days(guild_id, row["user_id"])
-                count = rules.streak(days, solved, row["day"])
-                await channel.send(
-                    embed=embeds.build_public_embed(f"<@{row['user_id']}>", row, count),
-                    allowed_mentions=discord.AllowedMentions.none(),
-                )
+                await service.finish_post(guild_id, row["day"], row["user_id"])
             except Exception:  # the win is committed: one failure must not cost the others their post
-                logger.exception("LoLdle: could not post a result")
+                logger.exception("LoLdle: could not finish a game post")
+            self.mark_post(row["user_id"], row["day"])
 
     async def _on_event(self, event: Event) -> None:
         if event.guild_id != self.bot.config.guild_id:  # type: ignore[attr-defined]
             return
+        # Yesterday too: a guess at 23:59:58 is delivered after midnight and must still be drawn.
+        if event.kind in ("guess", "hint") and event.day >= self.today() - dt.timedelta(days=1):
+            self.mark_post(event.user_id, event.day)
         if event.kind == "win":
             await self._drain_announcements(event.guild_id)
         elif event.kind == "hint":
@@ -180,8 +192,136 @@ class LoldleCog(commands.Cog):
 
     async def _on_connect(self) -> None:
         """Notifications sent while disconnected are lost: resync from the database."""
-        await self._drain_announcements(self.bot.config.guild_id)  # type: ignore[attr-defined]
+        guild_id = self.bot.config.guild_id  # type: ignore[attr-defined]
+        await self._drain_announcements(guild_id)
         mark_coins_dirty(self.bot)
+        try:
+            today = self.today()
+            for user_id in await service.day_grids(guild_id, today):
+                self.mark_post(user_id, today)
+        except Exception:
+            logger.exception("LoLdle: could not resync the game posts")
+
+    # --- public game posts ("X joue au LoLdle") ------------------------------
+
+    def mark_post(self, user_id: int, day: dt.date | None = None) -> None:
+        self._dirty_posts.add((day or self.today(), user_id))
+
+    async def _player_face(self, guild_id: int, day: dt.date, user_id: int) -> tuple[str, bytes | None]:
+        """Display name and avatar bytes; the avatar is fetched once a day and may be None."""
+        guild = self.bot.get_guild(guild_id)
+        member = guild.get_member(user_id) if guild else None
+        if member is None:
+            rows = await service.player_names(guild_id, [user_id])
+            return (rows[0]["display_name"] if rows else "Joueur"), None
+        key = (day, user_id)
+        if key not in self._avatars:
+            try:
+                asset = member.display_avatar.with_size(64)
+                self._avatars[key] = await asyncio.wait_for(asset.read(), AVATAR_TIMEOUT)
+            except Exception as err:  # initials are drawn instead
+                logger.debug(f"LoLdle: no avatar for a game post ({type(err).__name__})")
+                self._avatars[key] = None
+        return member.display_name, self._avatars[key]
+
+    async def _draw_post(self, guild_id: int, day: dt.date, user_id: int) -> None:
+        """Create or edit one member's game post. Raises nothing the ticker cannot log."""
+        key = (day, user_id)
+        until = self._post_cooldown.get(key)
+        if until is not None and time.monotonic() < until:
+            self._dirty_posts.add(key)  # rate limited: try again once the back-off is over
+            return
+        config = await service.get_config(guild_id)
+        channel = self.bot.get_channel(config["channel_id"]) if config else None
+        if channel is None:
+            return
+        rows = await service.guesses(guild_id, day, user_id)
+        if not rows:
+            return
+        post = await service.get_post(guild_id, day, user_id)
+        if post is None:
+            await service.claim_post(guild_id, day, user_id, channel.id)
+            post = {"channel_id": channel.id, "message_id": None, "finished": False}
+        message_id = post["message_id"]
+        if post["channel_id"] != channel.id:  # /setup moved the channel: start a fresh post there
+            await service.set_post_channel(guild_id, day, user_id, channel.id)
+            message_id = None
+        won = await service.result(guild_id, day, user_id)
+        owned = await service.hints(guild_id, day, user_id)
+        solved = won is not None
+        # A past day is over whatever the row says: the recap may have run before this post existed.
+        finished = solved or bool(post["finished"]) or day < self.today()
+        streak = 0
+        if solved:
+            streak = rules.streak(await service.all_days(guild_id), await service.solved_days(guild_id, user_id), day)
+        name, avatar = await self._player_face(guild_id, day, user_id)
+        content = embeds.build_game_post(f"<@{user_id}>", len(rows), len(owned), solved, finished, streak)
+        card = images.PlayerCard(name, avatar, [service.cells_of(r) for r in rows], len(rows), solved, finished)
+        png = await asyncio.to_thread(images.render_game, card)
+        file = discord.File(io.BytesIO(png), filename="partie.png")
+        if message_id is not None:
+            try:
+                await channel.get_partial_message(message_id).edit(
+                    content=content,
+                    attachments=[file],
+                    view=PlayView(),
+                    allowed_mentions=discord.AllowedMentions.none(),
+                )
+                return
+            except discord.NotFound:  # deleted by hand: post a new one below
+                await service.set_post_message(guild_id, day, user_id, None)
+                file = discord.File(io.BytesIO(png), filename="partie.png")
+            except discord.HTTPException as exc:
+                if exc.status == 429:
+                    self._post_cooldown[key] = time.monotonic() + POST_BACKOFF
+                    self._dirty_posts.add(key)
+                    logger.warning(f"LoLdle: rate limited on a game post, backing off {POST_BACKOFF:.0f}s")
+                    return
+                raise
+        message = await channel.send(
+            content=content,
+            file=file,
+            view=PlayView(),
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
+        await service.set_post_message(guild_id, day, user_id, message.id)
+
+    @tasks.loop(seconds=5)
+    async def post_ticker(self) -> None:
+        """Redraw every marked game post once. Each post guards itself: this body never raises."""
+        if not self._dirty_posts:
+            return
+        pending, self._dirty_posts = self._dirty_posts, set()
+        guild_id = self.bot.config.guild_id  # type: ignore[attr-defined]
+        for day, user_id in sorted(pending):
+            key = (day, user_id)
+            try:
+                await self._draw_post(guild_id, day, user_id)
+                self._post_failures.pop(key, None)
+            except Exception:
+                # The win or the midnight "n'a pas trouvé" may be this very draw: try again, a bounded
+                # number of times, rather than leaving the post stuck in its previous state.
+                failures = self._post_failures.get(key, 0) + 1
+                self._post_failures[key] = failures
+                if failures < POST_MAX_FAILURES:
+                    logger.exception(f"LoLdle: could not draw a game post (attempt {failures}), retrying")
+                    self._post_cooldown[key] = time.monotonic() + POST_RETRY
+                    self._dirty_posts.add(key)
+                else:
+                    logger.exception("LoLdle: giving up on a game post after repeated failures")
+        oldest = self.today() - dt.timedelta(days=1)
+        for cache in (self._avatars, self._post_cooldown, self._post_failures):
+            for k in [k for k in cache if k[0] < oldest]:
+                cache.pop(k, None)
+
+    @post_ticker.before_loop
+    async def _before_posts(self) -> None:
+        await self.bot.wait_until_ready()
+
+    @post_ticker.error
+    async def _posts_error(self, exc: BaseException) -> None:
+        logger.opt(exception=exc).error("LoLdle post ticker crashed — restarting.")
+        self.post_ticker.restart()
 
     # --- hints ------------------------------------------------------------
 
@@ -264,23 +404,55 @@ class LoldleCog(commands.Cog):
             return
         try:
             yesterday = day - dt.timedelta(days=1)
+            # Games left open yesterday become "n'a pas trouvé": the recap claim makes this once.
+            for post in await service.unfinished_posts(guild_id, yesterday):
+                await service.finish_post(guild_id, yesterday, post["user_id"])
+                self.mark_post(post["user_id"], yesterday)
             row = await service.day_row(guild_id, yesterday)
             results = await service.day_results(guild_id, yesterday)
             dnf = await service.day_dnf(guild_id, yesterday)
-            days = await service.all_days(guild_id)
-            solved = await service.solved_by_user(guild_id)
-            streaks = {r["user_id"]: rules.streak(days, solved.get(r["user_id"], set()), yesterday) for r in results}
+            streak = rules.group_streak(
+                await service.all_days(guild_id), await service.group_solved_days(guild_id), yesterday
+            )
             name = service.answer_of(row).name if row else None
+            content = embeds.build_recap_text(name, streak, results, dnf)
+            extra = {}
+            try:
+                cards = await self._recap_cards(guild_id, yesterday, results, dnf)
+                if cards:
+                    png = await asyncio.to_thread(images.render_recap, yesterday, streak, cards)
+                    extra["file"] = discord.File(io.BytesIO(png), filename="recap.png")
+            except Exception as err:  # the text still goes out: a broken picture must not block the recap
+                logger.warning(f"LoLdle: recap picture failed ({type(err).__name__}), sending text only")
             await channel.send(
-                embed=embeds.build_recap_embed(name, results, dnf, streaks),
+                content=content,
                 allowed_mentions=discord.AllowedMentions.none(),
                 view=PlayView(),
+                **extra,
             )
         except discord.Forbidden:  # retrying every minute would change nothing
             logger.warning(f"LoLdle: no permission to post the recap in {channel.id}")
         except Exception:
             logger.exception("LoLdle: recap failed, retrying next minute")
             await service.release_recap(guild_id, day)
+
+    async def _recap_cards(self, guild_id: int, day: dt.date, results, dnf) -> list[images.PlayerCard]:
+        """Winners by tries (ties crowned together), then the members who did not find it."""
+        if not results and not dnf:
+            return []
+        grids = await service.day_grids(guild_id, day)
+        ordered = sorted(results, key=lambda r: (r["tries"], r.get("score", 0), r["user_id"]))
+        best = ordered[0]["tries"] if ordered else None
+        cards = []
+        for r in ordered:
+            name, avatar = await self._player_face(guild_id, day, r["user_id"])
+            rows = grids.get(r["user_id"], [])
+            cards.append(images.PlayerCard(name, avatar, rows, r["tries"], True, True, r["tries"] == best))
+        for user_id in dnf:
+            name, avatar = await self._player_face(guild_id, day, user_id)
+            rows = grids.get(user_id, [])
+            cards.append(images.PlayerCard(name, avatar, rows, len(rows), False, True))
+        return cards
 
     async def _post_ping(self, channel, guild_id: int, day: dt.date) -> None:
         if not await service.claim_ping(guild_id, day):

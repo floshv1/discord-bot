@@ -482,6 +482,109 @@ async def day_dnf(guild_id: int, day: dt.date) -> list[int]:
     return [r["user_id"] for r in rows]
 
 
+# --- per-member public posts ---------------------------------------------
+
+
+async def claim_post(guild_id: int, day: dt.date, user_id: int, channel_id: int) -> bool:
+    """True only for the call that created the row: it alone sends the message."""
+    created = await get_pool().fetchval(
+        """
+        INSERT INTO loldle_posts (guild_id, day, user_id, channel_id) VALUES ($1, $2::date, $3, $4)
+        ON CONFLICT (guild_id, day, user_id) DO NOTHING
+        RETURNING TRUE
+        """,
+        guild_id,
+        day,
+        user_id,
+        channel_id,
+    )
+    return bool(created)
+
+
+async def set_post_message(guild_id: int, day: dt.date, user_id: int, message_id: int | None) -> None:
+    await get_pool().execute(
+        """
+        UPDATE loldle_posts SET message_id = $4, updated_at = NOW()
+        WHERE guild_id = $1 AND day = $2::date AND user_id = $3
+        """,
+        guild_id,
+        day,
+        user_id,
+        message_id,
+    )
+
+
+async def set_post_channel(guild_id: int, day: dt.date, user_id: int, channel_id: int) -> None:
+    await get_pool().execute(
+        """
+        UPDATE loldle_posts SET channel_id = $4, message_id = NULL, updated_at = NOW()
+        WHERE guild_id = $1 AND day = $2::date AND user_id = $3
+        """,
+        guild_id,
+        day,
+        user_id,
+        channel_id,
+    )
+
+
+async def get_post(guild_id: int, day: dt.date, user_id: int) -> asyncpg.Record | None:
+    return await get_pool().fetchrow(
+        """
+        SELECT channel_id, message_id, finished FROM loldle_posts
+        WHERE guild_id = $1 AND day = $2::date AND user_id = $3
+        """,
+        guild_id,
+        day,
+        user_id,
+    )
+
+
+async def finish_post(guild_id: int, day: dt.date, user_id: int) -> None:
+    await get_pool().execute(
+        """
+        UPDATE loldle_posts SET finished = TRUE, updated_at = NOW()
+        WHERE guild_id = $1 AND day = $2::date AND user_id = $3
+        """,
+        guild_id,
+        day,
+        user_id,
+    )
+
+
+async def unfinished_posts(guild_id: int, day: dt.date) -> list[asyncpg.Record]:
+    return await get_pool().fetch(
+        """
+        SELECT user_id, channel_id, message_id FROM loldle_posts
+        WHERE guild_id = $1 AND day = $2::date AND NOT finished
+        ORDER BY user_id
+        """,
+        guild_id,
+        day,
+    )
+
+
+async def day_grids(guild_id: int, day: dt.date) -> dict[int, list[list[str]]]:
+    """Every member's colours for the day, guess by guess. Colours only: no champion leaves here."""
+    rows = await get_pool().fetch(
+        """
+        SELECT user_id, cells FROM loldle_guesses
+        WHERE guild_id = $1 AND day = $2::date
+        ORDER BY user_id, number
+        """,
+        guild_id,
+        day,
+    )
+    grids: dict[int, list[list[str]]] = {}
+    for r in rows:
+        grids.setdefault(r["user_id"], []).append(cells_of(r))
+    return grids
+
+
+async def group_solved_days(guild_id: int) -> set[dt.date]:
+    rows = await get_pool().fetch("SELECT DISTINCT day FROM loldle_results WHERE guild_id = $1", guild_id)
+    return {r["day"] for r in rows}
+
+
 # --- streaks and board ----------------------------------------------------
 
 

@@ -12,10 +12,7 @@ from bot.cogs.loldle.catalog import Champion
 
 COLOR = discord.Color.gold()
 MAX_PRIVATE_ROWS = 15
-MAX_PUBLIC_ROWS = 8
-MAX_RECAP_ROWS = 20
-MAX_RECAP_DNF = 15
-MEDALS = ("🥇", "🥈", "🥉")
+MAX_RECAP_MENTIONS = 40  # 2000 characters per message, a mention is ~22
 LEGEND = "🟩 exact · 🟨 partiel · 🟥 faux · ⬆️⬇️ sorti plus tard / plus tôt"
 COLUMNS = "Position · Classe · Portée · Ressource · Région · Genre · Dégâts · Espèce · Année"
 
@@ -45,17 +42,16 @@ def build_game_embed(day: dt.date, rows: Sequence[Mapping], result: Mapping | No
     return embed
 
 
-def build_public_embed(mention: str, result: Mapping, streak: int) -> discord.Embed:
-    grid = result["grid"].split("\n")
-    shown = grid[-MAX_PUBLIC_ROWS:]
-    lines = list(shown)
-    if len(grid) > len(shown):
-        lines.insert(0, f"*… +{len(grid) - len(shown)} essais*")
-    tries = result["tries"]
-    bulbs = f" · {'💡' * result['hints']}" if result["hints"] else ""
-    flame = f" · série : **{streak}** 🔥" if streak > 1 else ""
-    header = f"🎯 {mention} a trouvé le LoLdle du jour en **{tries}** essai{'s' if tries > 1 else ''}{bulbs}{flame}"
-    return discord.Embed(description=header + "\n" + "\n".join(lines), color=COLOR)
+def build_game_post(mention: str, tries: int, hints: int, solved: bool, finished: bool, streak: int) -> str:
+    """The text of a member's public game message. Counts only: the picture carries the colours."""
+    word = "essai" if tries == 1 else "essais"
+    bulbs = f" · {'💡' * hints}" if hints else ""
+    if solved:
+        flame = f" · série : **{streak}** 🔥" if streak > 1 else ""
+        return f"{mention} a trouvé le LoLdle en **{tries}** {word} 🎯{bulbs}{flame}"
+    if finished:
+        return f"{mention} n'a pas trouvé le LoLdle · {tries} {word}"
+    return f"{mention} joue au LoLdle · **{tries}** {word}…{bulbs}"
 
 
 def build_board_embed(
@@ -80,26 +76,32 @@ def build_board_embed(
     return embed
 
 
-def build_recap_embed(
-    yesterday: str | None, results: Sequence[Mapping], dnf: Sequence[int], streaks: Mapping[int, int]
-) -> discord.Embed:
-    """The midnight message. Names yesterday's champion only, and only if someone played it."""
-    body = ["Joue avec `/loldle`."]
-    if yesterday and (results or dnf):
-        found = f"{len(results)} {'ont trouvé' if len(results) > 1 else 'a trouvé'}"
-        missed = f" · {len(dnf)} DNF" if dnf else ""
-        body += ["", f"Hier, c'était **{yesterday}** · {found}{missed}", ""]
-        for rank, r in enumerate(results[:MAX_RECAP_ROWS], 1):
-            place = MEDALS[rank - 1] if rank <= len(MEDALS) else f"{rank}."
-            tries = f"{r['tries']} essai{'s' if r['tries'] > 1 else ''}"
-            bulbs = f" + {'💡' * r['hints']}" if r["hints"] else ""
-            count = streaks.get(r["user_id"], 0)
-            flame = f" · 🔥 {count}" if count > 1 else ""
-            body.append(f"{place} <@{r['user_id']}> {tries}{bulbs}{flame}")
-        if len(results) > MAX_RECAP_ROWS:
-            body.append(f"*… +{len(results) - MAX_RECAP_ROWS} autres*")
-        if dnf:
-            names = " ".join(f"<@{u}>" for u in dnf[:MAX_RECAP_DNF])
-            more = f" *+{len(dnf) - MAX_RECAP_DNF}*" if len(dnf) > MAX_RECAP_DNF else ""
-            body += ["", f"DNF : {names}{more}"]
-    return discord.Embed(title="🎯 Nouveau LoLdle disponible !", description="\n".join(body), color=COLOR)
+def build_recap_text(yesterday: str | None, streak: int, results: Sequence[Mapping], dnf: Sequence[int]) -> str:
+    """The midnight message: the group's run, then yesterday grouped by tries, best crowned.
+
+    Names yesterday's champion only, and only if someone played it. Mentions render as names; the
+    caller sends them with `AllowedMentions.none()`, so nobody is notified.
+    """
+    lines: list[str] = []
+    if streak >= 2:
+        lines.append(f"🔥 Le serveur est sur une série de {streak} jours !")
+    if not (yesterday and (results or dnf)):
+        lines.append("🎯 **Nouveau LoLdle disponible !**")
+        return "\n".join(lines)
+    lines.append(f"Voici les résultats d'hier (c'était **{yesterday}**) :")
+    budget = MAX_RECAP_MENTIONS
+    groups: dict[int, list[Mapping]] = {}
+    for r in sorted(results, key=lambda r: (r["tries"], r.get("score", 0), r["user_id"])):
+        groups.setdefault(r["tries"], []).append(r)
+    best = min(groups) if groups else None
+    for tries, members in groups.items():
+        shown, budget = members[: max(budget, 0)], budget - len(members)
+        names = " ".join(f"<@{m['user_id']}>" + (" 💡" if m["hints"] else "") for m in shown)
+        more = f" +{len(members) - len(shown)}" if len(shown) < len(members) else ""
+        crown = "👑 " if tries == best else ""
+        lines.append(f"{crown}{tries} {'essai' if tries == 1 else 'essais'} : {names}{more}".rstrip())
+    if dnf:
+        shown_dnf = list(dnf[: max(budget, 0)])
+        more = f" +{len(dnf) - len(shown_dnf)}" if len(shown_dnf) < len(dnf) else ""
+        lines.append(f"Pas trouvé : {' '.join(f'<@{u}>' for u in shown_dnf)}{more}".rstrip())
+    return "\n".join(lines)
