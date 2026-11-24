@@ -222,3 +222,40 @@ def test_resolve_guess_prefers_stored_answer():
     assert service.resolve_guess("Ahri", answer).id == "Ahri"
     assert service.resolve_guess("zzzz", answer) is None
     assert service.resolve_guess("Remov", answer) is None
+
+
+# --- per-member posts and group data ------------------------------------------
+
+
+async def test_claim_post_is_unique(conn):
+    conn.fetchval.side_effect = [True, None]
+    assert await service.claim_post(1, DAY, 2, 30) is True
+    assert await service.claim_post(1, DAY, 2, 30) is False
+    sql = conn.fetchval.await_args.args[0]
+    assert "ON CONFLICT" in sql and "DO NOTHING" in sql and "RETURNING" in sql
+    assert "$2::date" in sql
+
+
+async def test_finish_and_unfinished_posts(conn):
+    await service.finish_post(1, DAY, 2)
+    assert "finished = TRUE" in conn.execute.await_args.args[0]
+    conn.fetch.return_value = [{"user_id": 2, "channel_id": 30, "message_id": 40}]
+    rows = await service.unfinished_posts(1, DAY)
+    assert rows[0]["user_id"] == 2
+    assert "NOT finished" in conn.fetch.await_args.args[0]
+
+
+async def test_day_grids_groups_cells_by_member_in_order(conn):
+    conn.fetch.return_value = [
+        {"user_id": 2, "cells": json.dumps(["red"] * 9)},
+        {"user_id": 3, "cells": ["green"] * 9},
+        {"user_id": 2, "cells": ["green"] * 9},
+    ]
+    grids = await service.day_grids(1, DAY)
+    assert grids == {2: [["red"] * 9, ["green"] * 9], 3: [["green"] * 9]}
+    assert "ORDER BY" in conn.fetch.await_args.args[0]
+
+
+async def test_group_solved_days(conn):
+    conn.fetch.return_value = [{"day": DAY}, {"day": DAY - dt.timedelta(days=1)}]
+    assert await service.group_solved_days(1) == {DAY, DAY - dt.timedelta(days=1)}

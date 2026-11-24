@@ -66,6 +66,11 @@ def svc(**over):
         "ping_targets": [1, 2],
         "previous_ping": None,
         "set_ping_message": None,
+        "group_solved_days": {YESTERDAY},
+        "day_grids": {1: [["green"] * 9], 2: [["red"] * 9, ["green"] * 9], 3: [["red"] * 9]},
+        "unfinished_posts": [],
+        "finish_post": None,
+        "player_names": [],
     }
     base.update(over)
     return patch.multiple(
@@ -79,48 +84,6 @@ def test_ping_window_is_nine_to_twenty_one_paris():
     assert rules.in_ping_window(dt.datetime(2026, 11, 23, 20, 59, tzinfo=PARIS))
     assert not rules.in_ping_window(dt.datetime(2026, 11, 23, 21, 0, tzinfo=PARIS))
     assert rules.in_ping_window(dt.datetime(2026, 11, 23, 8, 0, tzinfo=dt.UTC))  # 09:00 in Paris
-
-
-def test_recap_lists_yesterday_in_order_with_tries_hints_streak_and_dnf():
-    e = embeds.build_recap_embed("Annie", RESULTS, [3], {1: 6, 2: 1})
-    t = text(e)
-    assert "Annie" in t and t.index("<@1>") < t.index("<@2>") < t.index("<@3>")
-    assert "3 essais" in t and "4 essais" in t and "💡" in t and "🔥 6" in t and "DNF" in t
-
-
-def test_recap_singular_try():
-    assert "1 essai" in text(embeds.build_recap_embed("Annie", [{**RESULTS[0], "tries": 1, "score": 1}], [], {}))
-
-
-def test_recap_without_players_only_announces_the_new_game():
-    t = text(embeds.build_recap_embed("Annie", [], [], {}))
-    assert "Nouveau LoLdle" in t and "Annie" not in t
-
-
-def test_huge_recap_stays_under_discord_limits():
-    results = [{"user_id": 10**17 + n, "tries": 9, "hints": 3, "score": 12} for n in range(200)]
-    e = embeds.build_recap_embed(
-        "Annie", results, [10**18 + n for n in range(200)], {r["user_id"]: 99 for r in results}
-    )
-    assert len(e) <= 6000 and len(e.description) <= 4096 and "+180" in e.description and "+185" in e.description
-
-
-async def test_recap_is_posted_without_any_ping(cog):
-    with svc():
-        await cog._daily_posts(10, MIDNIGHT, DAY)
-    kwargs = cog.channel.send.await_args.kwargs
-    assert "content" not in kwargs
-    mentions = kwargs["allowed_mentions"]
-    assert mentions.everyone is False and mentions.roles is False and mentions.users is False
-    assert "Annie" in text(kwargs["embed"])
-
-
-async def test_recap_streak_is_counted_up_to_yesterday(cog):
-    days = [rules.DayInfo(YESTERDAY - dt.timedelta(days=n), 1440) for n in range(3)]
-    solved = {1: {YESTERDAY - dt.timedelta(days=n) for n in range(3)}, 2: {YESTERDAY}}
-    with svc(all_days=days, solved_by_user=solved):
-        await cog._daily_posts(10, MIDNIGHT, DAY)
-    assert "🔥 3" in text(cog.channel.send.await_args.kwargs["embed"])
 
 
 @pytest.mark.parametrize("state", [None, "seed"])
@@ -253,3 +216,104 @@ async def test_ping_targets_are_yesterdays_players_who_have_not_played_today():
         assert await service.ping_targets(10, DAY) == [1, 2]
     sql = conn.fetch.await_args.args[0]
     assert "$2::date - 1" in sql and "NOT EXISTS" in sql
+
+
+# --- the group recap -----------------------------------------------------------
+
+GROUPED = [
+    {"user_id": 1, "tries": 4, "hints": 0, "score": 4},
+    {"user_id": 2, "tries": 5, "hints": 0, "score": 5},
+    {"user_id": 3, "tries": 5, "hints": 2, "score": 7},
+]
+
+
+def test_recap_text_groups_by_tries_with_crown():
+    t = embeds.build_recap_text("Annie", 0, GROUPED, [4])
+    assert "👑 4 essais : <@1>" in t
+    assert "5 essais : <@2> <@3> 💡" in t
+    assert "Pas trouvé : <@4>" in t
+    assert t.index("👑 4 essais") < t.index("5 essais") < t.index("Pas trouvé")
+    assert "Annie" in t
+
+
+def test_recap_text_crowns_every_tie():
+    t = embeds.build_recap_text("Annie", 0, [{**GROUPED[0]}, {**GROUPED[1], "tries": 4}], [])
+    assert "👑 4 essais : <@1> <@2>" in t
+
+
+def test_recap_text_marks_hints():
+    t = embeds.build_recap_text("Annie", 0, GROUPED, [])
+    assert "<@3> 💡" in t and "<@2> 💡" not in t
+
+
+def test_recap_text_singular_try():
+    assert "👑 1 essai : <@1>" in embeds.build_recap_text("Annie", 0, [{**GROUPED[0], "tries": 1}], [])
+
+
+def test_recap_text_shows_group_streak_from_two():
+    assert "série" not in embeds.build_recap_text("Annie", 1, GROUPED, [])
+    assert "🔥 Le serveur est sur une série de 6 jours !" in embeds.build_recap_text("Annie", 6, GROUPED, [])
+
+
+def test_recap_text_without_players_stays_short():
+    t = embeds.build_recap_text("Annie", 0, [], [])
+    assert "Nouveau LoLdle" in t and "Annie" not in t and "essai" not in t
+
+
+def test_huge_recap_text_stays_under_discord_limits():
+    results = [{"user_id": 10**17 + n, "tries": 3 + n % 9, "hints": 3, "score": 9} for n in range(200)]
+    t = embeds.build_recap_text("Annie", 99, results, [10**18 + n for n in range(200)])
+    assert len(t) <= 2000 and "+" in t
+
+
+async def test_recap_posts_image_and_both_buttons(cog):
+    with svc():
+        await cog._daily_posts(10, MIDNIGHT, DAY)
+    kwargs = cog.channel.send.await_args.kwargs
+    assert kwargs["file"].filename == "recap.png"
+    assert isinstance(kwargs["view"], PlayView)
+    assert {item.custom_id for item in kwargs["view"].children} == {"loldle:play", "loldle:text"}
+    assert "Annie" in kwargs["content"]
+
+
+async def test_recap_mentions_never_ping(cog):
+    with svc():
+        await cog._daily_posts(10, MIDNIGHT, DAY)
+    mentions = cog.channel.send.await_args.kwargs["allowed_mentions"]
+    assert mentions.everyone is False and mentions.roles is False and mentions.users is False
+
+
+async def test_recap_group_streak_is_counted_up_to_yesterday(cog):
+    days = [rules.DayInfo(YESTERDAY - dt.timedelta(days=n), 1440) for n in range(3)]
+    won = {YESTERDAY - dt.timedelta(days=n) for n in range(3)}
+    with svc(all_days=days, group_solved_days=won):
+        await cog._daily_posts(10, MIDNIGHT, DAY)
+    assert "série de 3 jours" in cog.channel.send.await_args.kwargs["content"]
+
+
+async def test_recap_finalizes_yesterday_once(cog):
+    finish = AsyncMock()
+    unfinished = [{"user_id": 3, "channel_id": 20, "message_id": 55}]
+    with svc(unfinished_posts=unfinished, finish_post=finish):
+        await cog._daily_posts(10, MIDNIGHT, DAY)
+    finish.assert_awaited_once_with(10, YESTERDAY, 3)
+    assert (YESTERDAY, 3) in cog._dirty_posts
+    with svc(claim_recap=None, unfinished_posts=unfinished, finish_post=finish):
+        await cog._daily_posts(10, MIDNIGHT, DAY)
+    finish.assert_awaited_once()  # the recap claim is what makes it once
+
+
+async def test_recap_without_players_still_posts(cog):
+    with svc(day_results=[], day_dnf=[], day_grids={}):
+        await cog._daily_posts(10, MIDNIGHT, DAY)
+    kwargs = cog.channel.send.await_args.kwargs
+    assert "Nouveau LoLdle" in kwargs["content"]
+
+
+async def test_recap_text_survives_a_picture_failure(cog):
+    release = AsyncMock()
+    with svc(release_recap=release), patch.object(loldle_cog.images, "render_recap", side_effect=OSError("font")):
+        await cog._daily_posts(10, MIDNIGHT, DAY)
+    kwargs = cog.channel.send.await_args.kwargs
+    assert "file" not in kwargs and "Annie" in kwargs["content"]
+    release.assert_not_called()

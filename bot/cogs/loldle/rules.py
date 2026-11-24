@@ -123,6 +123,18 @@ def streak(days: list[DayInfo], solved: set[dt.date], today: dt.date) -> int:
     return count
 
 
+def group_streak(days: list[DayInfo], solved: set[dt.date], yesterday: dt.date) -> int:
+    """Consecutive days, ending yesterday, on which at least one member found the champion.
+
+    `solved` holds the days with any winner. A day the bot was down never breaks it, exactly like
+    `streak`; but a full day yesterday with no winner means the group's run is over.
+    """
+    known = {d.day: d.up_minutes for d in days}
+    if yesterday not in solved and known.get(yesterday, 0) >= FULL_DAY_MINUTES:
+        return 0
+    return streak(days, solved, yesterday)
+
+
 def _hash(guild_id: int, day: dt.date, salt: str) -> int:
     return int.from_bytes(hashlib.sha256(f"{guild_id}:{day}:{salt}".encode()).digest()[:8], "big")
 

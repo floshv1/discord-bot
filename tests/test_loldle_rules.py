@@ -196,3 +196,29 @@ def test_derived_hints_are_stable_and_in_bounds():
     left, top, right, bottom = box
     assert 0 <= left < right <= 1215 and 0 <= top < bottom <= 717
     assert right - left == bottom - top
+
+
+# --- group streak ------------------------------------------------------------
+
+YESTERDAY = dt.date(2026, 11, 23)
+
+
+def _full(*offsets: int) -> list[DayInfo]:
+    return [DayInfo(YESTERDAY - dt.timedelta(days=o), rules.FULL_DAY_MINUTES) for o in offsets]
+
+
+def _ago(*offsets: int) -> set[dt.date]:
+    return {YESTERDAY - dt.timedelta(days=o) for o in offsets}
+
+
+def test_group_streak_counts_days_with_any_solver():
+    assert rules.group_streak(_full(0, 1, 2, 3), _ago(0, 1, 2), YESTERDAY) == 3
+
+
+def test_group_streak_excuses_a_day_the_bot_was_down():
+    days = _full(0, 2, 3) + [DayInfo(YESTERDAY - dt.timedelta(days=1), 10)]
+    assert rules.group_streak(days, _ago(0, 2), YESTERDAY) == 2
+
+
+def test_group_streak_is_zero_when_yesterday_had_no_winner():
+    assert rules.group_streak(_full(0, 1, 2), _ago(1, 2), YESTERDAY) == 0

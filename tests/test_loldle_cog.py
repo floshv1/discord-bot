@@ -9,7 +9,7 @@ import pytest
 from bot.cogs.loldle import catalog, embeds, hints, rules, service
 from bot.cogs.loldle import cog as loldle_cog
 from bot.cogs.loldle.service import BuyOutcome, GuessOutcome
-from bot.cogs.loldle.views import GameView
+from bot.cogs.loldle.views import GameView, PlayView
 
 CHAMPS = catalog.load()
 AHRI, ANNIE = CHAMPS["Ahri"], CHAMPS["Annie"]
@@ -193,9 +193,6 @@ def test_long_games_stay_under_discord_limits():
     rows = [guess_row(n, list(CHAMPS.values())[n]) for n in range(1, 120)]
     e = embeds.build_game_embed(DAY, rows, None, AHRI)
     assert len(e) <= 6000 and len(e.description) <= 4096 and "+" in e.description
-    grid = "\n".join(["🟥🟥🟥🟥🟥⬆️"] * 120)
-    public = embeds.build_public_embed("<@2>", {**RESULT, "tries": 120, "grid": grid}, 3)
-    assert len(public) <= 6000 and len(public.description) <= 4096
 
 
 # --- final review regressions ---
@@ -272,31 +269,6 @@ def channel_mock():
     return cog_channel
 
 
-async def test_win_is_announced_once_from_the_queue(cog):
-    channel = channel_mock()
-    cog.bot.get_channel.return_value = channel
-    with svc(
-        claim_announcements=[pending()],
-        get_config={"channel_id": 20, "board_message_id": None},
-    ):
-        await cog._drain_announcements(10)
-    channel.send.assert_awaited_once()
-    kwargs = channel.send.await_args.kwargs
-    assert "Ahri" not in embed_text(kwargs["embed"])
-    assert kwargs["allowed_mentions"].users is False
-    assert "<@2>" in embed_text(kwargs["embed"])
-
-
-async def test_wins_are_posted_in_solving_order(cog):
-    channel = channel_mock()
-    cog.bot.get_channel.return_value = channel
-    late, early = pending(3, NOW - dt.timedelta(minutes=1)), pending(4, NOW - dt.timedelta(minutes=9))
-    with svc(claim_announcements=[late, early], get_config={"channel_id": 20, "board_message_id": None}):
-        await cog._drain_announcements(10)
-    texts = [embed_text(c.kwargs["embed"]) for c in channel.send.await_args_list]
-    assert "<@4>" in texts[0] and "<@3>" in texts[1]
-
-
 async def test_stale_wins_are_claimed_but_not_posted(cog):
     channel = channel_mock()
     cog.bot.get_channel.return_value = channel
@@ -305,6 +277,7 @@ async def test_stale_wins_are_claimed_but_not_posted(cog):
         await cog._drain_announcements(10)
     claim.assert_awaited_once()
     channel.send.assert_not_called()
+    assert cog._dirty_posts == set()
 
 
 async def test_no_channel_discards_pending_wins(cog):
@@ -313,18 +286,6 @@ async def test_no_channel_discards_pending_wins(cog):
         await cog._drain_announcements(10)
     claim.assert_awaited_once()
     cog.bot.get_channel.assert_not_called()
-
-
-async def test_channel_failure_keeps_the_ticker_alive(cog):
-    channel = channel_mock()
-    channel.send = AsyncMock(side_effect=discord.HTTPException(MagicMock(status=403, reason="x"), "no"))
-    cog.bot.get_channel.return_value = channel
-    with svc(
-        claim_announcements=[pending(3), pending(4)],
-        get_config={"channel_id": 20, "board_message_id": None},
-    ):
-        await cog._drain_announcements(10)  # must not raise
-    assert channel.send.await_count == 2  # one failure does not cost the others
 
 
 async def test_claim_failure_does_not_raise(cog):
@@ -513,6 +474,9 @@ async def test_board_recap_and_ping_carry_the_view(cog):
             solved_by_user={},
             solved_count=0,
             board_rows=[],
+            unfinished_posts=[],
+            group_solved_days=set(),
+            day_grids={},
             ping_targets=[1],
             set_ping_message=None,
             previous_ping=None,
@@ -614,6 +578,233 @@ async def test_cog_load_starts_the_listener_and_unload_stops_it(cog):
         session_cls.return_value.close = AsyncMock()
         await cog.cog_load()
         listener.start.assert_called_once()
-        start.assert_called_once()
+        assert start.call_count == 2  # minute_ticker and post_ticker; the probe stays off without a URL
         await cog.cog_unload()
         listener.stop.assert_awaited_once()
+
+
+# --- the "X joue au LoLdle" post ---------------------------------------------
+
+CONFIG = {"channel_id": 20, "board_message_id": None}
+
+
+def posting_channel(message_id=500):
+    channel = MagicMock()
+    channel.id = 20
+    channel.send = AsyncMock(return_value=MagicMock(id=message_id))
+    partial = MagicMock()
+    partial.edit = AsyncMock()
+    channel.get_partial_message = MagicMock(return_value=partial)
+    return channel, partial
+
+
+def post_svc(**over):
+    base = {
+        "get_config": CONFIG,
+        "guesses": [guess_row(1), guess_row(2, CHAMPS["Annie"])],
+        "result": None,
+        "hints": set(),
+        "get_post": None,
+        "claim_post": True,
+        "set_post_message": None,
+        "set_post_channel": None,
+        "finish_post": None,
+        "player_names": [],
+    }
+    return svc(**(base | over))
+
+
+def fake_member(name="NicoBooy"):
+    member = MagicMock()
+    member.display_name = name
+    member.display_avatar.with_size.return_value.read = AsyncMock(return_value=None)
+    return member
+
+
+async def test_win_marks_the_post_instead_of_posting_a_grid(cog):
+    channel, _ = posting_channel()
+    cog.bot.get_channel.return_value = channel
+    finish = AsyncMock()
+    with svc(claim_announcements=[pending()], get_config=CONFIG, finish_post=finish):
+        await cog._drain_announcements(10)
+    channel.send.assert_not_called()
+    finish.assert_awaited_once_with(10, DAY, 2)
+    assert cog._dirty_posts == {(DAY, 2)}
+
+
+async def test_first_guess_creates_one_post_with_image(cog):
+    channel, _ = posting_channel()
+    cog.bot.get_channel.return_value = channel
+    cog.bot.get_guild.return_value.get_member.return_value = fake_member()
+    set_message = AsyncMock()
+    with post_svc(set_post_message=set_message):
+        await cog._draw_post(10, DAY, 2)
+    channel.send.assert_awaited_once()
+    kwargs = channel.send.await_args.kwargs
+    assert kwargs["file"].filename == "partie.png"
+    assert kwargs["allowed_mentions"].users is False
+    assert isinstance(kwargs["view"], PlayView)
+    assert "<@2>" in kwargs["content"] and "2" in kwargs["content"]
+    set_message.assert_awaited_once_with(10, DAY, 2, 500)
+
+
+async def test_two_events_create_one_message(cog):
+    cog.mark_post(2, DAY)
+    cog.mark_post(2, DAY)
+    draw = AsyncMock()
+    with patch.object(cog, "_draw_post", draw):
+        await cog.post_ticker.coro(cog)
+    draw.assert_awaited_once_with(cog.bot.config.guild_id, DAY, 2)
+
+
+async def test_next_guess_edits_the_same_message(cog):
+    channel, partial = posting_channel()
+    cog.bot.get_channel.return_value = channel
+    with post_svc(get_post={"channel_id": 20, "message_id": 500, "finished": False}):
+        await cog._draw_post(10, DAY, 2)
+    channel.send.assert_not_called()
+    channel.get_partial_message.assert_called_once_with(500)
+    kwargs = partial.edit.await_args.kwargs
+    assert kwargs["attachments"][0].filename == "partie.png"
+
+
+async def test_burst_of_events_is_one_edit_per_tick(cog):
+    for _ in range(10):
+        cog.mark_post(2, DAY)
+    cog.mark_post(3, DAY)
+    draw = AsyncMock()
+    with patch.object(cog, "_draw_post", draw):
+        await cog.post_ticker.coro(cog)
+        await cog.post_ticker.coro(cog)
+    assert draw.await_count == 2  # once per member, and nothing left for the second tick
+
+
+async def test_deleted_post_is_recreated(cog):
+    channel, partial = posting_channel(message_id=777)
+    partial.edit = AsyncMock(side_effect=discord.NotFound(MagicMock(status=404, reason="x"), "gone"))
+    cog.bot.get_channel.return_value = channel
+    set_message = AsyncMock()
+    with post_svc(get_post={"channel_id": 20, "message_id": 500, "finished": False}, set_post_message=set_message):
+        await cog._draw_post(10, DAY, 2)
+    channel.send.assert_awaited_once()
+    assert set_message.await_args_list[-1].args == (10, DAY, 2, 777)
+
+
+async def test_post_follows_the_configured_channel(cog):
+    channel, _ = posting_channel()
+    cog.bot.get_channel.return_value = channel  # the configured channel is 20
+    move = AsyncMock()
+    with post_svc(get_post={"channel_id": 99, "message_id": 500, "finished": False}, set_post_channel=move):
+        await cog._draw_post(10, DAY, 2)
+    move.assert_awaited_once_with(10, DAY, 2, 20)
+    channel.send.assert_awaited_once()
+
+
+async def test_missing_member_uses_initials(cog):
+    channel, _ = posting_channel()
+    cog.bot.get_channel.return_value = channel
+    cog.bot.get_guild.return_value.get_member.return_value = None
+    with post_svc(player_names=[]):
+        await cog._draw_post(10, DAY, 2)  # renders with initials, no avatar download
+    channel.send.assert_awaited_once()
+
+
+async def test_no_channel_configured_posts_nothing(cog):
+    claim = AsyncMock()
+    with post_svc(get_config=None, claim_post=claim):
+        await cog._draw_post(10, DAY, 2)
+    claim.assert_not_called()
+
+
+async def test_rate_limited_edit_backs_off(cog):
+    channel, partial = posting_channel()
+    partial.edit = AsyncMock(side_effect=discord.HTTPException(MagicMock(status=429, reason="x"), "slow"))
+    cog.bot.get_channel.return_value = channel
+    with post_svc(get_post={"channel_id": 20, "message_id": 500, "finished": False}):
+        await cog._draw_post(10, DAY, 2)
+        await cog._draw_post(10, DAY, 2)
+    assert partial.edit.await_count == 1  # the second draw waits out the back-off
+    assert (DAY, 2) in cog._dirty_posts  # and stays queued for later
+
+
+async def test_post_text_never_names_today_champion(cog):
+    channel, _ = posting_channel()
+    cog.bot.get_channel.return_value = channel
+    rows = [guess_row(1, CHAMPS["Annie"]), guess_row(2, AHRI)]
+    won = {**RESULT, "tries": 2}
+    with post_svc(guesses=rows, result=won):
+        await cog._draw_post(10, DAY, 2)
+    content = channel.send.await_args.kwargs["content"]
+    assert "Ahri" not in content and "Annie" not in content
+    assert "trouvé" in content
+
+
+async def test_ticker_never_raises(cog):
+    cog.mark_post(2, DAY)
+    with patch.object(cog, "_draw_post", AsyncMock(side_effect=RuntimeError("boom"))):
+        await cog.post_ticker.coro(cog)
+
+
+async def test_guess_and_hint_events_mark_the_post(cog):
+    from bot.cogs.loldle.events import Event
+
+    cog.bot.config.guild_id = 10
+    with patch.object(loldle_cog, "mark_coins_dirty"), patch.object(cog, "_drain_announcements", AsyncMock()):
+        await cog._on_event(Event(10, DAY, 2, "guess"))
+        await cog._on_event(Event(10, DAY, 3, "hint"))
+    assert cog._dirty_posts == {(DAY, 2), (DAY, 3)}
+
+
+def test_game_post_text():
+    assert embeds.build_game_post("<@2>", 3, 0, False, False, 0) == "<@2> joue au LoLdle · **3** essais…"
+    assert "💡💡" in embeds.build_game_post("<@2>", 3, 2, False, False, 0)
+    won = embeds.build_game_post("<@2>", 4, 1, True, True, 5)
+    assert "a trouvé le LoLdle en **4** essais 🎯" in won and "série : **5** 🔥" in won
+    assert embeds.build_game_post("<@2>", 1, 0, True, True, 1) == "<@2> a trouvé le LoLdle en **1** essai 🎯"
+    assert embeds.build_game_post("<@2>", 6, 0, False, True, 0) == "<@2> n'a pas trouvé le LoLdle · 6 essais"
+
+
+async def test_edit_never_pings(cog):
+    channel, partial = posting_channel()
+    cog.bot.get_channel.return_value = channel
+    with post_svc(get_post={"channel_id": 20, "message_id": 500, "finished": False}):
+        await cog._draw_post(10, DAY, 2)
+    mentions = partial.edit.await_args.kwargs["allowed_mentions"]
+    assert mentions.users is False and mentions.everyone is False and mentions.roles is False
+
+
+async def test_past_day_post_is_drawn_finished(cog):
+    channel, _ = posting_channel()
+    cog.bot.get_channel.return_value = channel
+    yesterday = DAY - dt.timedelta(days=1)
+    with post_svc(get_post={"channel_id": 20, "message_id": None, "finished": False}):
+        await cog._draw_post(10, yesterday, 2)
+    assert "n'a pas trouvé" in channel.send.await_args.kwargs["content"]
+
+
+async def test_failed_draw_is_retried_later(cog):
+    cog.mark_post(2, DAY)
+    with patch.object(cog, "_draw_post", AsyncMock(side_effect=TimeoutError())):
+        await cog.post_ticker.coro(cog)
+    assert (DAY, 2) in cog._dirty_posts
+    assert (DAY, 2) in cog._post_cooldown
+
+
+async def test_a_draw_that_keeps_failing_is_eventually_dropped(cog):
+    draw = AsyncMock(side_effect=TimeoutError())
+    cog.mark_post(2, DAY)
+    with patch.object(cog, "_draw_post", draw):
+        for _ in range(loldle_cog.POST_MAX_FAILURES + 2):
+            cog._post_cooldown.clear()
+            await cog.post_ticker.coro(cog)
+    assert draw.await_count == loldle_cog.POST_MAX_FAILURES
+    assert (DAY, 2) not in cog._dirty_posts
+
+
+async def test_yesterday_event_is_still_drawn(cog):
+    from bot.cogs.loldle.events import Event
+
+    cog.bot.config.guild_id = 10
+    with patch.object(cog, "_drain_announcements", AsyncMock()):
+        await cog._on_event(Event(10, DAY - dt.timedelta(days=1), 2, "guess"))
+    assert (DAY - dt.timedelta(days=1), 2) in cog._dirty_posts
