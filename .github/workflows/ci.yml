@@ -70,21 +70,36 @@ jobs:
       - name: Audit dependencies
         run: uv run pip-audit
 
-  # Build-only: Komodo builds this image itself on deploy, so nothing is pushed. Without this
-  # job a broken lavalink/Dockerfile (a checksum mismatch, a renamed release asset, an
-  # unsupported arch) only surfaced at deploy time, after main had already moved on.
+  # Built on every push and PR, pushed on main only. Without this job a broken
+  # lavalink/Dockerfile (a checksum mismatch, a renamed release asset, an unsupported arch)
+  # only surfaced at deploy time, after main had already moved on. Today's stack still builds
+  # it itself (`build: ./lavalink`); the pushed image is for the pinned target deployment.
   docker-lavalink:
-    name: Build Lavalink Image
+    name: Build & Push Lavalink Image
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build
+      - name: Log in to GHCR
+        if: github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build (and push on main)
         uses: docker/build-push-action@v6
         with:
           context: ./lavalink
-          push: false
+          push: ${{ github.ref == 'refs/heads/main' }}
           provenance: false
+          tags: |
+            ghcr.io/floshv1/discord-bot-lavalink:latest
+            ghcr.io/floshv1/discord-bot-lavalink:${{ github.sha }}
 
   activity-web:
     name: Activity Front (test & build)
@@ -139,7 +154,9 @@ jobs:
           file: activity/Dockerfile
           push: ${{ github.ref == 'refs/heads/main' }}
           provenance: false
-          tags: ghcr.io/floshv1/discord-bot-activity:latest
+          tags: |
+            ghcr.io/floshv1/discord-bot-activity:latest
+            ghcr.io/floshv1/discord-bot-activity:${{ github.sha }}
 
   docker:
     name: Build & Push Bot Image
@@ -167,7 +184,9 @@ jobs:
           context: .
           push: true
           provenance: false
-          tags: ghcr.io/floshv1/discord-bot:latest
+          tags: |
+            ghcr.io/floshv1/discord-bot:latest
+            ghcr.io/floshv1/discord-bot:${{ github.sha }}
 
   docker-api:
     name: Build & Push API Image
@@ -193,7 +212,9 @@ jobs:
           context: ./dashboard/api
           push: true
           provenance: false
-          tags: ghcr.io/floshv1/discord-bot-api:latest
+          tags: |
+            ghcr.io/floshv1/discord-bot-api:latest
+            ghcr.io/floshv1/discord-bot-api:${{ github.sha }}
 
   docker-web:
     name: Build & Push Web Image
@@ -218,4 +239,6 @@ jobs:
           context: ./dashboard/web
           push: true
           provenance: false
-          tags: ghcr.io/floshv1/discord-bot-web:latest
+          tags: |
+            ghcr.io/floshv1/discord-bot-web:latest
+            ghcr.io/floshv1/discord-bot-web:${{ github.sha }}

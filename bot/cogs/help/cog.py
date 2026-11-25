@@ -13,7 +13,6 @@ FEATURE_TABLES: dict[str, tuple[str, str | None]] = {
     "currency": ("currency_leaderboard", None),
     "betting": ("betting_config", None),
     "music": ("music_config", None),
-    "palworld": ("palworld_config", None),
     "customs": ("customs_config", None),
     "loldle": ("loldle_config", None),
 }

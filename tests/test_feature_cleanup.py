@@ -1,4 +1,5 @@
-"""The queue, tribunal and suggestions features were removed (2026-11-22, ~3 uses in 90 days).
+"""The queue, tribunal and suggestions features were removed (2026-11-22, ~3 uses in 90 days),
+and Palworld with its game server (2026-11-25).
 
 These lock that nothing still loads, advertises or depends on them — and that `/reprimand`
 survives as a plain sanction even for a guild whose config still carries a jury role from
@@ -8,7 +9,7 @@ the tribunal era.
 import importlib.util
 from unittest.mock import AsyncMock, MagicMock
 
-REMOVED = ("queue", "suggestions", "tribunal")
+REMOVED = ("queue", "suggestions", "tribunal", "palworld")
 
 
 def test_removed_cogs_are_not_loaded():
@@ -21,7 +22,7 @@ def test_help_does_not_advertise_removed_features():
     from bot.cogs.help import embeds
     from bot.cogs.help.cog import FEATURE_TABLES
 
-    assert set(FEATURE_TABLES) == {"currency", "betting", "music", "palworld", "customs", "loldle"}
+    assert set(FEATURE_TABLES) == {"currency", "betting", "music", "customs", "loldle"}
     assert not [k for k, *_ in embeds.CONFIGURABLE if k in REMOVED]
 
 
@@ -35,7 +36,7 @@ def test_moderator_help_no_longer_mentions_trials():
 def test_setup_status_has_no_removed_rows():
     from bot.cogs.setup.cog import FEATURES
 
-    assert {name for name, *_ in FEATURES}.isdisjoint({"Queue", "Suggestions"})
+    assert {name for name, *_ in FEATURES}.isdisjoint({"Queue", "Suggestions", "Palworld"})
 
 
 def test_removed_packages_are_gone():

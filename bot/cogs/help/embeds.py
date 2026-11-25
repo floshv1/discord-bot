@@ -45,16 +45,6 @@ CONFIGURABLE = [
             "`/loldle` seul — revois ta partie et tes indices",
         ],
     ),
-    (
-        "palworld",
-        "🌴 Serveur Palworld",
-        [
-            "Le panneau épinglé ouvre le serveur : **n'importe qui** peut cliquer sur **Démarrer**, "
-            "il est prêt en une minute trente.",
-            "Il s'éteint tout seul quand plus personne n'est connecté — le temps ne passe plus dans "
-            "le monde, donc vos pals ne meurent pas de faim pendant la nuit.",
-        ],
-    ),
 ]
 
 # Features that work whether or not an admin has run a /setup. The first item is an
