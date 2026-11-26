@@ -18,7 +18,6 @@ COGS = [
     "bot.cogs.currency.cog",
     "bot.cogs.betting.cog",
     "bot.cogs.announce.cog",
-    "bot.cogs.palworld.cog",
     "bot.cogs.customs.cog",
     "bot.cogs.loldle.cog",
     "bot.cogs.setup.cog",

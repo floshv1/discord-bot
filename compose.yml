@@ -14,37 +14,21 @@ services:
       LAVALINK_PASSWORD: ${LAVALINK_PASSWORD:?set LAVALINK_PASSWORD in the stack env (openssl rand -hex 32)}
       # Presence only — the secret stays on the lavalink service, which does the resolving.
       SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID:-}
-      # Palworld panel. Komodo starts/stops the stack; the game's REST API says who is
-      # connected. Unset any of them and the feature degrades instead of breaking.
-      KOMODO_URL: ${KOMODO_URL:-}
-      KOMODO_API_KEY: ${KOMODO_API_KEY:-}
-      KOMODO_API_SECRET: ${KOMODO_API_SECRET:-}
-      PALWORLD_STACK: ${PALWORLD_STACK:-palworld}
-      PALWORLD_REST_URL: ${PALWORLD_REST_URL:-}
-      PALWORLD_ADMIN_PASSWORD: ${PALWORLD_ADMIN_PASSWORD:-}
-      PALWORLD_ADDRESS: ${PALWORLD_ADDRESS:-}
       # LoL customs: the lol-amis stack, reached over lolamis_net. Empty = feature off.
       LOLAMIS_URL: ${LOLAMIS_URL-http://lol-amis:8000}
       # LoLdle Activity. The password creates the restricted `loldle_activity` Postgres role at boot;
       # the internal URL is what /loldle probes (no colon: an *empty* value turns the Activity off).
       ACTIVITY_DB_PASSWORD: ${ACTIVITY_DB_PASSWORD:-}
       LOLDLE_ACTIVITY_INTERNAL_URL: ${LOLDLE_ACTIVITY_INTERNAL_URL-http://loldle-activity:8080}
-    # Komodo listens on the host, not on any of our networks.
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     networks:
       # `default` must be listed explicitly: naming any network here opts the service out
       # of the implicit one, and the bot would lose the database and Lavalink.
       #
-      # The priority is not decoration. It decides which gateway carries the *default
-      # route*, and palworld_net's gateway is covered by the PALWORLD-ISOLATION chain: if
-      # the bot left through 10.99.99.1, its own packets to Komodo would be dropped by the
-      # rules meant for the game. Docker would happen to pick `default` today (it breaks
-      # the tie alphabetically), which is not a thing to depend on.
+      # The priority decides which gateway carries the *default route*: `default`, never
+      # lolamis_net. Docker would happen to pick it today (alphabetical tie-break), which is
+      # not a thing to depend on.
       default:
         priority: 100
-      palworld:
-        priority: 10
       # Only to call lol-amis' API; never the default route.
       lolamis:
         priority: 10
@@ -137,15 +121,6 @@ volumes:
 
 networks:
   default:
-  # Cree par la stack palworld. Le bot y entre uniquement pour lire l'API REST du jeu sur
-  # http://palworld-server:8212 — port qui reste publie sur 127.0.0.1 seulement, donc
-  # aucun autre conteneur de la machine (dont DVWA et Juice Shop) ne peut l'atteindre.
-  # Contrepartie a connaitre : la chaine iptables PALWORLD-ISOLATION filtre sur
-  # -s 10.99.99.0/24 et voit donc aussi les paquets du bot ; palworld-isolation.sh a
-  # deux regles pour ca.
-  palworld:
-    name: palworld_net
-    external: true
   # Created by the lol-amis stack (team-generator/lol-amis/compose.yml), which must be deployed
   # first: an external network that does not exist stops this whole stack from starting.
   lolamis:

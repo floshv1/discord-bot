@@ -23,11 +23,6 @@ from bot.cogs.music import service as music_service
 from bot.cogs.music.cog import MusicCog
 from bot.cogs.music.embeds import build_history_embed, build_idle_embed
 from bot.cogs.music.views import NowPlayingView
-from bot.cogs.palworld import service as palworld_service
-from bot.cogs.palworld.cog import PalworldCog
-from bot.cogs.palworld.embeds import build_panel_embed as build_palworld_panel_embed
-from bot.cogs.palworld.service import ServerStatus, Status
-from bot.cogs.palworld.views import PalworldPanelView
 from bot.cogs.voice.cog import VoiceCog
 from bot.core.discord_utils import pin
 from bot.db.client import get_pool
@@ -88,7 +83,6 @@ FEATURES: list[tuple[str, str, list[str], str]] = [
     ("Birthdays", "birthday_config", ["upcoming_message_id", "month_message_id"], "/setup birthday"),
     ("Currency", "currency_leaderboard", ["message_id", "panel_message_id", "pnl_message_id"], "/setup currency"),
     ("Music", "music_config", ["now_playing_message_id", "history_message_id"], "/setup music"),
-    ("Palworld", "palworld_config", ["panel_message_id"], "/setup palworld"),
     ("Customs", "customs_config", [], "/setup customs"),
     ("LoLdle", "loldle_config", ["board_message_id"], "/setup loldle"),
     ("Betting", "betting_config", [], "/setup betting"),
@@ -486,41 +480,6 @@ class SetupCog(commands.Cog):
         await interaction.followup.send(
             f"✅ LoLdle prêt dans {channel.mention}. Récap à minuit, puis à 9h un rappel aux joueurs de la veille. "
             "Le premier récap partira à la prochaine minuit.",
-            ephemeral=True,
-        )
-
-    @setup.command(name="palworld", description="Poster le panneau d'ouverture du serveur Palworld dans un salon.")
-    @app_commands.describe(channel="Salon qui hébergera le panneau épinglé")
-    @app_commands.default_permissions(manage_guild=True)
-    async def setup_palworld(self, interaction: discord.Interaction, channel: discord.TextChannel) -> None:
-        await interaction.response.defer(ephemeral=True)
-
-        # Refusing here rather than posting a decorative panel: without the Komodo
-        # credentials every button would fail one click at a time, and the member would
-        # have no way to tell whether the server or the bot was broken.
-        cog: PalworldCog | None = self.bot.cogs.get("PalworldCog")  # type: ignore[assignment]
-        if cog is None or not cog.is_wired:
-            await interaction.followup.send(
-                "❌ Le bot n'a pas les identifiants Komodo (`KOMODO_URL`, `KOMODO_API_KEY`, "
-                "`KOMODO_API_SECRET`). Ajoute-les à l'environnement du bot et redéploie : "
-                "sans eux, les boutons ne piloteraient rien.",
-                ephemeral=True,
-            )
-            return
-
-        await _clear_previous(self.bot, interaction.guild_id, "palworld_config", ["panel_message_id"])
-
-        message = await channel.send(
-            embed=build_palworld_panel_embed(ServerStatus(Status.UNKNOWN), None),
-            view=PalworldPanelView(Status.UNKNOWN),
-        )
-        await pin(message)
-        await palworld_service.set_config(interaction.guild_id, channel.id, message.id)
-        await cog.refresh_cards(interaction.guild_id)
-
-        await interaction.followup.send(
-            f"✅ Panneau Palworld posté dans {channel.mention}. Tout le monde peut **démarrer** le serveur ; "
-            "seuls les admins peuvent l'**arrêter**, et il s'éteint tout seul quand plus personne n'est en ligne.",
             ephemeral=True,
         )
 
